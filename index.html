@@ -345,12 +345,16 @@ function dashboard(c){
         <div><h3 style="margin:0">Pivot Dashboard</h3>
           <div class="dashboard-note">Dữ liệu chi tiết theo giao dịch, cập nhật từ dữ liệu hóa đơn.</div>
         </div>
-        <select id="pivotPeriod" class="field" onchange="refreshPivotDashboard()">
-          <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
-          <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
-          <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
-          <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
-        </select>
+        <div class="dashboard-controls">
+          <select id="pivotPeriod" class="field" onchange="refreshPivotDashboard()">
+            <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
+            <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
+            <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
+            <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
+          </select>
+          <button class="btn btn-secondary" onclick="exportPivotExcel()">⬇ Xuất Excel</button>
+          <button class="btn btn-secondary" onclick="exportPivotXML()">⬇ Xuất XML</button>
+        </div>
       </div>
       <div class="table-wrap pivot-wrap">
         <table class="pivot-table"><thead><tr>
@@ -448,6 +452,65 @@ function refreshPivotDashboard(){
     '<td>'+esc(x.productCode||'')+'</td><td style="min-width:260px">'+esc(x.productName||'')+'</td>'+
     '<td>'+esc(x.customerCode||'')+'</td><td>'+esc(x.customerName||x.customer||'')+'</td>'+
     '<td style="text-align:right;font-weight:600">'+money(x.total||0)+' ₫</td></tr>').join('');
+}
+
+function pivotExportRows(){
+  const period=document.getElementById('pivotPeriod')?.value||'today';
+  return dashboardInvoices(period).map((x,i)=>({
+    "STT":i+1,
+    "Chi Nhánh":x.branch||'Chi nhánh chính',
+    "Thời gian":x.time||new Date(x.createdAt).toLocaleString('vi-VN'),
+    "Mã Hoá đơn":x.id||'',
+    "Hoá đơn Thu/Chi":x.type||'Thu',
+    "Mã sản phẩm":x.productCode||'',
+    "Tên sản phẩm":x.productName||'',
+    "Mã Khách hàng":x.customerCode||'',
+    "Tên Khách hàng":x.customerName||x.customer||'',
+    "Tổng tiền":Number(x.total||0)
+  }));
+}
+
+function downloadBlob(content,mime,fileName){
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=fileName;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function xmlEscape(value){
+  return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+
+function exportPivotExcel(){
+  const rows=pivotExportRows();
+  const headers=["STT","Chi Nhánh","Thời gian","Mã Hoá đơn","Hoá đơn Thu/Chi","Mã sản phẩm","Tên sản phẩm","Mã Khách hàng","Tên Khách hàng","Tổng tiền"];
+  // Excel can open an HTML table saved with the .xls extension.
+  const tableRows=[
+    '<tr>'+headers.map(h=>'<th>'+xmlEscape(h)+'</th>').join('')+'</tr>',
+    ...rows.map(r=>'<tr>'+headers.map(h=>'<td>'+xmlEscape(r[h])+'</td>').join('')+'</tr>')
+  ].join('');
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>table{border-collapse:collapse}th,td{border:1px solid #999;padding:6px}th{font-weight:bold;background:#eee}</style></head><body><table>'+tableRows+'</table></body></html>';
+  const period=document.getElementById('pivotPeriod')?.value||'today';
+  downloadBlob('\ufeff'+html,'application/vnd.ms-excel;charset=utf-8','pivot_'+period+'.xls');
+}
+
+function exportPivotXML(){
+  const rows=pivotExportRows();
+  const headers=["STT","Chi Nhánh","Thời gian","Mã Hoá đơn","Hoá đơn Thu/Chi","Mã sản phẩm","Tên sản phẩm","Mã Khách hàng","Tên Khách hàng","Tổng tiền"];
+  const rowXml=rows.map(r=>'<Row>'+headers.map(h=>{
+    const value=r[h];
+    const type=typeof value==='number'?'Number':'String';
+    return '<Cell><Data ss:Type="'+type+'">'+xmlEscape(value)+'</Data></Cell>';
+  }).join('')+'</Row>').join('');
+  const xml='<?xml version="1.0" encoding="UTF-8"?>'
+    +'<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
+    +'xmlns:o="urn:schemas-microsoft-com:office:office" '
+    +'xmlns:x="urn:schemas-microsoft-com:office:excel" '
+    +'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
+    +'<Worksheet ss:Name="Pivot"><Table><Row>'+headers.map(h=>'<Cell><Data ss:Type="String">'+xmlEscape(h)+'</Data></Cell>').join('')+'</Row>'+rowXml+'</Table></Worksheet></Workbook>';
+  const period=document.getElementById('pivotPeriod')?.value||'today';
+  downloadBlob('\ufeff'+xml,'application/xml;charset=utf-8','pivot_'+period+'.xml');
 }
 
 function changeDashboardPeriod(period){
