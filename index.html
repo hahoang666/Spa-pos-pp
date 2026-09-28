@@ -255,27 +255,72 @@ function dashboard(c){
     </div>
 
     <div class="kpis">
-      <div class="kpi">
-        Doanh thu
-        <div class="n" id="dashboardRevenue">0 ₫</div>
-      </div>
 
-      <div class="kpi">
-        Hóa đơn
-        <div class="n" id="dashboardInvoices">${state.invoices.length}</div>
-      </div>
+  <div class="kpi">
+    Doanh thu
+    <div class="n" id="dashboardRevenue">0 ₫</div>
+  </div>
 
-      <div class="kpi">
-        Sản phẩm
-        <div class="n">${state.products.length}</div>
-      </div>
+  <div class="kpi">
+    Hóa đơn
+    <div class="n" id="dashboardInvoices">${state.invoices.length}</div>
+  </div>
 
-      <div class="kpi">
-        Công nợ
-        <div class="n" id="dashboardDebt">0 ₫</div>
-      </div>
+  <div class="kpi">
+    Lượng khách hàng
+    <div class="n" id="dashboardCustomers">0 lượt</div>
+
+    <div style="
+      margin-top:12px;
+      display:flex;
+      justify-content:space-between;
+      font-size:14px;
+      color:#666;
+    ">
+      <span>Khách hàng cũ</span>
+      <b id="oldCustomers">0</b>
     </div>
 
+    <div style="
+      margin-top:6px;
+      display:flex;
+      justify-content:space-between;
+      font-size:14px;
+      color:#666;
+    ">
+      <span>Khách hàng mới</span>
+      <b id="newCustomers">0</b>
+    </div>
+  </div>
+
+  <div class="kpi">
+    Công nợ
+    <div class="n" id="dashboardDebt">0 ₫</div>
+
+    <div style="
+      margin-top:12px;
+      display:flex;
+      justify-content:space-between;
+      font-size:14px;
+      color:#666;
+    ">
+      <span>Tổng thu</span>
+      <b id="totalIncome">0 ₫</b>
+    </div>
+
+    <div style="
+      margin-top:6px;
+      display:flex;
+      justify-content:space-between;
+      font-size:14px;
+      color:#666;
+    ">
+      <span>Tổng chi</span>
+      <b id="totalExpense">0 ₫</b>
+    </div>
+  </div>
+
+</div>
     <div class="card report">
       <h3>Doanh thu theo thời gian</h3>
 
@@ -316,6 +361,11 @@ function changeDashboardPeriod(period){
 
   document.getElementById('dashboardRevenue').innerText='0 ₫';
   document.getElementById('dashboardDebt').innerText='0 ₫';
+  document.getElementById('dashboardCustomers').innerText='0 lượt';
+  document.getElementById('oldCustomers').innerText='0';
+  document.getElementById('newCustomers').innerText='0';
+  document.getElementById('totalIncome').innerText='0 ₫';
+  document.getElementById('totalExpense').innerText='0 ₫';
 
   console.log('Dashboard period:',labels[period]);
 }
