@@ -645,6 +645,8 @@ function openPrice(){openModal('Tạo bảng giá',`<div class="form-grid"><div>
 function openSupplier(){openModal('Thêm nhà cung cấp',`<div class="form-grid"><div><label>Mã nhà cung cấp</label><input class="field" value="NCC00001"></div><div><label>Tên nhà cung cấp</label><input class="field"></div><div><label>Điện thoại</label><input class="field"></div><div><label>Email</label><input class="field"></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
 function openGeneric(){openModal('Tạo chứng từ',`<div class="form-grid"><div><label>Mã chứng từ</label><input class="field" value="CT00001"></div><div><label>Ngày chứng từ</label><input class="field" type="date"></div><div class="full"><label>Đối tượng</label><select class="field"><option>Chọn đối tượng</option></select></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu nháp</button>`)}
 document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+state.section='Tổng quan';
+state.page='Tổng quan';
 renderAll();
 </script>
 </body>
