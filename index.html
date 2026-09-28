@@ -237,7 +237,87 @@ function reportPage(c){
  <div class="card report"><h3>Báo cáo thực hành</h3><p>Dữ liệu demo để bạn dùng cho bài tập Manual QA.</p><div style="margin-top:20px">Doanh thu theo nhân viên<div class="bar"><span style="width:72%"></span></div><div style="margin-top:12px">Số lượng đơn hoàn thành<div class="bar"><span style="width:55%"></span></div></div></div>`;
 }
 function dashboard(c){
- c.innerHTML=`<div class="page-title">Tổng quan</div><div class="kpis"><div class="kpi">Doanh thu hôm nay<div class="n">0 ₫</div></div><div class="kpi">Hóa đơn<div class="n">${state.invoices.length}</div></div><div class="kpi">Sản phẩm<div class="n">${state.products.length}</div></div><div class="kpi">Công nợ<div class="n">0 ₫</div></div></div><div class="card report"><h3>Luồng nghiệp vụ để thực hành QA</h3><p>Hàng hóa → Bảng giá → Hóa đơn → Thanh toán → Công nợ → Báo cáo.</p><p><b>Mục tiêu:</b> tìm bug, viết test case, kiểm tra validation, state transition và sau này gọi API/automation trên cùng một domain.</p></div>`;
+  c.innerHTML=`
+    <div class="page-title">Tổng quan</div>
+
+    <div class="toolbar">
+      <label style="margin:0;font-weight:600">Khoảng thời gian:</label>
+      <select id="dashboardPeriod"
+              class="field"
+              style="width:180px"
+              onchange="changeDashboardPeriod(this.value)">
+        <option value="today">Hôm nay</option>
+        <option value="yesterday">Hôm qua</option>
+        <option value="7days">7 ngày qua</option>
+        <option value="1month">1 tháng qua</option>
+        <option value="quarter">Doanh thu quý này</option>
+      </select>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi">
+        Doanh thu
+        <div class="n" id="dashboardRevenue">0 ₫</div>
+      </div>
+
+      <div class="kpi">
+        Hóa đơn
+        <div class="n" id="dashboardInvoices">${state.invoices.length}</div>
+      </div>
+
+      <div class="kpi">
+        Sản phẩm
+        <div class="n">${state.products.length}</div>
+      </div>
+
+      <div class="kpi">
+        Công nợ
+        <div class="n" id="dashboardDebt">0 ₫</div>
+      </div>
+    </div>
+
+    <div class="card report">
+      <h3>Doanh thu theo thời gian</h3>
+
+      <div style="
+        height:260px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        color:#8a8f98;
+        border:1px dashed #d9dde4;
+        border-radius:8px;
+        margin-top:15px;
+      ">
+        Chưa có dữ liệu doanh thu
+      </div>
+    </div>
+
+    <div class="card report" style="margin-top:15px">
+      <h3>Luồng nghiệp vụ để thực hành QA</h3>
+      <p>Hàng hóa → Bảng giá → Hóa đơn → Thanh toán → Công nợ → Báo cáo.</p>
+      <p>
+        <b>Mục tiêu:</b>
+        tìm bug, viết test case, kiểm tra validation,
+        state transition và sau này gọi API/automation trên cùng một domain.
+      </p>
+    </div>
+  `;
+}
+
+function changeDashboardPeriod(period){
+  const labels={
+    today:'Hôm nay',
+    yesterday:'Hôm qua',
+    '7days':'7 ngày qua',
+    '1month':'1 tháng qua',
+    quarter:'Doanh thu quý này'
+  };
+
+  document.getElementById('dashboardRevenue').innerText='0 ₫';
+  document.getElementById('dashboardDebt').innerText='0 ₫';
+
+  console.log('Dashboard period:',labels[period]);
 }
 
 function openModal(title,body,actions=''){
