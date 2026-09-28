@@ -111,7 +111,8 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .login-button:hover{filter:brightness(.97)}
 .login-divider{display:flex;align-items:center;gap:12px;margin:23px 0 18px;color:#98a2b3;font-size:13px}
 .login-divider:before,.login-divider:after{content:"";height:1px;background:#e5e7eb;flex:1}
-.login-security{text-align:center;color:#98a2b3;font-size:12px}\n.login-role{text-align:center;color:#667085;font-size:12px;margin-top:8px}
+.login-security{text-align:center;color:#98a2b3;font-size:12px}\n.account-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#667085}
+\n.login-role{text-align:center;color:#667085;font-size:12px;margin-top:8px}
 .admin-note{font-size:12px;color:#667085;margin-top:8px}
 .login-error{display:none;color:#c53b40;background:#fff1f1;border:1px solid #ffd4d4;border-radius:8px;padding:9px 11px;font-size:13px}
 .login-error.show{display:block}
@@ -140,6 +141,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
       </div>
       <div class="login-error" id="loginError">Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.</div>
       <div class="admin-note">Tài khoản quản trị mặc định: <strong>admin</strong></div>
+      <div class="admin-note">ID tài khoản là duy nhất và không được phép sửa sau khi tạo.</div>
       <div class="login-options">
         <label class="login-remember"><input type="checkbox" id="rememberLogin"> Ghi nhớ đăng nhập</label>
         <button type="button" class="login-link" onclick="forgotPassword()">Quên mật khẩu?</button>
