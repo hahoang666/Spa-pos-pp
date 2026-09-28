@@ -99,10 +99,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 const state={
   section:'Đơn hàng',
   page:'Hóa đơn',
-  invoices:[
-    {id:'HD00001',time:'08/09/2026 12:09',customer:'NGUYỄN THỊ HÀ',phone:'0353248048',amount:990000,discount:0,total:990000,paid:990000,status:'Hoàn thành'},
-    {id:'HD00002',time:'08/09/2026 11:20',customer:'Chú Úy',phone:'0989029998',amount:500000,discount:0,total:500000,paid:0,status:'Hoàn thành'}
-  ],
+  invoices:[],
   products:[
     {code:'SP000045',name:'Chăm sóc một vùng (Đầu/Cổ vai gáy/Lưng - Cột sống/Chân/Tay) - CTTNT8',type:'Gói dịch vụ, liệu trình',pre:90000,vat:10,price:99000,cost:0,stock:'---'},
     {code:'SP000044',name:'GIFT - Chăm sóc chuyên sâu vùng mặt, cột sống, siết eo',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'},
@@ -240,7 +237,7 @@ function reportPage(c){
  <div class="card report"><h3>Báo cáo thực hành</h3><p>Dữ liệu demo để bạn dùng cho bài tập Manual QA.</p><div style="margin-top:20px">Doanh thu theo nhân viên<div class="bar"><span style="width:72%"></span></div><div style="margin-top:12px">Số lượng đơn hoàn thành<div class="bar"><span style="width:55%"></span></div></div></div>`;
 }
 function dashboard(c){
- c.innerHTML=`<div class="page-title">Tổng quan</div><div class="kpis"><div class="kpi">Doanh thu hôm nay<div class="n">5.240.000 ₫</div></div><div class="kpi">Hóa đơn<div class="n">${state.invoices.length}</div></div><div class="kpi">Sản phẩm<div class="n">${state.products.length}</div></div><div class="kpi">Công nợ<div class="n">500.000 ₫</div></div></div><div class="card report"><h3>Luồng nghiệp vụ để thực hành QA</h3><p>Hàng hóa → Bảng giá → Hóa đơn → Thanh toán → Công nợ → Báo cáo.</p><p><b>Mục tiêu:</b> tìm bug, viết test case, kiểm tra validation, state transition và sau này gọi API/automation trên cùng một domain.</p></div>`;
+ c.innerHTML=`<div class="page-title">Tổng quan</div><div class="kpis"><div class="kpi">Doanh thu hôm nay<div class="n">0 ₫</div></div><div class="kpi">Hóa đơn<div class="n">${state.invoices.length}</div></div><div class="kpi">Sản phẩm<div class="n">${state.products.length}</div></div><div class="kpi">Công nợ<div class="n">0 ₫</div></div></div><div class="card report"><h3>Luồng nghiệp vụ để thực hành QA</h3><p>Hàng hóa → Bảng giá → Hóa đơn → Thanh toán → Công nợ → Báo cáo.</p><p><b>Mục tiêu:</b> tìm bug, viết test case, kiểm tra validation, state transition và sau này gọi API/automation trên cùng một domain.</p></div>`;
 }
 
 function openModal(title,body,actions=''){
