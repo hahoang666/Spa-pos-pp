@@ -215,6 +215,19 @@ const state={
     {id:'ADMIN001',name:'Quản trị viên',username:'admin',role:'Admin',status:'Hoạt động'}
   ]
 };
+const STORAGE_KEY='spa_pos_state_v1';
+function saveState(){
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){console.warn('Không thể lưu dữ liệu',e);}
+}
+function loadState(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
+    if(saved && typeof saved==='object'){
+      Object.keys(state).forEach(k=>{if(saved[k]!==undefined)state[k]=saved[k];});
+    }
+  }catch(e){console.warn('Không thể đọc dữ liệu',e);}
+}
+loadState();
 
 const menus={
   'Quản trị':['Quản lý tài khoản'],
@@ -242,15 +255,29 @@ function login(){
     error.textContent='Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.';
     error.classList.add('show');return;
   }
-  if(username!=='admin'||password!=='1111'){
+  const account=state.accounts.find(a=>a.username.toLowerCase()===username.toLowerCase() && a.password===password);
+  if(!account){
     error.textContent='Tên đăng nhập hoặc mật khẩu không đúng.';
     error.classList.add('show');return;
   }
+  if(account.status!=='Hoạt động'){
+    error.textContent='Tài khoản đã bị khóa. Vui lòng liên hệ Admin.';
+    error.classList.add('show');return;
+  }
   error.classList.remove('show');
-  if(document.getElementById('rememberLogin').checked)localStorage.setItem('spa_pos_username',username);
+  if(document.getElementById('rememberLogin').checked)localStorage.setItem('spa_pos_username',account.username);
   else localStorage.removeItem('spa_pos_username');
-  localStorage.setItem('spa_pos_role','admin');
+  localStorage.setItem('spa_pos_role',account.role);
+  localStorage.setItem('spa_pos_user_id',account.id);
+  localStorage.setItem('spa_pos_user_name',account.name);
   document.getElementById('loginScreen').style.display='none';
+  state.currentUser=account;
+  if(account.role==='Admin'){
+    state.section='Quản trị';state.page='Quản lý tài khoản';
+  }else{
+    state.section='Tổng quan';state.page='Tổng quan';
+  }
+  renderAll();
 }
 function initLogin(){
   const remembered=localStorage.getItem('spa_pos_username');
@@ -303,7 +330,7 @@ function renderSidebar(){
 function selectSection(s){state.section=s;state.page=menus[s][0];renderAll()}
 function selectPage(p){state.page=p;renderAll()}
 
-function renderAll(){renderNav();renderSidebar();renderPage()}
+function renderAll(){saveState();renderNav();renderSidebar();renderPage()}
 function renderPage(){
   const c=document.getElementById('content');
   if(state.page==='Hóa đơn') return invoicePage(c);
@@ -457,23 +484,23 @@ function openCreateAccount(){
 }
 
 function createAccount(){
-  const id=nextAutoCode('NV',4,'spa_next_employee_id',state.accounts,'id');
   const name=document.getElementById('accountName').value.trim();
   const username=document.getElementById('accountUsername').value.trim();
   const password=document.getElementById('accountPassword').value;
   const role=document.getElementById('accountRole').value;
-  if(!id||!name||!username||!password){alert('Vui lòng nhập đầy đủ thông tin bắt buộc.');return;}
-  if(state.accounts.some(a=>a.id.toUpperCase()===id)){alert('ID tài khoản đã tồn tại. Vui lòng sử dụng ID khác.');return;}
+  if(!name||!username||!password){alert('Vui lòng nhập đầy đủ thông tin bắt buộc.');return;}
   if(state.accounts.some(a=>a.username.toLowerCase()===username.toLowerCase())){alert('Tên đăng nhập đã tồn tại.');return;}
+  const id=nextAutoCode('NV',4,'spa_next_employee_id',state.accounts,'id');
   state.accounts.push({id,name,username,password,role,status:'Hoạt động'});
+  saveState();
   closeModal();
   adminAccountPage(document.getElementById('content'));
 }
-
 function toggleAccountStatus(id){
   const account=state.accounts.find(a=>a.id===id);
   if(!account || account.role==='Admin') return;
   account.status=account.status==='Hoạt động'?'Đã khóa':'Hoạt động';
+  saveState();
   adminAccountPage(document.getElementById('content'));
 }
 
