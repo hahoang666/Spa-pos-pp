@@ -443,7 +443,7 @@ function adminAccountPage(c){
 function openCreateAccount(){
   openModal('Tạo tài khoản',`
     <div class="form-grid">
-      <div><label>ID tài khoản <span style="color:#d92d20">*</span></label><input id="accountId" class="field" placeholder="Ví dụ: NV00001"></div>
+      <div><label>ID nhân viên</label><input id="accountId" class="field" value="${peekAutoCode('NV',4,'spa_next_employee_id',state.accounts,'id')}" readonly style="background:#f5f7f6;color:#667085"><div style="font-size:11px;color:#667085;margin-top:4px">Hệ thống tự sinh và không cho phép nhập/sửa.</div></div>
       <div><label>Họ và tên <span style="color:#d92d20">*</span></label><input id="accountName" class="field" placeholder="Nhập họ và tên"></div>
       <div><label>Tên đăng nhập <span style="color:#d92d20">*</span></label><input id="accountUsername" class="field" placeholder="Nhập tên đăng nhập"></div>
       <div><label>Mật khẩu <span style="color:#d92d20">*</span></label><input id="accountPassword" class="field" type="password" placeholder="Nhập mật khẩu"></div>
@@ -457,13 +457,12 @@ function openCreateAccount(){
 }
 
 function createAccount(){
-  const id=document.getElementById('accountId').value.trim().toUpperCase();
+  const id=nextAutoCode('NV',4,'spa_next_employee_id',state.accounts,'id');
   const name=document.getElementById('accountName').value.trim();
   const username=document.getElementById('accountUsername').value.trim();
   const password=document.getElementById('accountPassword').value;
   const role=document.getElementById('accountRole').value;
   if(!id||!name||!username||!password){alert('Vui lòng nhập đầy đủ thông tin bắt buộc.');return;}
-  if(!/^[A-Z0-9_-]+$/.test(id)){alert('ID chỉ được gồm chữ cái, số, _ hoặc -.');return;}
   if(state.accounts.some(a=>a.id.toUpperCase()===id)){alert('ID tài khoản đã tồn tại. Vui lòng sử dụng ID khác.');return;}
   if(state.accounts.some(a=>a.username.toLowerCase()===username.toLowerCase())){alert('Tên đăng nhập đã tồn tại.');return;}
   state.accounts.push({id,name,username,password,role,status:'Hoạt động'});
