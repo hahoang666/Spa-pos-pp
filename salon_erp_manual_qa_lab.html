@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salon ERP Practice Lab</title>
+<style>
+:root{
+  --blue:#0878e8;--blue2:#0b6fe8;--bg:#f5f6fa;--text:#252525;--muted:#8a8f98;
+  --border:#e4e7ec;--white:#fff;--danger:#e5484d;--success:#16a34a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+button,input,select{font:inherit}
+.topbar{height:58px;background:linear-gradient(90deg,#0875e5,#0870df);color:white;display:flex;align-items:center;padding:0 18px;gap:22px;position:sticky;top:0;z-index:10}
+.logo{font-size:20px;font-weight:700;min-width:130px}
+.nav{display:flex;gap:4px;height:100%;align-items:center}
+.nav button{height:100%;border:0;background:transparent;color:white;padding:0 14px;cursor:pointer;font-weight:600}
+.nav button.active,.nav button:hover{background:rgba(255,255,255,.12);border-bottom:3px solid white}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.top-actions button{border:0;border-radius:9px;background:white;color:#1268c9;padding:9px 13px;font-weight:600;cursor:pointer}
+.iconbtn{width:36px;height:36px;border-radius:50%!important;padding:0!important}
+.layout{display:flex;min-height:calc(100vh - 58px)}
+.sidebar{width:250px;background:white;border-right:1px solid var(--border);padding:18px 14px;flex-shrink:0}
+.content{flex:1;padding:18px 14px;min-width:0}
+.page-title{font-size:22px;font-weight:700;margin:0 0 12px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.search{background:white;border:1px solid var(--border);border-radius:9px;padding:10px 12px;width:310px;outline:none}
+.btn{border:0;border-radius:8px;padding:10px 14px;cursor:pointer;font-weight:600}
+.btn-primary{background:var(--blue);color:white}.btn-secondary{background:white;border:1px solid var(--border)}
+.btn-danger{background:#fff0f0;color:var(--danger);border:1px solid #ffd0d0}
+.card{background:white;border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.02)}
+.table-wrap{overflow:auto}
+table{border-collapse:collapse;width:100%;background:white}
+th,td{padding:13px 12px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}
+th{font-weight:600;background:#fff;color:#444}
+tr:hover td{background:#fafcff}
+.empty{text-align:center;padding:90px 20px;color:#777}
+.empty .circle{width:56px;height:56px;border-radius:50%;background:#eef6ff;color:#1877df;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:24px}
+.filter-title{font-weight:700;margin:4px 0 9px}
+.filter-group{margin-bottom:18px}
+.field{width:100%;border:1px solid #d9dde4;border-radius:8px;background:white;padding:10px 11px;outline:none}
+.field:focus{border-color:#5ca4ef;box-shadow:0 0 0 3px rgba(8,120,232,.08)}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{background:#eef7ff;color:#3d7daf;border-radius:5px;padding:5px 8px;font-size:12px}
+.section-link{display:block;padding:11px 10px;border-radius:7px;color:#333;text-decoration:none;cursor:pointer}
+.section-link:hover,.section-link.active{background:#eef5ff;color:#0875e5}
+.subhead{font-size:12px;color:#a0a4aa;font-weight:700;margin:17px 10px 7px;text-transform:uppercase}
+.columns-panel{position:absolute;right:14px;top:76px;background:white;border:1px solid var(--border);border-radius:10px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.12);display:none;width:330px;z-index:20}
+.columns-panel.show{display:block}
+.columns-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.check{display:flex;align-items:center;gap:8px;font-weight:400}
+.check input{accent-color:#0878e8}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:30}
+.modal{width:min(850px,92vw);max-height:88vh;overflow:auto;background:white;border-radius:12px;padding:20px;box-shadow:0 15px 50px rgba(0,0,0,.2)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
+.modal-head h2{margin:0;font-size:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid .full{grid-column:1/-1}
+.items{width:100%;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:12px}
+.items th,.items td{padding:9px}
+.summary{display:flex;justify-content:flex-end;margin-top:15px}
+.summary-box{width:320px}
+.summary-row{display:flex;justify-content:space-between;padding:6px 0}
+.summary-row.total{font-size:18px;font-weight:700;border-top:1px solid var(--border);padding-top:10px}
+.report{padding:18px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:15px}
+.kpi{background:white;border:1px solid var(--border);border-radius:10px;padding:16px}
+.kpi .n{font-size:22px;font-weight:700;margin-top:7px}
+.bar{height:13px;background:#e9edf3;border-radius:20px;overflow:hidden;margin-top:8px}
+.bar span{display:block;height:100%;background:#1e88e5}
+@media(max-width:900px){.nav button{padding:0 7px}.sidebar{width:205px}.kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.topbar{overflow:auto}.sidebar{display:none}.content{padding:10px}.form-grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">Salon ERP Lab</div>
+  <div class="nav" id="nav"></div>
+  <div class="top-actions">
+    <button onclick="openInvoice()">🛒 Thu ngân</button>
+    <button class="iconbtn" title="Thông báo">🔔</button>
+    <button class="iconbtn" title="Trợ giúp">?</button>
+    <button class="iconbtn" title="Cài đặt">⚙</button>
+  </div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="content" id="content"></main>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const state={
+  section:'Đơn hàng',
+  page:'Hóa đơn',
+  invoices:[
+    {id:'HD00001',time:'08/09/2026 12:09',customer:'NGUYỄN THỊ HÀ',phone:'0353248048',amount:990000,discount:0,total:990000,paid:990000,status:'Hoàn thành'},
+    {id:'HD00002',time:'08/09/2026 11:20',customer:'Chú Úy',phone:'0989029998',amount:500000,discount:0,total:500000,paid:0,status:'Hoàn thành'}
+  ],
+  products:[
+    {code:'SP000045',name:'Chăm sóc một vùng (Đầu/Cổ vai gáy/Lưng - Cột sống/Chân/Tay) - CTTNT8',type:'Gói dịch vụ, liệu trình',pre:90000,vat:10,price:99000,cost:0,stock:'---'},
+    {code:'SP000044',name:'GIFT - Chăm sóc chuyên sâu vùng mặt, cột sống, siết eo',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'},
+    {code:'SP000043',name:'GIFT - Chăm sóc chuyên sâu vùng mặt, kéo dãn cột sống',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'},
+    {code:'SP000042',name:'GIFT - Chăm sóc chuyên sâu vùng mặt',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'},
+    {code:'GDV033',name:'Gói - Thư giãn toàn thân (Buổi - 11B)',type:'Gói dịch vụ, liệu trình',pre:5909091,vat:10,price:6500000,cost:0,stock:'---'},
+    {code:'GDV031',name:'Gói - Thư giãn toàn thân (Buổi - TC)',type:'Gói dịch vụ, liệu trình',pre:454545,vat:10,price:500000,cost:0,stock:'---'},
+    {code:'GDV032',name:'Gói - Thư giãn toàn thân (Buổi - 4B)',type:'Gói dịch vụ, liệu trình',pre:1818182,vat:10,price:2000000,cost:0,stock:'---'},
+    {code:'DV0020',name:'Lẻ - Thư giãn toàn thân (Buổi - TN)',type:'Dịch vụ',pre:227273,vat:10,price:250000,cost:0,stock:'---'},
+    {code:'DV0019',name:'Lẻ - Thư giãn toàn thân (Buổi)',type:'Dịch vụ',pre:454545,vat:10,price:500000,cost:0,stock:'---'},
+    {code:'GDV018',name:'Gói - Chăm sóc chuyên sâu một vùng (Đầu/Cổ vai gáy/Lưng - Cột sống/Chân/Tay) (Buổi - 11B)',type:'Gói dịch vụ, liệu trình',pre:4545455,vat:10,price:5000000,cost:0,stock:'---'}
+  ],
+  suppliers:[],
+  returns:[],
+  imports:[],
+  transfers:[],
+  damages:[],
+  stocktakes:[]
+};
+
+const menus={
+  'Tổng quan':['Tổng quan'],
+  'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Nhập hàng','Trả hàng nhập'],
+  'Đơn hàng':['Hóa đơn','Trả hàng'],
+  'Khách hàng':['Khách hàng'],
+  'Sổ quỹ':['Phiếu thu','Phiếu chi'],
+  'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
+  'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
+};
+
+function money(n){return new Intl.NumberFormat('vi-VN').format(n||0)}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+
+function renderNav(){
+  document.getElementById('nav').innerHTML=Object.keys(menus).map(x=>`<button class="${state.section===x?'active':''}" onclick="selectSection('${x}')">${x}</button>`).join('');
+}
+function renderSidebar(){
+  const list=menus[state.section]||[];
+  document.getElementById('sidebar').innerHTML=list.map((x,i)=>{
+    if(i===0 && state.section!=='Đơn hàng' && state.section!=='Hàng hóa') return `<div class="section-link ${state.page===x?'active':''}" onclick="selectPage('${x}')">${x}</div>`;
+    return `<div class="section-link ${state.page===x?'active':''}" onclick="selectPage('${x}')">${x}</div>`;
+  }).join('');
+}
+function selectSection(s){state.section=s;state.page=menus[s][0];renderAll()}
+function selectPage(p){state.page=p;renderAll()}
+
+function renderAll(){renderNav();renderSidebar();renderPage()}
+function renderPage(){
+  const c=document.getElementById('content');
+  if(state.page==='Hóa đơn') return invoicePage(c);
+  if(state.page==='Danh sách hàng hóa') return productPage(c);
+  if(state.page==='Thiết lập giá') return pricePage(c);
+  if(state.page==='Nhà cung cấp') return supplierPage(c);
+  if(state.page==='Nhập hàng') return genericPage(c,'Nhập hàng','Mã nhập hàng','Nhà cung cấp');
+  if(state.page==='Trả hàng nhập') return genericPage(c,'Trả hàng nhập','Mã trả hàng nhập','Nhà cung cấp');
+  if(state.page==='Xuất hủy') return genericPage(c,'Xuất hủy','Mã xuất hủy','Chi nhánh');
+  if(state.page==='Chuyển hàng') return genericPage(c,'Chuyển hàng','Mã chuyển hàng','Chi nhánh chuyển');
+  if(state.page==='Kiểm kho') return genericPage(c,'Phiếu kiểm kho','Mã kiểm kho','Ngày cân bằng');
+  if(state.page==='Trả hàng') return genericPage(c,'Trả hàng','Mã trả hàng','Khách hàng');
+  if(state.page.startsWith('Báo cáo')) return reportPage(c);
+  if(state.page==='Tổng quan') return dashboard(c);
+  return genericPage(c,state.page,'Mã chứng từ','Đối tượng');
+}
+
+function header(title,buttonText,action){
+ return `<div class="page-title">${title}</div>
+ <div class="toolbar">
+  <input class="search" placeholder="🔍  Tìm theo mã, tên, điện thoại..." oninput="filterRows(this.value)">
+  <div style="margin-left:auto"></div>
+  ${buttonText?`<button class="btn btn-primary" onclick="${action}">＋ ${buttonText}</button>`:''}
+  <button class="btn btn-secondary" onclick="toggleColumns()">☷</button>
+ </div>
+ <div class="columns-panel" id="columnsPanel">
+   <div style="font-weight:700;margin-bottom:12px">Tùy chọn cột hiển thị</div>
+   <div class="columns-grid">${['Mã','Thời gian','Khách hàng','Số điện thoại','Tổng tiền hàng','Giảm giá','Tổng sau giảm giá','VAT','Khách cần trả','Khách đã trả','Trạng thái','Ghi chú'].map((x,i)=>`<label class="check"><input type="checkbox" ${[0,1,2,3,4,6,8,9,10].includes(i)?'checked':''}>${x}</label>`).join('')}</div>
+ </div>`;
+}
+function toggleColumns(){document.getElementById('columnsPanel')?.classList.toggle('show')}
+function filterRows(v){
+ document.querySelectorAll('tbody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(v.toLowerCase())?'':'none')
+}
+
+function invoicePage(c){
+ c.innerHTML=header('Hóa đơn','Hóa đơn','openInvoice')+`
+ <div style="display:flex;gap:14px">
+  <div class="card" style="width:245px;padding:16px;flex-shrink:0">
+   <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field"><option>Hôm nay</option><option>Tháng này</option><option>Toàn thời gian</option></select></div>
+   <div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field"><option>Hoàn thành</option><option>Đang xử lý</option><option>Đã hủy</option></select></div>
+   <div class="filter-group"><div class="filter-title">Trạng thái HĐĐT</div><select class="field"><option>Chọn trạng thái phát hành</option></select></div>
+   <div class="filter-group"><div class="filter-title">Còn nợ</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div>
+   <div class="filter-group"><div class="filter-title">Nhân viên thực hiện</div><select class="field"><option>Chọn nhân viên thực hiện</option><option>Lan</option><option>Hà</option></select></div>
+   <div class="filter-group"><div class="filter-title">Nhân viên tư vấn</div><select class="field"><option>Chọn nhân viên tư vấn</option></select></div>
+   <div class="filter-group"><div class="filter-title">Kênh bán</div><select class="field"><option>Chọn kênh bán</option></select></div>
+   <div class="filter-group"><div class="filter-title">Phương thức</div><select class="field"><option>Chọn phương thức</option><option>Tiền mặt</option><option>Chuyển khoản</option></select></div>
+  </div>
+  <div class="card table-wrap" style="flex:1">
+   <table><thead><tr><th>☐</th><th>Mã hóa đơn</th><th>Thời gian</th><th>Khách hàng</th><th>Số điện thoại</th><th>Tổng tiền hàng</th><th>Tổng sau giảm giá</th><th>Khách cần trả</th><th>Khách đã trả</th><th>Trạng thái</th></tr></thead>
+   <tbody>${state.invoices.map(x=>`<tr><td>☐</td><td><b>${x.id}</b></td><td>${x.time}</td><td>${esc(x.customer)}</td><td>${x.phone}</td><td>${money(x.amount)}</td><td>${money(x.total)}</td><td>${money(x.total)}</td><td>${money(x.paid)}</td><td><span class="chip">${x.status}</span></td></tr>`).join('')}</tbody></table>
+  </div>
+ </div>`;
+}
+
+function productPage(c){
+ c.innerHTML=header('Hàng hóa','Hàng hóa','openProduct')+`
+ <div style="display:flex;gap:14px">
+  <div class="card" style="width:245px;padding:16px;flex-shrink:0">
+   ${['Loại hàng','Nhóm hàng','VAT (%)','Tồn kho','Thương hiệu','Thuộc tính','Trạng thái'].map((x,i)=>`<div class="filter-group"><div class="filter-title">${x}</div><select class="field"><option>${i===1?'Tất cả':i===6?'Đang kinh doanh':'Chọn '+x.toLowerCase()}</option></select></div>`).join('')}
+  </div>
+  <div class="card table-wrap" style="flex:1">
+   <table><thead><tr><th>☐</th><th>Mã hàng hóa</th><th>Tên hàng</th><th>Loại hàng</th><th>Giá bán trước thuế</th><th>VAT (%)</th><th>Giá bán sau thuế</th><th>Giá vốn</th><th>Tồn kho</th></tr></thead>
+   <tbody>${state.products.map(x=>`<tr><td>☐</td><td>${x.code}</td><td style="min-width:300px">${esc(x.name)}</td><td><span class="chip">${x.type}</span></td><td>${money(x.pre)}</td><td>${x.vat}%</td><td>${money(x.price)}</td><td>${money(x.cost)}</td><td>${x.stock}</td></tr>`).join('')}</tbody></table>
+  </div>
+ </div>`;
+}
+function pricePage(c){
+ c.innerHTML=header('Thiết lập giá','Bảng giá','openPrice')+`
+ <div class="card" style="padding:14px;margin-bottom:12px"><div style="display:flex;gap:10px"><select class="field" style="max-width:220px"><option>Bảng giá chung</option></select><select class="field" style="max-width:220px"><option>Tất cả</option></select></div></div>
+ <div class="card table-wrap"><table><thead><tr><th>Mã hàng hóa</th><th>Tên hàng</th><th>Giá vốn</th><th>Giá nhập cuối</th><th>Bảng giá chung</th></tr></thead><tbody>${state.products.map(x=>`<tr><td>${x.code}</td><td>${esc(x.name)}</td><td>${money(x.cost)}</td><td>0</td><td><input class="field" value="${money(x.price)}" style="width:150px;text-align:right" onchange="this.value=this.value.replace(/[^0-9]/g,'')"></td></tr>`).join('')}</tbody></table></div>`;
+}
+function supplierPage(c){
+ c.innerHTML=header('Nhà cung cấp','Nhà cung cấp','openSupplier')+`
+ <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px"><div class="filter-group"><div class="filter-title">Nhóm nhà cung cấp</div><select class="field"><option>Tất cả các nhóm</option></select></div><div class="filter-group"><div class="filter-title">Tổng mua</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Nợ hiện tại</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field"><option>Đang hoạt động</option></select></div></div>
+ <div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>Mã nhà cung cấp</th><th>Tên nhà cung cấp</th><th>Điện thoại</th><th>Email</th><th>Nợ hiện tại</th><th>Tổng mua</th></tr></thead><tbody>${state.suppliers.length?state.suppliers.map(x=>`<tr><td>☐</td><td>${x.code}</td><td>${esc(x.name)}</td><td>${x.phone}</td><td>${x.email}</td><td>${money(x.debt)}</td><td>${money(x.buy)}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty"><div class="circle">♙</div>Chưa có nhà cung cấp</div></td></tr>`}</tbody></table></div></div>`;
+}
+function genericPage(c,title,col1,col2){
+ c.innerHTML=header(title, title==='Nhập hàng'?'Nhập hàng':title==='Xuất hủy'?'Tạo phiếu':title==='Chuyển hàng'?'Chuyển hàng':title==='Kiểm kho'?'Kiểm kho':title,'openGeneric')+`
+ <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px">
+  <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field"><option>Tháng này</option><option>Hôm nay</option></select></div>
+  <div class="filter-group"><div class="filter-title">Trạng thái</div><div class="chips"><span class="chip">Phiếu tạm ×</span><span class="chip">Đã hoàn thành ×</span><span class="chip">Đã hủy ×</span></div></div>
+  <div class="filter-group"><div class="filter-title">${col2}</div><select class="field"><option>Chọn ${col2.toLowerCase()}</option></select></div>
+ </div><div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>${col1}</th><th>Thời gian</th><th>${col2}</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead><tbody><tr><td colspan="6"><div class="empty"><div class="circle">▣</div>Chưa có dữ liệu</div></td></tr></tbody></table></div></div>`;
+}
+function reportPage(c){
+ c.innerHTML=`<div class="page-title">${state.page}</div><div class="kpis"><div class="kpi">Doanh thu<div class="n">12.500.000 ₫</div></div><div class="kpi">Số hóa đơn<div class="n">24</div></div><div class="kpi">Khách hàng<div class="n">18</div></div><div class="kpi">Giá trị TB/HĐ<div class="n">520.833 ₫</div></div></div>
+ <div class="card report"><h3>Báo cáo thực hành</h3><p>Dữ liệu demo để bạn dùng cho bài tập Manual QA.</p><div style="margin-top:20px">Doanh thu theo nhân viên<div class="bar"><span style="width:72%"></span></div><div style="margin-top:12px">Số lượng đơn hoàn thành<div class="bar"><span style="width:55%"></span></div></div></div>`;
+}
+function dashboard(c){
+ c.innerHTML=`<div class="page-title">Tổng quan</div><div class="kpis"><div class="kpi">Doanh thu hôm nay<div class="n">5.240.000 ₫</div></div><div class="kpi">Hóa đơn<div class="n">${state.invoices.length}</div></div><div class="kpi">Sản phẩm<div class="n">${state.products.length}</div></div><div class="kpi">Công nợ<div class="n">500.000 ₫</div></div></div><div class="card report"><h3>Luồng nghiệp vụ để thực hành QA</h3><p>Hàng hóa → Bảng giá → Hóa đơn → Thanh toán → Công nợ → Báo cáo.</p><p><b>Mục tiêu:</b> tìm bug, viết test case, kiểm tra validation, state transition và sau này gọi API/automation trên cùng một domain.</p></div>`;
+}
+
+function openModal(title,body,actions=''){
+ document.getElementById('modal').innerHTML=`<div class="modal-head"><h2>${title}</h2><button class="btn btn-secondary" onclick="closeModal()">✕</button></div>${body}<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">${actions}</div>`;
+ document.getElementById('modalBg').style.display='flex';
+}
+function closeModal(){document.getElementById('modalBg').style.display='none'}
+function openInvoice(){
+ openModal('Tạo hóa đơn',`
+ <div class="form-grid">
+  <div><label>Khách hàng</label><select class="field"><option>Khách lẻ</option><option>NGUYỄN THỊ HÀ</option><option>Chú Úy</option></select></div>
+  <div><label>Nhân viên tư vấn</label><select class="field"><option>Chọn nhân viên</option><option>Lan</option></select></div>
+  <div><label>Kênh bán</label><select class="field"><option>Trực tiếp</option><option>Facebook</option><option>Zalo</option></select></div>
+  <div><label>Phương thức</label><select class="field" id="pay"><option>Tiền mặt</option><option>Chuyển khoản</option><option>Chưa thanh toán</option></select></div>
+  <div class="full"><label>Sản phẩm / dịch vụ</label><select class="field" id="productSelect">${state.products.map((p,i)=>`<option value="${i}">${p.code} - ${esc(p.name)} - ${money(p.price)} ₫</option>`).join('')}</select></div>
+  <div><label>Số lượng</label><input id="qty" class="field" type="number" value="1" min="1" max="9999"></div>
+  <div><label>Đơn giá</label><input id="rate" class="field" type="number" value="${state.products[0].price}" min="0" step="0.01"></div>
+  <div><label>Giảm giá</label><input id="discount" class="field" type="number" value="0" min="0"></div>
+  <div><label>VAT (%)</label><input id="vat" class="field" type="number" value="10" min="0" max="100"></div>
+ </div>
+ <div class="summary"><div class="summary-box"><div class="summary-row"><span>Thành tiền</span><b id="sum">99.000 ₫</b></div><div class="summary-row"><span>VAT</span><b id="tax">9.000 ₫</b></div><div class="summary-row total"><span>Tổng thanh toán</span><b id="grand">108.000 ₫</b></div></div></div>`,
+ `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveInvoice()">Lưu hóa đơn</button>`);
+ ['qty','rate','discount','vat','productSelect'].forEach(id=>document.getElementById(id).addEventListener('input',calcInvoice));
+ calcInvoice();
+}
+function calcInvoice(){
+ const q=Number(document.getElementById('qty').value)||0,r=Number(document.getElementById('rate').value)||0,d=Number(document.getElementById('discount').value)||0,v=Number(document.getElementById('vat').value)||0;
+ const amount=q*r;const taxable=Math.max(0,amount-d);const tax=taxable*v/100;const grand=taxable+tax;
+ document.getElementById('sum').innerText=money(amount)+' ₫';document.getElementById('tax').innerText=money(tax)+' ₫';document.getElementById('grand').innerText=money(grand)+' ₫';
+}
+function saveInvoice(){
+ const q=Number(document.getElementById('qty').value),r=Number(document.getElementById('rate').value),d=Number(document.getElementById('discount').value),v=Number(document.getElementById('vat').value);
+ if(!Number.isInteger(q)||q<1||q>9999)return alert('BUG LAB: Quantity phải là số nguyên từ 1 đến 9999.');
+ if(r<=0)return alert('BUG LAB: Rate phải > 0 trong phiên bản bài tập này.');
+ const amount=q*r,total=Math.max(0,amount-d)*(1+v/100),pay=document.getElementById('pay').value;
+ state.invoices.unshift({id:'HD'+String(state.invoices.length+1).padStart(5,'0'),time:new Date().toLocaleString('vi-VN'),customer:'Khách lẻ',phone:'',amount,discount:d,total,paid:pay==='Chưa thanh toán'?0:total,status:'Hoàn thành'});
+ closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn demo. Hãy dùng chức năng này để thực hành test.');
+}
+function openProduct(){openModal('Thêm hàng hóa',`<div class="form-grid"><div><label>Mã hàng hóa</label><input class="field" value="SP000046"></div><div><label>Loại hàng</label><select class="field"><option>Dịch vụ</option><option>Gói dịch vụ, liệu trình</option></select></div><div class="full"><label>Tên hàng hóa</label><input class="field" value=""></div><div><label>Giá bán trước thuế</label><input class="field" type="number" value="0"></div><div><label>VAT (%)</label><input class="field" type="number" value="10"></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="alert('Demo: lưu hàng hóa');closeModal()">Lưu</button>`)}
+function openPrice(){openModal('Tạo bảng giá',`<div class="form-grid"><div><label>Tên bảng giá</label><input class="field" value="Bảng giá mới"></div><div><label>Trạng thái</label><select class="field"><option>Đang áp dụng</option></select></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
+function openSupplier(){openModal('Thêm nhà cung cấp',`<div class="form-grid"><div><label>Mã nhà cung cấp</label><input class="field" value="NCC00001"></div><div><label>Tên nhà cung cấp</label><input class="field"></div><div><label>Điện thoại</label><input class="field"></div><div><label>Email</label><input class="field"></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
+function openGeneric(){openModal('Tạo chứng từ',`<div class="form-grid"><div><label>Mã chứng từ</label><input class="field" value="CT00001"></div><div><label>Ngày chứng từ</label><input class="field" type="date"></div><div class="full"><label>Đối tượng</label><select class="field"><option>Chọn đối tượng</option></select></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu nháp</button>`)}
+document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+renderAll();
+</script>
+</body>
+</html>
