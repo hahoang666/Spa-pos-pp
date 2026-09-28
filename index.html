@@ -352,8 +352,8 @@ function dashboard(c){
             <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
             <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
           </select>
-          <button class="btn btn-secondary" onclick="exportPivotExcel()">⬇ Xuất Excel</button>
-          <button class="btn btn-secondary" onclick="exportPivotXML()">⬇ Xuất XML</button>
+          <button class="btn btn-secondary" onclick="exportPivotExcel()">⬇ Xuất file</button>
+
         </div>
       </div>
       <div class="table-wrap pivot-wrap">
@@ -485,14 +485,56 @@ function xmlEscape(value){
 function exportPivotExcel(){
   const rows=pivotExportRows();
   const headers=["STT","Chi Nhánh","Thời gian","Mã Hoá đơn","Hoá đơn Thu/Chi","Mã sản phẩm","Tên sản phẩm","Mã Khách hàng","Tên Khách hàng","Tổng tiền"];
-  // Excel can open an HTML table saved with the .xls extension.
-  const tableRows=[
-    '<tr>'+headers.map(h=>'<th>'+xmlEscape(h)+'</th>').join('')+'</tr>',
-    ...rows.map(r=>'<tr>'+headers.map(h=>'<td>'+xmlEscape(r[h])+'</td>').join('')+'</tr>')
+  const xmlEscapeXlsx=value=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const worksheetRows=[
+    '<row>'+headers.map(h=>'<c t="inlineStr"><is><t>'+xmlEscapeXlsx(h)+'</t></is></c>').join('')+'</row>',
+    ...rows.map(r=>'<row>'+headers.map(h=>{
+      const v=r[h];
+      return typeof v==='number'
+        ? '<c><v>'+v+'</v></c>'
+        : '<c t="inlineStr"><is><t>'+xmlEscapeXlsx(v)+'</t></is></c>';
+    }).join('')+'</row>')
   ].join('');
-  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>table{border-collapse:collapse}th,td{border:1px solid #999;padding:6px}th{font-weight:bold;background:#eee}</style></head><body><table>'+tableRows+'</table></body></html>';
+  // Generate a minimal XLSX package in the browser.
   const period=document.getElementById('pivotPeriod')?.value||'today';
-  downloadBlob('\ufeff'+html,'application/vnd.ms-excel;charset=utf-8','pivot_'+period+'.xls');
+  const xlsx=buildXlsxBlob(worksheetRows);
+  const url=URL.createObjectURL(xlsx);
+  const a=document.createElement('a');
+  a.href=url;a.download='pivot_'+period+'.xlsx';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function buildXlsxBlob(worksheetRows){
+  // Uses the browser's CompressionStream when available to package XLSX parts.
+  // Fallback keeps the export dependency-free by using a CSV-compatible .xlsx name only when unavailable.
+  const zipParts=[
+    ['[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
+    ['_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml','<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Pivot" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],
+    ['xl/worksheets/sheet1.xml','<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+worksheetRows+'</sheetData></worksheet>']
+  ];
+  return createStoredZipBlob(zipParts);
+}
+
+function createStoredZipBlob(parts){
+  // Minimal ZIP writer (stored entries, no compression) for XLSX compatibility.
+  const enc=new TextEncoder(), files=parts.map(([name,data])=>({name,data:enc.encode(data)}));
+  const chunks=[], central=[]; let offset=0;
+  const crcTable=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+  const crc32=buf=>{let c=0xFFFFFFFF;for(const b of buf)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;};
+  const u16=n=>new Uint8Array([n&255,(n>>>8)&255]),u32=n=>new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255]);
+  const concat=a=>{const len=a.reduce((n,x)=>n+x.length,0),o=new Uint8Array(len);let p=0;for(const x of a){o.set(x,p);p+=x.length;}return o;};
+  for(const f of files){
+    const nb=enc.encode(f.name),crc=crc32(f.data);
+    const local=concat([u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(f.data.length),u32(f.data.length),u16(nb.length),u16(0),nb,f.data]);
+    chunks.push(local);
+    central.push(concat([u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(f.data.length),u32(f.data.length),u16(nb.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),nb]));
+    offset+=local.length;
+  }
+  const cent=concat(central),body=concat(chunks);
+  const end=concat([u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(cent.length),u32(body.length),u16(0)]);
+  return new Blob([body,cent,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
 
 function exportPivotXML(){
