@@ -114,6 +114,17 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .login-security{text-align:center;color:#98a2b3;font-size:12px}\n.account-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#667085}
 \n.login-role{text-align:center;color:#667085;font-size:12px;margin-top:8px}
 .admin-note{font-size:12px;color:#667085;margin-top:8px}
+.settings-wrap{position:relative}
+.settings-menu{position:absolute;right:0;top:44px;width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.14);padding:8px;display:none;z-index:50}
+.settings-menu.show{display:block}
+.settings-menu .menu-title{padding:8px 10px 6px;font-size:12px;color:#98a2b3;text-transform:uppercase;font-weight:700}
+.settings-menu button{display:block;width:100%;text-align:left;border:0!important;background:#fff!important;color:#252525!important;border-radius:7px!important;padding:10px!important;cursor:pointer}
+.settings-menu button:hover{background:#f2f7ff!important;color:#0875e5!important}
+.account-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.account-table th,.account-table td{padding:12px}
+.status-active{color:#15803d;background:#ecfdf3;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:600}
+.status-locked{color:#b42318;background:#fef3f2;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:600}
+
 .login-error{display:none;color:#c53b40;background:#fff1f1;border:1px solid #ffd4d4;border-radius:8px;padding:9px 11px;font-size:13px}
 .login-error.show{display:block}
 @media(max-width:700px){.login-screen{justify-content:center;padding:20px}.login-panel{padding:30px 24px;border-radius:16px}}
@@ -124,8 +135,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
   <div class="login-panel">
     <div class="login-brand">
       <div class="login-logo">🌿 Spa POS</div>
-      <div class="login-subtitle">Đăng nhập hệ thống</div>
-      <div class="login-role">Tài khoản quản trị • Admin</div>
+      
     </div>
     <form class="login-form" onsubmit="event.preventDefault();login()">
       <div>
@@ -140,16 +150,11 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
         </div>
       </div>
       <div class="login-error" id="loginError">Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.</div>
-      <div class="admin-note">Tài khoản quản trị mặc định: <strong>admin</strong></div>
-      <div class="admin-note">ID tài khoản là duy nhất và không được phép sửa sau khi tạo.</div>
       <div class="login-options">
         <label class="login-remember"><input type="checkbox" id="rememberLogin"> Ghi nhớ đăng nhập</label>
-        <button type="button" class="login-link" onclick="forgotPassword()">Quên mật khẩu?</button>
       </div>
       <button class="login-button" type="submit">↪ &nbsp; Đăng nhập</button>
     </form>
-    <div class="login-divider">Hoặc</div>
-    <div class="login-security">◈ &nbsp; Hệ thống được bảo mật &nbsp;•&nbsp; Spa POS v1.0</div>
   </div>
 </div>
 <div class="topbar">
@@ -159,7 +164,13 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
     <button onclick="openInvoice()">🛒 Thu ngân</button>
     <button class="iconbtn" title="Thông báo">🔔</button>
     <button class="iconbtn" title="Trợ giúp">?</button>
-    <button class="iconbtn" title="Cài đặt">⚙</button>
+    <div class="settings-wrap">
+    <button class="iconbtn" title="Cài đặt" onclick="toggleSettingsMenu()">⚙</button>
+    <div class="settings-menu" id="settingsMenu">
+      <div class="menu-title">Admin</div>
+      <button onclick="openAdminAccounts()">Quản lý tài khoản</button>
+    </div>
+  </div>
   </div>
 </div>
 
@@ -194,10 +205,14 @@ const state={
   imports:[],
   transfers:[],
   damages:[],
-  stocktakes:[]
+  stocktakes:[],
+  accounts:[
+    {id:'ADMIN001',name:'Quản trị viên',username:'admin',role:'Admin',status:'Hoạt động'}
+  ]
 };
 
 const menus={
+  'Quản trị':['Quản lý tài khoản'],
   'Tổng quan':['Tổng quan'],
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Nhập hàng','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
@@ -270,6 +285,7 @@ function renderPage(){
   if(state.page==='Trả hàng') return genericPage(c,'Trả hàng','Mã trả hàng','Khách hàng');
   if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
+  if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
   return genericPage(c,state.page,'Mã chứng từ','Đối tượng');
 }
 
@@ -333,6 +349,102 @@ function supplierPage(c){
  <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px"><div class="filter-group"><div class="filter-title">Nhóm nhà cung cấp</div><select class="field"><option>Tất cả các nhóm</option></select></div><div class="filter-group"><div class="filter-title">Tổng mua</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Nợ hiện tại</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field"><option>Đang hoạt động</option></select></div></div>
  <div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>Mã nhà cung cấp</th><th>Tên nhà cung cấp</th><th>Điện thoại</th><th>Email</th><th>Nợ hiện tại</th><th>Tổng mua</th></tr></thead><tbody>${state.suppliers.length?state.suppliers.map(x=>`<tr><td>☐</td><td>${x.code}</td><td>${esc(x.name)}</td><td>${x.phone}</td><td>${x.email}</td><td>${money(x.debt)}</td><td>${money(x.buy)}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty"><div class="circle">♙</div>Chưa có nhà cung cấp</div></td></tr>`}</tbody></table></div></div>`;
 }
+function toggleSettingsMenu(){
+  const menu=document.getElementById('settingsMenu');
+  menu.classList.toggle('show');
+}
+document.addEventListener('click',function(e){
+  const wrap=document.querySelector('.settings-wrap');
+  if(wrap && !wrap.contains(e.target)){
+    const menu=document.getElementById('settingsMenu');
+    if(menu) menu.classList.remove('show');
+  }
+});
+
+function openAdminAccounts(){
+  const menu=document.getElementById('settingsMenu');
+  if(menu) menu.classList.remove('show');
+  state.section='Quản trị';
+  state.page='Quản lý tài khoản';
+  renderNav();
+  renderSidebar();
+  renderPage();
+}
+
+function adminAccountPage(c){
+  const employees=state.accounts.filter(a=>a.role!=='Admin');
+  c.innerHTML=`
+    <div class="page-title">Quản lý tài khoản</div>
+    <div class="account-toolbar">
+      <div>
+        <div style="font-size:13px;color:#667085">Quản lý tài khoản nhân viên và quản lý</div>
+      </div>
+      <button class="btn btn-primary" onclick="openCreateAccount()">＋ Tạo tài khoản</button>
+    </div>
+    <div class="card table-wrap">
+      <table class="account-table">
+        <thead><tr>
+          <th>ID</th><th>Họ và tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="account-id">ADMIN001</span></td><td>Quản trị viên</td><td>admin</td><td>Admin</td>
+            <td><span class="status-active">Hoạt động</span></td>
+            <td style="color:#98a2b3">Tài khoản hệ thống</td>
+          </tr>
+          ${employees.length?employees.map(a=>`
+            <tr>
+              <td><span class="account-id">${esc(a.id)}</span></td>
+              <td>${esc(a.name)}</td>
+              <td>${esc(a.username)}</td>
+              <td>${esc(a.role)}</td>
+              <td><span class="${a.status==='Hoạt động'?'status-active':'status-locked'}">${esc(a.status)}</span></td>
+              <td><button class="btn btn-secondary" onclick="toggleAccountStatus('${esc(a.id)}')">${a.status==='Hoạt động'?'Khóa tài khoản':'Mở khóa'}</button></td>
+            </tr>`).join(''):`
+            <tr><td colspan="6"><div class="empty"><div class="circle">♙</div>Chưa có tài khoản nhân viên hoặc quản lý</div></td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function openCreateAccount(){
+  openModal('Tạo tài khoản',`
+    <div class="form-grid">
+      <div><label>ID tài khoản <span style="color:#d92d20">*</span></label><input id="accountId" class="field" placeholder="Ví dụ: NV00001"></div>
+      <div><label>Họ và tên <span style="color:#d92d20">*</span></label><input id="accountName" class="field" placeholder="Nhập họ và tên"></div>
+      <div><label>Tên đăng nhập <span style="color:#d92d20">*</span></label><input id="accountUsername" class="field" placeholder="Nhập tên đăng nhập"></div>
+      <div><label>Mật khẩu <span style="color:#d92d20">*</span></label><input id="accountPassword" class="field" type="password" placeholder="Nhập mật khẩu"></div>
+      <div><label>Vai trò <span style="color:#d92d20">*</span></label><select id="accountRole" class="field"><option>Nhân viên</option><option>Quản lý</option></select></div>
+      <div class="full"><div style="font-size:12px;color:#667085;background:#f8fafc;border:1px solid #eaecf0;border-radius:8px;padding:10px">ID là duy nhất và không được sửa sau khi tạo tài khoản.</div></div>
+    </div>
+  `,`
+    <button class="btn btn-secondary" onclick="closeModal()">Hủy</button>
+    <button class="btn btn-primary" onclick="createAccount()">Tạo tài khoản</button>
+  `);
+}
+
+function createAccount(){
+  const id=document.getElementById('accountId').value.trim().toUpperCase();
+  const name=document.getElementById('accountName').value.trim();
+  const username=document.getElementById('accountUsername').value.trim();
+  const password=document.getElementById('accountPassword').value;
+  const role=document.getElementById('accountRole').value;
+  if(!id||!name||!username||!password){alert('Vui lòng nhập đầy đủ thông tin bắt buộc.');return;}
+  if(!/^[A-Z0-9_-]+$/.test(id)){alert('ID chỉ được gồm chữ cái, số, _ hoặc -.');return;}
+  if(state.accounts.some(a=>a.id.toUpperCase()===id)){alert('ID tài khoản đã tồn tại. Vui lòng sử dụng ID khác.');return;}
+  if(state.accounts.some(a=>a.username.toLowerCase()===username.toLowerCase())){alert('Tên đăng nhập đã tồn tại.');return;}
+  state.accounts.push({id,name,username,password,role,status:'Hoạt động'});
+  closeModal();
+  adminAccountPage(document.getElementById('content'));
+}
+
+function toggleAccountStatus(id){
+  const account=state.accounts.find(a=>a.id===id);
+  if(!account || account.role==='Admin') return;
+  account.status=account.status==='Hoạt động'?'Đã khóa':'Hoạt động';
+  adminAccountPage(document.getElementById('content'));
+}
+
 function genericPage(c,title,col1,col2){
  c.innerHTML=header(title, title==='Nhập hàng'?'Nhập hàng':title==='Xuất hủy'?'Tạo phiếu':title==='Chuyển hàng'?'Chuyển hàng':title==='Kiểm kho'?'Kiểm kho':title,'openGeneric')+`
  <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px">
