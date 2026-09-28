@@ -70,6 +70,21 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .kpi .n{font-size:22px;font-weight:700;margin-top:7px}
 .bar{height:13px;background:#e9edf3;border-radius:20px;overflow:hidden;margin-top:8px}
 .bar span{display:block;height:100%;background:#1e88e5}
+.mini-stat{margin-top:7px;display:flex;justify-content:space-between;font-size:14px;color:#666}
+.dashboard-section{margin-top:15px}
+.dashboard-section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:15px}
+.dashboard-controls{display:flex;gap:8px;flex-wrap:wrap}
+.dashboard-note{font-size:12px;color:#8a8f98;margin-top:5px}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.chart-card{position:relative;border:1px solid var(--border);border-radius:9px;padding:12px;background:#fff;min-width:0}
+.chart-title{font-weight:700;margin-bottom:6px}
+.chart-card canvas{width:100%;height:260px;display:block}
+.chart-empty{position:absolute;left:0;right:0;top:46px;height:260px;display:flex;align-items:center;justify-content:center;color:#8a8f98;pointer-events:none}
+.pivot-wrap{max-height:520px}
+.pivot-table{min-width:1450px}
+.pivot-table th{position:sticky;top:0;z-index:1}
+.chip-expense{background:#fff0f0;color:#c53b40}
+@media(max-width:1100px){.charts-grid{grid-template-columns:1fr}.dashboard-section-head{flex-direction:column}.dashboard-controls{width:100%}.dashboard-controls .field{width:180px!important}}
 @media(max-width:900px){.nav button{padding:0 7px}.sidebar{width:205px}.kpis{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.topbar{overflow:auto}.sidebar{display:none}.content{padding:10px}.form-grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}}
 </style>
@@ -236,138 +251,208 @@ function reportPage(c){
  c.innerHTML=`<div class="page-title">${state.page}</div><div class="kpis"><div class="kpi">Doanh thu<div class="n">12.500.000 ₫</div></div><div class="kpi">Số hóa đơn<div class="n">24</div></div><div class="kpi">Khách hàng<div class="n">18</div></div><div class="kpi">Giá trị TB/HĐ<div class="n">520.833 ₫</div></div></div>
  <div class="card report"><h3>Báo cáo thực hành</h3><p>Dữ liệu demo để bạn dùng cho bài tập Manual QA.</p><div style="margin-top:20px">Doanh thu theo nhân viên<div class="bar"><span style="width:72%"></span></div><div style="margin-top:12px">Số lượng đơn hoàn thành<div class="bar"><span style="width:55%"></span></div></div></div>`;
 }
-function dashboard(c){
-  c.innerHTML=`
-    <div class="page-title">Tổng quan</div>
+function getDashboardPeriodRange(period){
+  const now=new Date();
+  const start=new Date(now);
+  const end=new Date(now);
+  end.setHours(23,59,59,999);
+  start.setHours(0,0,0,0);
+  if(period==='yesterday'){
+    start.setDate(start.getDate()-1); end.setDate(end.getDate()-1);
+  }else if(period==='7days'){
+    start.setDate(start.getDate()-6);
+  }else if(period==='month'){
+    start.setDate(1);
+  }else if(period==='lastMonth'){
+    start.setMonth(start.getMonth()-1,1); end.setMonth(end.getMonth(),0); end.setHours(23,59,59,999);
+  }else if(period==='quarter'){
+    start.setMonth(Math.floor(now.getMonth()/3)*3,1);
+  }else if(period==='lastQuarter'){
+    const q=Math.floor(now.getMonth()/3)-1;
+    const year=now.getFullYear()+(q<0?-1:0);
+    const normalized=(q+4)%4;
+    start.setFullYear(year,normalized*3,1);
+    end.setFullYear(year,normalized*3+3,0); end.setHours(23,59,59,999);
+  }else if(period==='year'){
+    start.setMonth(0,1);
+  }
+  return {start,end};
+}
 
+function dashboardInvoices(period){
+  const range=getDashboardPeriodRange(period);
+  return state.invoices.filter(x=>{
+    const d=x.createdAt?new Date(x.createdAt):new Date();
+    return d>=range.start && d<=range.end;
+  });
+}
+
+function dashboard(c){
+  document.getElementById('content').innerHTML=` 
+    <div class="page-title">Tổng quan</div>
     <div class="toolbar">
       <label style="margin:0;font-weight:600">Khoảng thời gian:</label>
-      <select id="dashboardPeriod"
-              class="field"
-              style="width:180px"
-              onchange="changeDashboardPeriod(this.value)">
-        <option value="today">Hôm nay</option>
-        <option value="yesterday">Hôm qua</option>
-        <option value="7days">7 ngày qua</option>
-        <option value="1month">1 tháng qua</option>
-        <option value="quarter">Doanh thu quý này</option>
+      <select id="dashboardPeriod" class="field" style="width:190px" onchange="refreshDashboard()">
+        <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
+        <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
+        <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
+        <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
       </select>
     </div>
 
     <div class="kpis">
-
-  <div class="kpi">
-    Doanh thu
-    <div class="n" id="dashboardRevenue">0 ₫</div>
-  </div>
-
-  <div class="kpi">
-    Hóa đơn
-    <div class="n" id="dashboardInvoices">${state.invoices.length}</div>
-  </div>
-
-  <div class="kpi">
-    Lượng khách hàng
-    <div class="n" id="dashboardCustomers">0 lượt</div>
-
-    <div style="
-      margin-top:12px;
-      display:flex;
-      justify-content:space-between;
-      font-size:14px;
-      color:#666;
-    ">
-      <span>Khách hàng cũ</span>
-      <b id="oldCustomers">0</b>
-    </div>
-
-    <div style="
-      margin-top:6px;
-      display:flex;
-      justify-content:space-between;
-      font-size:14px;
-      color:#666;
-    ">
-      <span>Khách hàng mới</span>
-      <b id="newCustomers">0</b>
-    </div>
-  </div>
-
-  <div class="kpi">
-    Công nợ
-    <div class="n" id="dashboardDebt">0 ₫</div>
-
-    <div style="
-      margin-top:12px;
-      display:flex;
-      justify-content:space-between;
-      font-size:14px;
-      color:#666;
-    ">
-      <span>Tổng thu</span>
-      <b id="totalIncome">0 ₫</b>
-    </div>
-
-    <div style="
-      margin-top:6px;
-      display:flex;
-      justify-content:space-between;
-      font-size:14px;
-      color:#666;
-    ">
-      <span>Tổng chi</span>
-      <b id="totalExpense">0 ₫</b>
-    </div>
-  </div>
-
-</div>
-    <div class="card report">
-      <h3>Doanh thu theo thời gian</h3>
-
-      <div style="
-        height:260px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        color:#8a8f98;
-        border:1px dashed #d9dde4;
-        border-radius:8px;
-        margin-top:15px;
-      ">
-        Chưa có dữ liệu doanh thu
+      <div class="kpi">Doanh thu<div class="n" id="dashboardRevenue">0 ₫</div></div>
+      <div class="kpi">Hóa đơn<div class="n" id="dashboardInvoices">0</div></div>
+      <div class="kpi">Lượng khách hàng<div class="n" id="dashboardCustomers">0 lượt</div>
+        <div class="mini-stat"><span>Khách hàng cũ</span><b id="oldCustomers">0</b></div>
+        <div class="mini-stat"><span>Khách hàng mới</span><b id="newCustomers">0</b></div>
+      </div>
+      <div class="kpi">Công nợ<div class="n" id="dashboardDebt">0 ₫</div>
+        <div class="mini-stat"><span>Tổng thu</span><b id="totalIncome">0 ₫</b></div>
+        <div class="mini-stat"><span>Tổng chi</span><b id="totalExpense">0 ₫</b></div>
       </div>
     </div>
 
-    <div class="card report" style="margin-top:15px">
-      <h3>Luồng nghiệp vụ để thực hành QA</h3>
-      <p>Hàng hóa → Bảng giá → Hóa đơn → Thanh toán → Công nợ → Báo cáo.</p>
-      <p>
-        <b>Mục tiêu:</b>
-        tìm bug, viết test case, kiểm tra validation,
-        state transition và sau này gọi API/automation trên cùng một domain.
-      </p>
+    <div class="card report dashboard-section">
+      <div class="dashboard-section-head">
+        <div><h3 style="margin:0">Biểu đồ doanh thu & lượng khách hàng</h3>
+          <div class="dashboard-note">Theo ngày hoặc theo giờ để nhận biết thời điểm khách hàng tập trung.</div>
+        </div>
+        <div class="dashboard-controls">
+          <select id="chartPeriod" class="field" onchange="refreshDashboardCharts()">
+            <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
+            <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
+            <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
+            <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
+          </select>
+          <select id="chartGranularity" class="field" onchange="refreshDashboardCharts()">
+            <option value="day">Theo ngày</option><option value="hour">Theo giờ</option>
+          </select>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card"><div class="chart-title">Biểu đồ cột</div>
+          <canvas id="barChart" height="260"></canvas><div class="chart-empty" id="barEmpty">Chưa có dữ liệu</div>
+        </div>
+        <div class="chart-card"><div class="chart-title">Biểu đồ sóng</div>
+          <canvas id="lineChart" height="260"></canvas><div class="chart-empty" id="lineEmpty">Chưa có dữ liệu</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card report dashboard-section">
+      <div class="dashboard-section-head">
+        <div><h3 style="margin:0">Pivot Dashboard</h3>
+          <div class="dashboard-note">Dữ liệu chi tiết theo giao dịch, cập nhật từ dữ liệu hóa đơn.</div>
+        </div>
+        <select id="pivotPeriod" class="field" onchange="refreshPivotDashboard()">
+          <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
+          <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
+          <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
+          <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
+        </select>
+      </div>
+      <div class="table-wrap pivot-wrap">
+        <table class="pivot-table"><thead><tr>
+          <th>STT</th><th>Chi Nhánh</th><th>Thời gian</th><th>Mã Hoá đơn</th><th>Hoá đơn Thu/Chi</th>
+          <th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Mã Khách hàng</th><th>Tên Khách hàng</th><th>Tổng tiền</th>
+        </tr></thead><tbody id="pivotBody"></tbody></table>
+      </div>
+    </div>
+
+    <div class="card report dashboard-section">
+      <h3 style="margin-top:0">Luồng nghiệp vụ để thực hành QA</h3>
+      <p>Hàng hóa → Bảng giá → Hóa đơn → Thanh toán → Công nợ → Dashboard/Pivot.</p>
+      <p><b>Mục tiêu:</b> kiểm tra validation, tính toán, lọc thời gian, dữ liệu biểu đồ, Pivot và state transition.</p>
     </div>
   `;
+  refreshDashboard();
+}
+
+function refreshDashboard(){
+  const period=document.getElementById('dashboardPeriod')?.value||'today';
+  const rows=dashboardInvoices(period);
+  const revenue=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.total||0),0);
+  const income=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.paid||0),0);
+  const expense=rows.filter(x=>(x.type||'Thu')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
+  const debt=Math.max(0,revenue-income);
+  document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
+  document.getElementById('dashboardInvoices').innerText=rows.length;
+  document.getElementById('dashboardCustomers').innerText=rows.length+' lượt';
+  document.getElementById('oldCustomers').innerText=rows.filter(x=>x.customerType==='Cũ').length;
+  document.getElementById('newCustomers').innerText=rows.filter(x=>x.customerType!=='Cũ').length;
+  document.getElementById('dashboardDebt').innerText=money(debt)+' ₫';
+  document.getElementById('totalIncome').innerText=money(income)+' ₫';
+  document.getElementById('totalExpense').innerText=money(expense)+' ₫';
+  if(document.getElementById('chartPeriod'))document.getElementById('chartPeriod').value=period;
+  if(document.getElementById('pivotPeriod'))document.getElementById('pivotPeriod').value=period;
+  refreshDashboardCharts(); refreshPivotDashboard();
+}
+
+function getChartBuckets(period,granularity){
+  const rows=dashboardInvoices(period), range=getDashboardPeriodRange(period);
+  let labels=[],values=[],customers=[];
+  if(granularity==='hour'){
+    labels=Array.from({length:24},(_,i)=>String(i).padStart(2,'0')+'h');
+    values=Array(24).fill(0); customers=Array(24).fill(0);
+    rows.forEach(x=>{const d=x.createdAt?new Date(x.createdAt):null;if(!d)return;values[d.getHours()]+=Number(x.total||0);customers[d.getHours()]+=1;});
+  }else{
+    const cursor=new Date(range.start), end=new Date(range.end), map=new Map();
+    while(cursor<=end){
+      const key=cursor.toISOString().slice(0,10);
+      labels.push(cursor.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}));map.set(key,labels.length-1);
+      values.push(0);customers.push(0);cursor.setDate(cursor.getDate()+1);
+    }
+    rows.forEach(x=>{const d=x.createdAt?new Date(x.createdAt):null;if(!d)return;const idx=map.get(d.toISOString().slice(0,10));if(idx!==undefined){values[idx]+=Number(x.total||0);customers[idx]+=1;}});
+  }
+  return {labels,values,customers};
+}
+
+function drawChart(canvasId,emptyId,type,data){
+  const canvas=document.getElementById(canvasId),empty=document.getElementById(emptyId);if(!canvas)return;
+  const ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1,width=canvas.clientWidth||700,height=260;
+  canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
+  const hasData=data.values.some(v=>v>0);if(empty)empty.style.display=hasData?'none':'flex';
+  const pad={left:58,right:18,top:18,bottom:40},chartW=Math.max(10,width-pad.left-pad.right),chartH=height-pad.top-pad.bottom;
+  const max=Math.max(1,...data.values),steps=4;
+  ctx.font='12px Arial';ctx.fillStyle='#7b8490';ctx.strokeStyle='#e7ebf0';ctx.lineWidth=1;
+  for(let i=0;i<=steps;i++){const y=pad.top+chartH-(chartH*i/steps);ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(width-pad.right,y);ctx.stroke();ctx.fillText(money(Math.round(max*i/steps)),6,y+4);}
+  ctx.strokeStyle='#cfd5dd';ctx.beginPath();ctx.moveTo(pad.left,pad.top);ctx.lineTo(pad.left,pad.top+chartH);ctx.lineTo(width-pad.right,pad.top+chartH);ctx.stroke();
+  const step=chartW/Math.max(1,data.labels.length),yFor=v=>pad.top+chartH-(v/max)*chartH;
+  if(type==='bar'){
+    const barW=Math.max(2,step*0.62);data.values.forEach((v,i)=>{const x=pad.left+i*step+(step-barW)/2,y=yFor(v);ctx.fillStyle='#0b78e3';ctx.fillRect(x,y,barW,pad.top+chartH-y);});
+  }else{
+    ctx.strokeStyle='#0b78e3';ctx.lineWidth=3;ctx.beginPath();
+    data.values.forEach((v,i)=>{const x=pad.left+i*step+step/2,y=yFor(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();
+    ctx.fillStyle='#0b78e3';data.values.forEach((v,i)=>{const x=pad.left+i*step+step/2,y=yFor(v);ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fill();});
+  }
+  const labelEvery=data.labels.length>24?Math.ceil(data.labels.length/12):data.labels.length>12?2:1;
+  ctx.fillStyle='#68717d';ctx.font='11px Arial';
+  data.labels.forEach((label,i)=>{if(i%labelEvery!==0)return;const x=pad.left+i*step+step/2;ctx.save();ctx.translate(x,height-12);ctx.rotate(-0.35);ctx.textAlign='right';ctx.fillText(label,0,0);ctx.restore();});
+}
+
+function refreshDashboardCharts(){
+  const period=document.getElementById('chartPeriod')?.value||'today';
+  const granularity=document.getElementById('chartGranularity')?.value||'day';
+  const data=getChartBuckets(period,granularity);
+  drawChart('barChart','barEmpty','bar',data);drawChart('lineChart','lineEmpty','line',data);
+}
+
+function refreshPivotDashboard(){
+  const period=document.getElementById('pivotPeriod')?.value||'today',rows=dashboardInvoices(period),body=document.getElementById('pivotBody');if(!body)return;
+  if(!rows.length){body.innerHTML='<tr><td colspan="10"><div class="empty" style="padding:55px 20px"><div class="circle">▦</div>Chưa có dữ liệu trong khoảng thời gian đã chọn</div></td></tr>';return;}
+  body.innerHTML=rows.map((x,i)=>'<tr>'+
+    '<td>'+(i+1)+'</td><td>'+esc(x.branch||'Chi nhánh chính')+'</td>'+
+    '<td>'+esc(x.time||new Date(x.createdAt).toLocaleString('vi-VN'))+'</td>'+
+    '<td><b>'+esc(x.id||'')+'</b></td><td><span class="chip '+(x.type==='Chi'?'chip-expense':'')+'">'+esc(x.type||'Thu')+'</span></td>'+
+    '<td>'+esc(x.productCode||'')+'</td><td style="min-width:260px">'+esc(x.productName||'')+'</td>'+
+    '<td>'+esc(x.customerCode||'')+'</td><td>'+esc(x.customerName||x.customer||'')+'</td>'+
+    '<td style="text-align:right;font-weight:600">'+money(x.total||0)+' ₫</td></tr>').join('');
 }
 
 function changeDashboardPeriod(period){
-  const labels={
-    today:'Hôm nay',
-    yesterday:'Hôm qua',
-    '7days':'7 ngày qua',
-    '1month':'1 tháng qua',
-    quarter:'Doanh thu quý này'
-  };
-
-  document.getElementById('dashboardRevenue').innerText='0 ₫';
-  document.getElementById('dashboardDebt').innerText='0 ₫';
-  document.getElementById('dashboardCustomers').innerText='0 lượt';
-  document.getElementById('oldCustomers').innerText='0';
-  document.getElementById('newCustomers').innerText='0';
-  document.getElementById('totalIncome').innerText='0 ₫';
-  document.getElementById('totalExpense').innerText='0 ₫';
-
-  console.log('Dashboard period:',labels[period]);
+  if(document.getElementById('dashboardPeriod'))document.getElementById('dashboardPeriod').value=period;
+  refreshDashboard();
 }
 
 function openModal(title,body,actions=''){
@@ -378,7 +463,7 @@ function closeModal(){document.getElementById('modalBg').style.display='none'}
 function openInvoice(){
  openModal('Tạo hóa đơn',`
  <div class="form-grid">
-  <div><label>Khách hàng</label><select class="field"><option>Khách lẻ</option><option>NGUYỄN THỊ HÀ</option><option>Chú Úy</option></select></div>
+  <div><label>Khách hàng</label><select class="field" id="customerSelect"><option value="new">Khách lẻ - KH00001</option><option value="old">NGUYỄN THỊ HÀ - KH00002</option><option value="old">Chú Úy - KH00003</option></select></div>
   <div><label>Nhân viên tư vấn</label><select class="field"><option>Chọn nhân viên</option><option>Lan</option></select></div>
   <div><label>Kênh bán</label><select class="field"><option>Trực tiếp</option><option>Facebook</option><option>Zalo</option></select></div>
   <div><label>Phương thức</label><select class="field" id="pay"><option>Tiền mặt</option><option>Chuyển khoản</option><option>Chưa thanh toán</option></select></div>
@@ -403,7 +488,24 @@ function saveInvoice(){
  if(!Number.isInteger(q)||q<1||q>9999)return alert('BUG LAB: Quantity phải là số nguyên từ 1 đến 9999.');
  if(r<=0)return alert('BUG LAB: Rate phải > 0 trong phiên bản bài tập này.');
  const amount=q*r,total=Math.max(0,amount-d)*(1+v/100),pay=document.getElementById('pay').value;
- state.invoices.unshift({id:'HD'+String(state.invoices.length+1).padStart(5,'0'),time:new Date().toLocaleString('vi-VN'),customer:'Khách lẻ',phone:'',amount,discount:d,total,paid:pay==='Chưa thanh toán'?0:total,status:'Hoàn thành'});
+ const selectedProduct=state.products[Number(document.getElementById('productSelect').value)||0]||state.products[0];
+ const customerSelect=document.getElementById('customerSelect');
+ const isOld=customerSelect?.value==='old';
+ state.invoices.unshift({
+   id:'HD'+String(state.invoices.length+1).padStart(5,'0'),
+   time:new Date().toLocaleString('vi-VN'),
+   createdAt:new Date().toISOString(),
+   branch:'Chi nhánh chính',
+   type:'Thu',
+   customer:'Khách lẻ',
+   customerCode:isOld?'KH00002':'KH00001',
+   customerName:isOld?'NGUYỄN THỊ HÀ':'Khách lẻ',
+   customerType:isOld?'Cũ':'Mới',
+   phone:'',
+   productCode:selectedProduct.code,
+   productName:selectedProduct.name,
+   amount,discount:d,total,paid:pay==='Chưa thanh toán'?0:total,status:'Hoàn thành'
+ });
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn demo. Hãy dùng chức năng này để thực hành test.');
 }
 function openProduct(){openModal('Thêm hàng hóa',`<div class="form-grid"><div><label>Mã hàng hóa</label><input class="field" value="SP000046"></div><div><label>Loại hàng</label><select class="field"><option>Dịch vụ</option><option>Gói dịch vụ, liệu trình</option></select></div><div class="full"><label>Tên hàng hóa</label><input class="field" value=""></div><div><label>Giá bán trước thuế</label><input class="field" type="number" value="0"></div><div><label>VAT (%)</label><input class="field" type="number" value="10"></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="alert('Demo: lưu hàng hóa');closeModal()">Lưu</button>`)}
