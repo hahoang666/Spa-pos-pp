@@ -306,7 +306,12 @@ function dashboard(c){
     </div>
 
     <div class="kpis">
-      <div class="kpi">Doanh thu<div class="n" id="dashboardRevenue">0 ₫</div></div>
+      <div class="kpi">Doanh thu<div class="n" id="dashboardRevenue">0 ₫</div>
+        <div class="mini-stat"><span>Tiền mặt</span><b id="cashRevenue">0 ₫</b></div>
+        <div class="mini-stat"><span>Ngân hàng</span><b id="bankRevenue">0 ₫</b></div>
+        <div class="mini-stat"><span>Ví điện tử</span><b id="ewalletRevenue">0 ₫</b></div>
+        <div class="mini-stat"><span>Khác</span><b id="otherRevenue">0 ₫</b></div>
+      </div>
       <div class="kpi">Hóa đơn<div class="n" id="dashboardInvoices">0</div></div>
       <div class="kpi">Lượng khách hàng<div class="n" id="dashboardCustomers">0 lượt</div>
         <div class="mini-stat"><span>Khách hàng cũ</span><b id="oldCustomers">0</b></div>
@@ -386,6 +391,14 @@ function refreshDashboard(){
   const expense=rows.filter(x=>(x.type||'Thu')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
   const debt=Math.max(0,revenue-income);
   document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
+  const cashRevenue=rows.filter(x=>(x.paymentMethod||'')==='Tiền mặt').reduce((a,x)=>a+Number(x.total||0),0);
+  const bankRevenue=rows.filter(x=>(x.paymentMethod||'')==='Ngân hàng').reduce((a,x)=>a+Number(x.total||0),0);
+  const ewalletRevenue=rows.filter(x=>(x.paymentMethod||'')==='Ví điện tử').reduce((a,x)=>a+Number(x.total||0),0);
+  const otherRevenue=rows.filter(x=>!['Tiền mặt','Ngân hàng','Ví điện tử'].includes(x.paymentMethod)).reduce((a,x)=>a+Number(x.total||0),0);
+  document.getElementById('cashRevenue').innerText=money(cashRevenue)+' ₫';
+  document.getElementById('bankRevenue').innerText=money(bankRevenue)+' ₫';
+  document.getElementById('ewalletRevenue').innerText=money(ewalletRevenue)+' ₫';
+  document.getElementById('otherRevenue').innerText=money(otherRevenue)+' ₫';
   document.getElementById('dashboardInvoices').innerText=rows.length;
   document.getElementById('dashboardCustomers').innerText=rows.length+' lượt';
   document.getElementById('oldCustomers').innerText=rows.filter(x=>x.customerType==='Cũ').length;
