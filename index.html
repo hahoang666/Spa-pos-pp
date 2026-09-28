@@ -111,7 +111,8 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .login-button:hover{filter:brightness(.97)}
 .login-divider{display:flex;align-items:center;gap:12px;margin:23px 0 18px;color:#98a2b3;font-size:13px}
 .login-divider:before,.login-divider:after{content:"";height:1px;background:#e5e7eb;flex:1}
-.login-security{text-align:center;color:#98a2b3;font-size:12px}
+.login-security{text-align:center;color:#98a2b3;font-size:12px}\n.login-role{text-align:center;color:#667085;font-size:12px;margin-top:8px}
+.admin-note{font-size:12px;color:#667085;margin-top:8px}
 .login-error{display:none;color:#c53b40;background:#fff1f1;border:1px solid #ffd4d4;border-radius:8px;padding:9px 11px;font-size:13px}
 .login-error.show{display:block}
 @media(max-width:700px){.login-screen{justify-content:center;padding:20px}.login-panel{padding:30px 24px;border-radius:16px}}
@@ -123,6 +124,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
     <div class="login-brand">
       <div class="login-logo">🌿 Spa POS</div>
       <div class="login-subtitle">Đăng nhập hệ thống</div>
+      <div class="login-role">Tài khoản quản trị • Admin</div>
     </div>
     <form class="login-form" onsubmit="event.preventDefault();login()">
       <div>
@@ -137,6 +139,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
         </div>
       </div>
       <div class="login-error" id="loginError">Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.</div>
+      <div class="admin-note">Tài khoản quản trị mặc định: <strong>admin</strong></div>
       <div class="login-options">
         <label class="login-remember"><input type="checkbox" id="rememberLogin"> Ghi nhớ đăng nhập</label>
         <button type="button" class="login-link" onclick="forgotPassword()">Quên mật khẩu?</button>
@@ -213,10 +216,18 @@ function login(){
   const username=document.getElementById('loginUsername').value.trim();
   const password=document.getElementById('loginPassword').value;
   const error=document.getElementById('loginError');
-  if(!username||!password){error.classList.add('show');return;}
+  if(!username||!password){
+    error.textContent='Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.';
+    error.classList.add('show');return;
+  }
+  if(username!=='admin'||password!=='1111'){
+    error.textContent='Tên đăng nhập hoặc mật khẩu không đúng.';
+    error.classList.add('show');return;
+  }
   error.classList.remove('show');
   if(document.getElementById('rememberLogin').checked)localStorage.setItem('spa_pos_username',username);
   else localStorage.removeItem('spa_pos_username');
+  localStorage.setItem('spa_pos_role','admin');
   document.getElementById('loginScreen').style.display='none';
 }
 function initLogin(){
