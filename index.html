@@ -1427,7 +1427,7 @@ function refreshDashboard(){
   const invoiceExpense=rows.filter(x=>(x.type||'')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
   const income=invoiceIncome+cash.filter(x=>x.type==='thu').reduce((a,x)=>a+Number(x.amount||0),0);
   const expense=invoiceExpense+cash.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0);
-  const debt=Math.max(0,rows.filter(x=>(x.status||'')==='Còn nợ').reduce((a,x)=>a+Math.max(0,Number(x.total||0)-Number(x.paid||0)),0);
+  const debt=Math.max(0,rows.filter(x=>(x.status||'')==='Còn nợ').reduce((a,x)=>a+Math.max(0,Number(x.total||0)-Number(x.paid||0)),0));
   document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
   const paymentRevenue=(method)=>rows.reduce((sum,x)=>{
     if(Array.isArray(x.paymentBreakdown)&&x.paymentBreakdown.length)return sum+x.paymentBreakdown.filter(p=>normalizePaymentMethod(p.method)===method).reduce((a,p)=>a+Number(p.amount||0),0);
