@@ -438,6 +438,7 @@ function renderAll(){saveState();renderNav();renderSidebar();renderPage()}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
+  if(state.page==='Thu ngân') return cashierPage(c);
   if(state.page==='Hóa đơn') return invoicePage(c);
   if(state.page==='Danh sách hàng hóa') return productPage(c);
   if(state.page==='Thiết lập giá') return pricePage(c);
@@ -455,6 +456,84 @@ function renderPage(){
   return genericPage(c,state.page,'Mã chứng từ','Đối tượng');
 }
 
+function cashierPage(c){
+  c.innerHTML=`
+    <div class="page-title">Thu ngân</div>
+    <div style="display:grid;grid-template-columns:1.7fr 1fr;gap:14px;height:calc(100vh - 130px)">
+      <div class="card" style="display:flex;flex-direction:column;min-height:0">
+        <div style="padding:14px;border-bottom:1px solid var(--border);display:flex;gap:10px">
+          <input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên hoặc mã hàng hóa..." oninput="renderCashierProducts(this.value)">
+          <button class="btn btn-secondary" onclick="renderCashierProducts('')">Tất cả</button>
+        </div>
+        <div id="cashierProducts" style="padding:14px;overflow:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;min-height:0">
+        <div style="padding:14px;border-bottom:1px solid var(--border);font-weight:700">Đơn hàng</div>
+        <div id="cashierCart" style="flex:1;overflow:auto;padding:10px"></div>
+        <div style="border-top:1px solid var(--border);padding:14px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Tạm tính</span><b id="cashierSubtotal">0</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:18px;margin-bottom:12px"><span>Tổng thanh toán</span><b id="cashierTotal">0</b></div>
+          <select id="cashierPayment" class="field" style="margin-bottom:10px"><option>Tiền mặt</option><option>Ngân hàng</option><option>Ví điện tử</option><option>Khác</option></select>
+          <button class="btn btn-primary" style="width:100%;height:42px" onclick="completeCashierSale()">Thanh toán</button>
+        </div>
+      </div>
+    </div>`;
+  state.cashierCart=state.cashierCart||[];
+  renderCashierProducts('');
+  renderCashierCart();
+}
+function renderCashierProducts(keyword){
+  const box=document.getElementById('cashierProducts'); if(!box)return;
+  const q=(keyword||'').toLowerCase();
+  const products=state.products.filter(p=>(p.name+' '+p.code).toLowerCase().includes(q));
+  box.innerHTML=products.map(p=>`
+    <button class="card" style="text-align:left;padding:12px;cursor:pointer;border:1px solid var(--border);background:#fff" onclick="addToCashierCart('${esc(p.code)}')">
+      <div style="font-weight:700;margin-bottom:6px">${esc(p.name)}</div>
+      <div style="font-size:12px;color:#667085">${esc(p.code)} · ${esc(p.type)}</div>
+      <div style="margin-top:8px;font-weight:700;color:var(--primary)">${money(p.price)}</div>
+    </button>`).join('')||'<div style="color:#667085">Không tìm thấy hàng hóa</div>';
+}
+function addToCashierCart(code){
+  const p=state.products.find(x=>x.code===code); if(!p)return;
+  const item=state.cashierCart.find(x=>x.code===code);
+  if(item)item.qty++;
+  else state.cashierCart.push({code:p.code,name:p.name,price:Number(p.price)||0,qty:1});
+  renderCashierCart();
+}
+function changeCashierQty(code,delta){
+  const item=state.cashierCart.find(x=>x.code===code); if(!item)return;
+  item.qty+=delta;
+  if(item.qty<=0)state.cashierCart=state.cashierCart.filter(x=>x.code!==code);
+  renderCashierCart();
+}
+function renderCashierCart(){
+  const box=document.getElementById('cashierCart'); if(!box)return;
+  const cart=state.cashierCart||[];
+  box.innerHTML=cart.length?cart.map(x=>`
+    <div style="padding:10px 4px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between"><b>${esc(x.name)}</b><span>${money(x.price*x.qty)}</span></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:7px">
+        <button class="btn btn-secondary" onclick="changeCashierQty('${esc(x.code)}',-1)">−</button>
+        <span>${x.qty}</span>
+        <button class="btn btn-secondary" onclick="changeCashierQty('${esc(x.code)}',1)">+</button>
+      </div>
+    </div>`).join(''):'<div style="text-align:center;color:#98a2b3;padding:30px">Chưa có sản phẩm</div>';
+  const total=cart.reduce((sum,x)=>sum+x.price*x.qty,0);
+  document.getElementById('cashierSubtotal').textContent=money(total);
+  document.getElementById('cashierTotal').textContent=money(total);
+}
+function completeCashierSale(){
+  const cart=state.cashierCart||[];
+  if(!cart.length){alert('Vui lòng thêm sản phẩm vào đơn hàng.');return;}
+  const total=cart.reduce((sum,x)=>sum+x.price*x.qty,0);
+  const payment=document.getElementById('cashierPayment').value;
+  const id=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
+  state.invoices.push({id,time:new Date().toLocaleString('vi-VN'),customer:'Khách lẻ',phone:'',amount:total,total,paid:total,status:'Đã thanh toán',payment});
+  saveState();
+  state.cashierCart=[];
+  alert('Thanh toán thành công. Mã hóa đơn: '+id);
+  renderCashierCart();
+}
 function header(title,buttonText,action){
  return `<div class="page-title">${title}</div>
  <div class="toolbar">
