@@ -225,6 +225,7 @@ const supabaseClient = window.supabase.createClient(
 );
 </script>
 
+<script>
 async function testSupabaseConnection() {
   try {
     const { data, error } = await supabaseClient
@@ -245,6 +246,7 @@ async function testSupabaseConnection() {
     return false;
   }
 }
+</script>
   
 <script>
 const PAYMENT_METHODS=['Tiền mặt','Chuyển khoản','Ví điện tử','Thẻ'];
