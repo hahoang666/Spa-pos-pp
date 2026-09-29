@@ -212,7 +212,7 @@ const state={
   damages:[],
   stocktakes:[],
   accounts:[
-    {id:'ADMIN001',name:'Quản trị viên',username:'admin',role:'Admin',status:'Hoạt động'}
+    {id:'ADMIN001',name:'Quản trị viên',username:'admin',password:'1111',role:'Admin',status:'Hoạt động',permissions:[]}
   ]
 };
 const STORAGE_KEY='spa_pos_state_v1';
@@ -228,6 +228,16 @@ function loadState(){
   }catch(e){console.warn('Không thể đọc dữ liệu',e);}
 }
 loadState();
+const adminAccount=state.accounts.find(a=>a.id==='ADMIN001' || a.username==='admin');
+if(adminAccount){
+  adminAccount.id='ADMIN001';
+  adminAccount.name='Quản trị viên';
+  adminAccount.username='admin';
+  adminAccount.password='1111';
+  adminAccount.role='Admin';
+  adminAccount.status='Hoạt động';
+  adminAccount.permissions=defaultPermissions('Admin');
+}
 state.accounts.forEach(a=>accountPermissions(a));
 saveState();
 
