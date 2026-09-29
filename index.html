@@ -680,6 +680,48 @@ function consumeMaterialsForService(serviceCode, multiplier=1, refId=''){
    state.materialMovements.push({id:nextAutoCode('XK',6,'spa_next_material_movement_id',state.materialMovements,'id'),materialCode:m.code,quantity:-qty,reason:'Sử dụng dịch vụ',referenceId:refId,createdAt:new Date().toISOString()});
  });
 }
+function productPage(c){
+  const products=Array.isArray(state.products)?state.products:[];
+  const groups=[...new Set(products.map(x=>x.group||'').filter(Boolean))];
+  const rows=products.map(p=>'<tr><td><input type="checkbox" class="product-check" data-code="'+esc(p.code)+'"></td><td><b>'+esc(p.code)+'</b></td><td>'+esc(p.name||'')+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.group||'')+'</td><td>'+esc(p.unit||'')+'</td><td>'+money(Number(p.price)||0)+' ₫</td><td>'+esc(p.vat==null?10:p.vat)+'%</td><td>'+esc(p.status||'Đang kinh doanh')+'</td><td><button class="btn btn-secondary" onclick="openProduct(\''+esc(p.code)+'\')">Sửa</button> <button class="btn btn-danger" onclick="deleteProduct(\''+esc(p.code)+'\')">Xóa</button></td></tr>').join('');
+  c.innerHTML='<div class="page-title">Danh sách hàng hóa</div><div class="toolbar"><input class="search" id="productSearch" placeholder="🔍 Tìm mã, tên, barcode..." oninput="filterProductTable()"><button class="btn btn-primary" onclick="openProduct()">＋ Thêm hàng hóa</button></div><div class="card table-wrap"><table><thead><tr><th><input type="checkbox" id="productCheckAll" onchange="toggleAllProducts(this.checked)"></th><th>Mã</th><th>Tên hàng hóa</th><th>Loại</th><th>Nhóm hàng</th><th>Đơn vị</th><th>Giá bán</th><th>VAT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="productTableBody">'+(rows||'<tr><td colspan="10"><div class="empty">Chưa có hàng hóa</div></td></tr>')+'</tbody></table></div>';
+}
+function filterProductTable(){
+ const q=(document.getElementById('productSearch')?.value||'').toLowerCase().trim();
+ document.querySelectorAll('#productTableBody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
+}
+function toggleAllProducts(checked){document.querySelectorAll('.product-check').forEach(x=>x.checked=checked);}
+function pricePage(c){
+ const lists=Array.isArray(state.priceLists)?state.priceLists:[];
+ const rows=lists.map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.status||'')+'</td><td>'+esc(x.createdAt?new Date(x.createdAt).toLocaleString('vi-VN'):'')+'</td></tr>').join('');
+ c.innerHTML='<div class="page-title">Thiết lập giá</div><div class="toolbar"><input class="search" placeholder="🔍 Tìm bảng giá..." oninput="filterPriceTable(this.value)"><button class="btn btn-primary" onclick="openPrice()">＋ Tạo bảng giá</button></div><div class="card table-wrap"><table><thead><tr><th>Mã bảng giá</th><th>Tên bảng giá</th><th>Trạng thái</th><th>Ngày tạo</th></tr></thead><tbody id="priceTableBody">'+(rows||'<tr><td colspan="4"><div class="empty">Chưa có bảng giá</div></td></tr>')+'</tbody></table></div>';
+}
+function filterPriceTable(value){
+ const q=(value||'').toLowerCase().trim();
+ document.querySelectorAll('#priceTableBody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
+}
+function saveInvoice(){
+ if(!hasPermission('Tạo hóa đơn'))return alert('Bạn không có quyền tạo hóa đơn.');
+ const customerIndex=Number(document.getElementById('customerSelect')?.value);
+ const customer=state.customers[customerIndex]||{};
+ const employee=state.accounts.find(x=>x.id===document.getElementById('invoiceEmployee')?.value)||{};
+ const consultant=state.accounts.find(x=>x.id===document.getElementById('invoiceConsultant')?.value)||{};
+ const product=state.products[Number(document.getElementById('productSelect')?.value)];
+ if(!product)return alert('Vui lòng chọn sản phẩm.');
+ const qty=Number(document.getElementById('qty')?.value)||0;
+ const rate=Number(document.getElementById('rate')?.value)||0;
+ const discount=Number(document.getElementById('discount')?.value)||0;
+ if(qty<=0)return alert('Số lượng phải lớn hơn 0.');
+ if(rate<0||discount<0)return alert('Đơn giá và giảm giá không được âm.');
+ const amount=qty*rate;
+ const total=Math.max(0,amount-discount);
+ const tax=total-(total/1.1);
+ const paid=0;
+ createInvoice({type:'SALES',customer:customer.name||'Khách lẻ',customerCode:customer.code||'',customerName:customer.name||'Khách lẻ',phone:customer.phone||'',productCode:product.code,productName:product.name,amount,discount,total,tax,paid,paymentMethod:document.getElementById('pay')?.value||'Tiền mặt',employeeId:employee.id||'',employeeName:employee.name||'',consultantId:consultant.id||'',consultantName:consultant.name||'',items:[{code:product.code,name:product.name,qty,price:rate,discount,vat:product.vat??10}]});
+ closeModal();
+ state.section='Đơn hàng';state.page='Hóa đơn';renderAll();
+ alert('Đã tạo hóa đơn thành công.');
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
