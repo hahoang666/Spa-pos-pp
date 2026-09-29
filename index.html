@@ -120,6 +120,9 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .settings-menu .menu-title{padding:8px 10px 6px;font-size:12px;color:#98a2b3;text-transform:uppercase;font-weight:700}
 .settings-menu button{display:block;width:100%;text-align:left;border:0!important;background:#fff!important;color:#252525!important;border-radius:7px!important;padding:10px!important;cursor:pointer}
 .settings-menu button:hover{background:#f2f7ff!important;color:#0875e5!important}
+.theme-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:8px}
+.theme-swatch{height:28px;border:2px solid transparent;border-radius:7px;cursor:pointer}
+.theme-swatch.active{border-color:#111;box-shadow:0 0 0 2px #fff inset}
 .account-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
 .account-table th,.account-table td{padding:12px}
 .status-active{color:#15803d;background:#ecfdf3;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:600}
@@ -169,6 +172,13 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
     <div class="settings-wrap">
     <button class="iconbtn" title="Cài đặt" onclick="toggleSettingsMenu()">⚙</button>
     <div class="settings-menu" id="settingsMenu">
+      <div class="menu-title">Giao diện</div>
+      <div class="theme-swatches">
+        <button class="theme-swatch" title="Xanh lá" style="background:#3b6f63" onclick="setTheme('green')"></button>
+        <button class="theme-swatch" title="Xanh dương" style="background:#0875e5" onclick="setTheme('blue')"></button>
+        <button class="theme-swatch" title="Tím" style="background:#7c3aed" onclick="setTheme('purple')"></button>
+        <button class="theme-swatch" title="Cam" style="background:#ea580c" onclick="setTheme('orange')"></button>
+      </div>
       <div class="menu-title">Admin</div>
       <button onclick="openAdminAccounts()">Quản lý tài khoản</button>
     </div>
@@ -496,6 +506,26 @@ function supplierPage(c){
  c.innerHTML=header('Nhà cung cấp','Nhà cung cấp','openSupplier')+`
  <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px"><div class="filter-group"><div class="filter-title">Nhóm nhà cung cấp</div><select class="field"><option>Tất cả các nhóm</option></select></div><div class="filter-group"><div class="filter-title">Tổng mua</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Nợ hiện tại</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field"><option>Đang hoạt động</option></select></div></div>
  <div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>Mã nhà cung cấp</th><th>Tên nhà cung cấp</th><th>Điện thoại</th><th>Email</th><th>Nợ hiện tại</th><th>Tổng mua</th></tr></thead><tbody>${state.suppliers.length?state.suppliers.map(x=>`<tr><td>☐</td><td>${x.code}</td><td>${esc(x.name)}</td><td>${x.phone}</td><td>${x.email}</td><td>${money(x.debt)}</td><td>${money(x.buy)}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty"><div class="circle">♙</div>Chưa có nhà cung cấp</div></td></tr>`}</tbody></table></div></div>`;
+}
+function setTheme(theme){
+  const themes={
+    green:{primary:'#3b6f63',hover:'#2f5c52',soft:'#edf7f3'},
+    blue:{primary:'#0875e5',hover:'#0664c4',soft:'#eff6ff'},
+    purple:{primary:'#7c3aed',hover:'#6d28d9',soft:'#f5f3ff'},
+    orange:{primary:'#ea580c',hover:'#c2410c',soft:'#fff7ed'}
+  };
+  const t=themes[theme]||themes.green;
+  document.documentElement.style.setProperty('--primary',t.primary);
+  document.documentElement.style.setProperty('--primary-hover',t.hover);
+  document.documentElement.style.setProperty('--primary-soft',t.soft);
+  localStorage.setItem('spa_pos_theme',theme);
+  document.querySelectorAll('.theme-swatch').forEach((el,i)=>{
+    const names=['green','blue','purple','orange'];
+    el.classList.toggle('active',names[i]===theme);
+  });
+}
+function loadTheme(){
+  setTheme(localStorage.getItem('spa_pos_theme')||'green');
 }
 function toggleSettingsMenu(){
   const menu=document.getElementById('settingsMenu');
@@ -1024,6 +1054,7 @@ function openPrice(){openModal('Tạo bảng giá',`<div class="form-grid"><div>
 function openSupplier(){openModal('Thêm nhà cung cấp',`<div class="form-grid"><div><label>Mã nhà cung cấp</label><input class="field" value="NCC00001"></div><div><label>Tên nhà cung cấp</label><input class="field"></div><div><label>Điện thoại</label><input class="field"></div><div><label>Email</label><input class="field"></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
 function openGeneric(){openModal('Tạo chứng từ',`<div class="form-grid"><div><label>Mã chứng từ</label><input class="field" value="CT00001"></div><div><label>Ngày chứng từ</label><input class="field" type="date"></div><div class="full"><label>Đối tượng</label><select class="field"><option>Chọn đối tượng</option></select></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu nháp</button>`)}
 document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+loadTheme();
 state.section='Tổng quan';
 state.page='Tổng quan';
 initLogin();
