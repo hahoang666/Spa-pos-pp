@@ -551,8 +551,33 @@ function renderAll(){saveState();renderNav();renderSidebar();renderUserSession()
 
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="useTherapySession('${escJs(x.id)}')">Sử dụng 1 buổi</button></td></tr>`).join('');
+ const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession('${escJs(x.id)}')">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession(\\''+escJs(x.id)+'\\',\\''+escJs(u.id)+'\\')">Hoàn tác</button>').join('')}</td></tr>`).join('');
  c.innerHTML=header('Thẻ liệu trình','Tạo thẻ liệu trình','openTherapyCard()')+'<div class="card table-wrap"><table><thead><tr><th>Mã thẻ</th><th>Khách hàng</th><th>Liệu trình</th><th>Tổng buổi</th><th>Còn lại</th><th>Hạn dùng</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có thẻ liệu trình</div></td></tr>')+'</tbody></table></div>';
+}
+function getPackageSessions(product){
+ const explicit=Number(product?.sessions||product?.totalSessions||product?.sessionCount);
+ if(Number.isInteger(explicit)&&explicit>0)return explicit;
+ const m=String(product?.name||'').match(/(?:-|\\(|\\s)(\\d+)\\s*B(?:\\)|\\b)/i);
+ return m?Number(m[1]):1;
+}
+function findCommissionRate(productCode){
+ const r=(state.commissionRules||[]).find(x=>x.productCode===productCode);
+ return Math.max(0,Number(r?.rate)||0);
+}
+function materialRulesForService(serviceCode){return (state.serviceMaterials||[]).filter(x=>x.serviceCode===serviceCode);}
+function materialStockCheck(serviceCode,multiplier=1){
+ for(const r of materialRulesForService(serviceCode)){
+   const m=(state.materials||[]).find(x=>x.code===r.materialCode);
+   if(m&&Number(m.stock||0)<Number(r.quantity)*multiplier)return {ok:false,material:m,required:Number(r.quantity)*multiplier};
+ }
+ return {ok:true};
+}
+function restoreMaterialUsage(referenceId){
+ (state.materialMovements||[]).filter(x=>x.referenceId===referenceId&&!x.reversed).forEach(mv=>{
+   const m=(state.materials||[]).find(x=>x.code===mv.materialCode);
+   if(m)m.stock=Number(m.stock||0)-Number(mv.quantity||0);
+   mv.reversed=true;
+ });
 }
 function openTherapyCard(){
  if(!hasPermission('Tạo thẻ liệu trình'))return alert('Bạn không có quyền tạo thẻ liệu trình.');
@@ -562,20 +587,58 @@ function openTherapyCard(){
 }
 function saveTherapyCard(){
  if(!hasPermission('Tạo thẻ liệu trình'))return alert('Bạn không có quyền tạo thẻ liệu trình.');
- const cc=document.getElementById('therapyCustomer').value,pc=document.getElementById('therapyProduct').value,n=Number(document.getElementById('therapySessions').value);
+ const cc=document.getElementById('therapyCustomer').value,pc=document.getElementById('therapyProduct').value,pr=state.products.find(x=>x.code===pc),inputN=Number(document.getElementById('therapySessions').value),n=Number.isInteger(inputN)&&inputN>0?inputN:getPackageSessions(pr);
  if(!cc||!pc||!Number.isInteger(n)||n<1)return alert('Vui lòng nhập đủ thông tin và số buổi hợp lệ.');
- const cu=state.customers.find(x=>x.code===cc),pr=state.products.find(x=>x.code===pc);state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
+ const cu=state.customers.find(x=>x.code===cc);state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
  state.therapyCards.push({id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),customerCode:cc,customerName:cu?.name||'',productCode:pc,productName:pr?.name||'',totalSessions:n,remainingSessions:n,expiresAt:document.getElementById('therapyExpiry').value||'',status:'Đang sử dụng',createdAt:new Date().toISOString()});
  saveState();closeModal();therapyCardsPage(document.getElementById('content'));alert('Đã tạo thẻ liệu trình.');
 }
+function openUseTherapySession(id){
+ if(!hasPermission('Sử dụng liệu trình'))return alert('Bạn không có quyền sử dụng liệu trình.');
+ const card=(state.therapyCards||[]).find(x=>x.id===id);if(!card)return;
+ if(card.remainingSessions<=0)return alert('Thẻ đã hết buổi.');
+ if(card.expiresAt&&card.expiresAt<localDateKey(new Date()))return alert('Thẻ đã hết hạn.');
+ const emps=(state.accounts||[]).filter(a=>a.status==='Hoạt động'&&a.role!=='Admin').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.username||a.id)+'</option>').join('');
+ const consultants=(state.accounts||[]).filter(a=>a.status==='Hoạt động').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.username||a.id)+'</option>').join('');
+ const p=state.products.find(x=>x.code===card.productCode);
+ openModal('Thực hiện liệu trình','<div class="form-grid"><div><label>Khách hàng</label><input class="field" value="'+esc(card.customerName||card.customerCode)+'" disabled></div><div><label>Liệu trình</label><input class="field" value="'+esc(card.productName||'')+'" disabled></div><div><label>Nhân viên thực hiện *</label><select id="therapyEmployee" class="field"><option value="">-- Chọn --</option>'+emps+'</select></div><div><label>Nhân viên tư vấn</label><select id="therapyConsultant" class="field"><option value="">-- Không chọn --</option>'+consultants+'</select></div><div class="full"><label>Chữ ký/xác nhận khách hàng *</label><input id="therapySignature" class="field" placeholder="Nhập tên khách hàng để xác nhận"></div><div class="full"><label><input id="therapyConsent" type="checkbox"> Khách hàng xác nhận đã thực hiện buổi dịch vụ này</label></div><div class="full"><small>Còn '+card.remainingSessions+' buổi · '+(findCommissionRate(card.productCode)>0?'Hoa hồng theo quy định sẽ tự động ghi nhận.':'Chưa thiết lập tỷ lệ hoa hồng cho gói này.')+'</small></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="useTherapySession(\''+escJs(id)+'\')">Xác nhận thực hiện</button>');
+}
 function useTherapySession(id){
  if(!hasPermission('Sử dụng liệu trình'))return alert('Bạn không có quyền sử dụng liệu trình.');
- const x=(state.therapyCards||[]).find(x=>x.id===id);if(!x)return;
- if(x.remainingSessions<=0)return alert('Thẻ đã hết buổi.');
- if(x.expiresAt&&x.expiresAt<localDateKey(new Date()))return alert('Thẻ đã hết hạn.');
- x.remainingSessions--;if(x.remainingSessions===0)x.status='Đã hết buổi';
- x.lastUsedAt=new Date().toISOString();x.usageHistory=Array.isArray(x.usageHistory)?x.usageHistory:[];x.usageHistory.push({at:x.lastUsedAt,employeeId:state.currentUser?.id||''});
- saveState();therapyCardsPage(document.getElementById('content'));alert('Đã trừ 1 buổi. Còn '+x.remainingSessions+' buổi.');
+ const card=(state.therapyCards||[]).find(x=>x.id===id);if(!card)return;
+ if(card.remainingSessions<=0)return alert('Thẻ đã hết buổi.');
+ if(card.expiresAt&&card.expiresAt<localDateKey(new Date()))return alert('Thẻ đã hết hạn.');
+ const employeeId=document.getElementById('therapyEmployee')?.value,consultantId=document.getElementById('therapyConsultant')?.value||'';
+ const signature=(document.getElementById('therapySignature')?.value||'').trim();
+ if(!employeeId||!signature||!document.getElementById('therapyConsent')?.checked)return alert('Nhân viên thực hiện, chữ ký và xác nhận của khách hàng là bắt buộc.');
+ const employee=state.accounts.find(a=>a.id===employeeId),consultant=state.accounts.find(a=>a.id===consultantId);
+ const materialCheck=materialStockCheck(card.productCode,1);if(!materialCheck.ok)return alert('Không đủ nguyên liệu để thực hiện dịch vụ. Thiếu: '+(materialCheck.material?.name||materialCheck.material?.code||'nguyên liệu'));
+ const now=new Date().toISOString(),usageId=nextAutoCode('SD',6,'spa_next_therapy_usage_id',(card.usageHistory||[]).map(x=>({id:x.id})).concat((state.serviceCommissions||[]).map(x=>({id:x.id}))));
+ const rate=findCommissionRate(card.productCode);
+ const product=state.products.find(x=>x.code===card.productCode);
+ const commissionAmount=rate>0?Number(product?.price||0)*rate/100:0;
+ consumeMaterialsForService(card.productCode,1,usageId);
+ card.remainingSessions--;if(card.remainingSessions===0)card.status='Đã hết buổi';
+ card.lastUsedAt=now;
+ card.usageHistory=Array.isArray(card.usageHistory)?card.usageHistory:[];
+ card.usageHistory.push({id:usageId,at:now,employeeId,employeeName:employee?.name||employee?.username||'',consultantId,consultantName:consultant?.name||consultant?.username||'',customerSignature:signature,confirmedAt:now,status:'Đã thực hiện'});
+ if(commissionAmount>0){
+   state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
+   state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),usageId,therapyCardId:card.id,employeeId,employeeName:employee?.name||employee?.username||'',consultantId,consultantName:consultant?.name||consultant?.username||'',productCode:card.productCode,productName:card.productName,revenue:Number(product?.price||0),rate,amount:commissionAmount,createdAt:now,status:'Đang ghi nhận'});
+ }
+ saveState();closeModal();therapyCardsPage(document.getElementById('content'));alert('Đã thực hiện 1 buổi. Còn '+card.remainingSessions+' buổi.');
+}
+function undoTherapySession(cardId,usageId){
+ if(!hasPermission('Sử dụng liệu trình'))return alert('Bạn không có quyền hoàn tác liệu trình.');
+ const card=(state.therapyCards||[]).find(x=>x.id===cardId);if(!card)return;
+ const usage=(card.usageHistory||[]).find(x=>x.id===usageId&&x.status==='Đã thực hiện');if(!usage)return alert('Không tìm thấy buổi cần hoàn tác.');
+ if(!confirm('Hoàn tác buổi này? Hệ thống sẽ hoàn lại 1 buổi, nguyên liệu và hoa hồng.'))return;
+ restoreMaterialUsage(usageId);
+ card.remainingSessions=Math.min(Number(card.totalSessions||card.remainingSessions+1),Number(card.remainingSessions||0)+1);
+ card.status='Đang sử dụng';
+ usage.status='Đã hoàn tác';usage.reversedAt=new Date().toISOString();
+ (state.serviceCommissions||[]).filter(x=>x.usageId===usageId&&!x.reversed).forEach(x=>{x.status='Đã hoàn tác';x.reversed=true;});
+ saveState();therapyCardsPage(document.getElementById('content'));alert('Đã hoàn tác buổi thực hiện.');
 }
 
 function employeeSpaPage(c){
@@ -699,7 +762,7 @@ function materialUsagePage(c){
 }
 function openMaterialRule(){
  if(!hasPermission('Quản lý kho nguyên liệu'))return alert('Bạn không có quyền.');
- const services=state.products.filter(p=>p.type==='Dịch vụ').map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>').join('');
+ const services=state.products.filter(p=>p.type==='Dịch vụ'||p.type==='Gói dịch vụ, liệu trình').map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>').join('');
  const mats=(state.materials||[]).map(m=>'<option value="'+esc(m.code)+'">'+esc(m.name)+'</option>').join('');
  openModal('Thiết lập định mức','<div class="form-grid"><div><label>Dịch vụ *</label><select id="mrService" class="field">'+services+'</select></div><div><label>Nguyên liệu *</label><select id="mrMaterial" class="field">'+mats+'</select></div><div><label>Số lượng / 1 lần *</label><input id="mrQty" class="field" type="number" min="0.001" step="0.001"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveMaterialRule()">Lưu</button>');
 }
@@ -767,7 +830,7 @@ function saveInvoice(){
  if(typeof product.stock==='number')product.stock-=qty;
  const hasPriorPurchase=(state.invoices||[]).some(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===customer.code);
  const invoice=createInvoice({type:'Thu',customer:customer.name||'Khách lẻ',customerCode:customer.code||'',customerName:customer.name||'Khách lẻ',customerType:hasPriorPurchase?'Cũ':'Mới',phone:customer.phone||'',productCode:product.code,productName:product.name,amount,discount,total,tax,paid,paymentMethod:normalizePaymentMethod(document.getElementById('pay')?.value||'Tiền mặt'),paymentBreakdown:paid>0?[{method:normalizePaymentMethod(document.getElementById('pay')?.value||'Tiền mặt'),amount:paid,source:'sale'}]:[],employeeId:employee.id||'',employeeName:employee.name||employee.username||'',consultantId:consultant.id||'',consultantName:consultant.name||'',shiftId:shift.id,status:paid>=total?'Đã thanh toán':'Còn nợ',items:[{code:product.code,name:product.name,qty,price:rate,discount,vat}]});
- if(paid>0)addCashMovement({type:'thu',amount:paid,paymentMethod:invoice.paymentMethod,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id});
+ createTherapyCardFromInvoice(invoice); if(paid>0)addCashMovement({type:'thu',amount:paid,paymentMethod:invoice.paymentMethod,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id});
  const rule=(state.commissionRules||[]).find(x=>x.productCode===product.code),commissionRate=Number(rule?.rate)||0;
  if(commissionRate>0&&employee.id){state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:product.code,productName:product.name,revenue:total,rate:commissionRate,amount:total*commissionRate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';saveState();renderAll();alert(paid>=total?'Đã tạo và thanh toán hóa đơn.':'Đã tạo hóa đơn, phần còn lại được ghi nhận là Còn nợ.');
@@ -991,7 +1054,7 @@ function completeCashierSale(){
  const hasPriorPurchase=(state.invoices||[]).some(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===customer.code);
  const customerType=hasPriorPurchase?'Cũ':'Mới';
  const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType,phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:t.lineDiscount+t.orderDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0,source:'sale'})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',shiftId:shift.id,status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:cart.map(x=>({code:x.code,name:x.name,qty:x.qty,price:x.price,discount:x.discount||0,vat:x.vat||0}))});
- payments.forEach(p=>addCashMovement({type:'thu',amount:p.amount,paymentMethod:p.method,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id}));
+ createTherapyCardFromInvoice(invoice); payments.forEach(p=>addCashMovement({type:'thu',amount:p.amount,paymentMethod:p.method,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id}));
  const commissionRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
  cart.forEach(x=>{const rule=commissionRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0));state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
  state.lastCashierInvoiceId=invoice.id;state.cashierCart=[];state.cashierOrderDiscount=0;state.cashierPayments=[{method:'Tiền mặt',amount:0,tendered:0}];
@@ -1065,7 +1128,7 @@ function cancelInvoice(id){
  const refund=Math.max(0,Number(inv.paid||0));
  const items=getInvoiceItems(inv);
  items.forEach(x=>{const p=state.products.find(z=>z.code===x.code);if(p&&typeof p.stock==='number')p.stock+=Number(x.qty||0);});
- (state.therapyCards||[]).filter(x=>x.invoiceId===inv.id).forEach(x=>{x.status='Đã hủy';x.cancelledAt=new Date().toISOString();x.remainingSessions=0;});
+ (state.therapyCards||[]).filter(x=>x.invoiceId===inv.id).forEach(x=>{x.status='Đã hủy';x.cancelledAt=new Date().toISOString();x.remainingSessions=0;(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').forEach(u=>{restoreMaterialUsage(u.id);(state.serviceCommissions||[]).filter(cm=>cm.usageId===u.id&&!cm.reversed).forEach(cm=>{cm.status='Đã hoàn tác';cm.reversed=true;});});});
  (state.serviceCommissions||[]).filter(x=>x.invoiceId===inv.id).forEach(x=>{x.status='Đã hủy';x.cancelledAt=new Date().toISOString();x.amount=0;});
  if(refund>0){
   const parts=Array.isArray(inv.paymentBreakdown)&&inv.paymentBreakdown.length?inv.paymentBreakdown.filter(p=>(p.source||'sale')==='sale'&&Number(p.amount)>0):[{method:inv.paymentMethod||'Tiền mặt',amount:refund}];
@@ -1801,6 +1864,18 @@ function calcInvoice(){
  const amount=q*r;const grand=Math.max(0,amount-d);const product=state.products[Number(document.getElementById('productSelect').value)||0];const vat=Number(product?.vat)||0;const tax=vat>0?grand-(grand/(1+vat/100)):0;
  document.getElementById('sum').innerText=money(amount)+' ₫';document.getElementById('tax').innerText=money(tax)+' ₫';document.getElementById('grand').innerText=money(grand)+' ₫';
 }
+function createTherapyCardFromInvoice(invoice){
+ const packageItems=(invoice.items||[]).filter(it=>{const p=state.products.find(x=>x.code===it.code);return p&&p.type==='Gói dịch vụ, liệu trình';});
+ if(!packageItems.length)return [];
+ state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
+ const created=[];
+ packageItems.forEach(it=>{
+   const p=state.products.find(x=>x.code===it.code),sessions=getPackageSessions(p)*Math.max(1,Number(it.qty)||1);
+   const card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,totalSessions:sessions,remainingSessions:sessions,expiresAt:'',status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
+   state.therapyCards.push(card);created.push(card);
+ });
+ return created;
+}
 function createInvoice(data){
  const now=new Date();
  const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
@@ -1905,7 +1980,7 @@ function saveMultiLineInvoice(){
  items.forEach(x=>{const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number')p.stock-=x.qty;});
  const invoice=createInvoice({type:'Thu',customer:c.name,customerCode:c.code,customerName:c.name,customerType:hasPriorPurchase?'Cũ':'Mới',phone:c.phone||'',productCode:items[0].code,productName:items.map(x=>x.name).join(', '),amount:t.amount,discount:t.discount,total:t.total,tax:t.tax,paid,paymentMethod:normalizePaymentMethod(document.getElementById('multiPay').value),employeeId:employee.id,employeeName:employee.name||employee.username,shiftId:shift.id,status:paid>=t.total?'Đã thanh toán':paid>0?'Còn nợ':'Còn nợ',items});
  items.forEach(x=>{ /* stock is already reduced below */ });
- addCashMovement({type:'thu',amount:paid,paymentMethod:document.getElementById('multiPay').value,subject:invoice.customerName||c.name,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id});
+ createTherapyCardFromInvoice(invoice); addCashMovement({type:'thu',amount:paid,paymentMethod:document.getElementById('multiPay').value,subject:invoice.customerName||c.name,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id});
  const multiRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
  items.forEach(x=>{const rule=multiRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,x.qty*x.price-x.discount);state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';saveState();renderAll();alert(paid>=t.total?'Đã tạo hóa đơn và thanh toán thành công.':'Đã tạo hóa đơn, phần còn lại được ghi nhận là Còn nợ.');
