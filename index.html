@@ -123,8 +123,10 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .settings-menu button:hover{background:#f2f7ff!important;color:#0875e5!important}
 .settings-menu .theme-swatch:hover{background:inherit!important}
 .theme-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:8px}
-.settings-menu .theme-swatch{height:28px!important;width:100%!important;border:2px solid transparent!important;border-radius:7px!important;cursor:pointer!important;padding:0!important;display:block!important}
-.settings-menu .theme-swatch:hover{filter:brightness(.92)!important}
+.theme-swatches{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:7px!important;padding:8px!important}
+.settings-menu .theme-swatch{display:block!important;width:100%!important;height:28px!important;min-width:0!important;border:2px solid rgba(0,0,0,.12)!important;border-radius:7px!important;cursor:pointer!important;padding:0!important;box-sizing:border-box!important}
+.settings-menu .theme-swatch:hover{filter:brightness(.9)!important}
+.settings-menu .theme-swatch.active{border-color:#111!important;box-shadow:0 0 0 2px #fff inset!important}
 .theme-swatch.active{border-color:#111!important;box-shadow:0 0 0 2px #fff inset}
 
 .account-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -178,10 +180,10 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
     <div class="settings-menu" id="settingsMenu">
       <div class="menu-title">Giao diện</div>
       <div class="theme-swatches">
-        <button class="theme-swatch" title="Xanh lá" style="background:#3b6f63" onclick="setTheme('green')"></button>
-        <button class="theme-swatch" title="Xanh dương" style="background:#0875e5" onclick="setTheme('blue')"></button>
-        <button class="theme-swatch" title="Tím" style="background:#7c3aed" onclick="setTheme('purple')"></button>
-        <button class="theme-swatch" title="Cam" style="background:#ea580c" onclick="setTheme('orange')"></button>
+        <span class="theme-swatch" title="Xanh lá" data-theme="green" style="background-color:#3b6f63" onclick="setTheme('green')"></span>
+        <span class="theme-swatch" title="Xanh dương" data-theme="blue" style="background-color:#0875e5" onclick="setTheme('blue')"></span>
+        <span class="theme-swatch" title="Tím" data-theme="purple" style="background-color:#7c3aed" onclick="setTheme('purple')"></span>
+        <span class="theme-swatch" title="Cam" data-theme="orange" style="background-color:#ea580c" onclick="setTheme('orange')"></span>
       </div>
       <div class="menu-title">Admin</div>
       <button onclick="openAdminAccounts()">Quản lý tài khoản</button>
@@ -523,9 +525,8 @@ function setTheme(theme){
   document.documentElement.style.setProperty('--primary-hover',t.hover);
   document.documentElement.style.setProperty('--primary-soft',t.soft);
   localStorage.setItem('spa_pos_theme',theme);
-  document.querySelectorAll('.theme-swatch').forEach((el,i)=>{
-    const names=['green','blue','purple','orange'];
-    el.classList.toggle('active',names[i]===theme);
+  document.querySelectorAll('.theme-swatch').forEach(el=>{
+    el.classList.toggle('active',el.dataset.theme===theme);
   });
 }
 function loadTheme(){
