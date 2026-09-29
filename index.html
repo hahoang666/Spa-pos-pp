@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Salon ERP Practice Lab</title>
+<title>POS🍀</title>
 <style>
 :root{
   --blue:#0878e8;--blue2:#0b6fe8;--bg:#f5f6fa;--text:#252525;--muted:#8a8f98;
@@ -902,8 +902,36 @@ function genericPage(c,title,col1,col2){
  </div><div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>${col1}</th><th>Thời gian</th><th>${col2}</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead><tbody><tr><td colspan="6"><div class="empty"><div class="circle">▣</div>Chưa có dữ liệu</div></td></tr></tbody></table></div></div>`;
 }
 function reportPage(c){
- c.innerHTML=`<div class="page-title">${state.page}</div><div class="kpis"><div class="kpi">Doanh thu<div class="n">12.500.000 ₫</div></div><div class="kpi">Số hóa đơn<div class="n">24</div></div><div class="kpi">Khách hàng<div class="n">18</div></div><div class="kpi">Giá trị TB/HĐ<div class="n">520.833 ₫</div></div></div>
- <div class="card report"><h3>Báo cáo thực hành</h3><p>Dữ liệu demo để bạn dùng cho bài tập Manual QA.</p><div style="margin-top:20px">Doanh thu theo nhân viên<div class="bar"><span style="width:72%"></span></div><div style="margin-top:12px">Số lượng đơn hoàn thành<div class="bar"><span style="width:55%"></span></div></div></div>`;
+ const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
+ const revenue=invoices.reduce((sum,x)=>sum+Number(x.total||0),0);
+ const count=invoices.length;
+ const customers=new Set(invoices.map(x=>x.customerCode||x.customerName||x.customer).filter(Boolean)).size;
+ const avg=count?revenue/count:0;
+ const paid=invoices.filter(x=>x.status==='Đã thanh toán').reduce((sum,x)=>sum+Number(x.total||0),0);
+ const debt=invoices.filter(x=>x.status==='Còn nợ').reduce((sum,x)=>sum+Number(x.total||0)-Number(x.paid||0),0);
+ const cancelled=(state.invoices||[]).filter(x=>x.status==='Đã hủy').length;
+ const byPayment=PAYMENT_METHODS.map(method=>({method,total:invoices.filter(x=>normalizePaymentMethod(x.paymentMethod)===method).reduce((sum,x)=>sum+Number(x.total||0),0)}));
+ const rows=byPayment.map(x=>`<tr><td>${x.method}</td><td style="text-align:right">${money(x.total)} ₫</td></tr>`).join('');
+ c.innerHTML=`
+  <div class="page-title">${esc(state.page)}</div>
+  <div class="kpis">
+   <div class="kpi">Doanh thu<div class="n">${money(revenue)} ₫</div></div>
+   <div class="kpi">Số hóa đơn<div class="n">${count}</div></div>
+   <div class="kpi">Khách hàng<div class="n">${customers}</div></div>
+   <div class="kpi">Giá trị TB/HĐ<div class="n">${money(avg)} ₫</div></div>
+  </div>
+  <div class="grid-2">
+   <div class="card report"><h3>Tình hình thanh toán</h3>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px">
+     <div class="kpi">Đã thanh toán<div class="n">${money(paid)} ₫</div></div>
+     <div class="kpi">Còn nợ<div class="n">${money(debt)} ₫</div></div>
+     <div class="kpi">Đã hủy<div class="n">${cancelled}</div></div>
+    </div>
+   </div>
+   <div class="card report"><h3>Doanh thu theo phương thức thanh toán</h3>
+    <table><thead><tr><th>Phương thức</th><th style="text-align:right">Doanh thu</th></tr></thead><tbody>${rows}</tbody></table>
+   </div>
+  </div>`;
 }
 function getDashboardPeriodRange(period){
   const now=new Date();
@@ -1293,8 +1321,8 @@ function createInvoice(data){
 }
 function saveInvoice(){
  const q=Number(document.getElementById('qty').value),r=Number(document.getElementById('rate').value),d=Number(document.getElementById('discount').value);
- if(!Number.isInteger(q)||q<1||q>9999)return alert('BUG LAB: Quantity phải là số nguyên từ 1 đến 9999.');
- if(r<=0)return alert('BUG LAB: Rate phải > 0 trong phiên bản bài tập này.');
+ if(!Number.isInteger(q)||q<1||q>9999)return alert('Số lượng phải là số nguyên từ 1 đến 9999.');
+ if(r<=0)return alert('Đơn giá phải lớn hơn 0.');
  const amount=q*r,total=Math.max(0,amount-d),tax=total-(total/1.1),pay=document.getElementById('pay').value;
  const selectedProduct=state.products[Number(document.getElementById('productSelect').value)||0]||state.products[0];
  const customerSelect=document.getElementById('customerSelect');
@@ -1313,7 +1341,7 @@ function saveInvoice(){
    paymentMethod:pay,
    status:'Hoàn thành'
  });
- closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn demo. Hãy dùng chức năng này để thực hành test.');
+ closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn thành công.');
 }
 function openProduct(code){
  const editing=!!code;
