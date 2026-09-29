@@ -228,9 +228,11 @@ function loadState(){
   }catch(e){console.warn('Không thể đọc dữ liệu',e);}
 }
 loadState();
+state.accounts.forEach(a=>accountPermissions(a));
+saveState();
 
 const menus={
-  'Quản trị':['Quản lý tài khoản'],
+  'Quản trị':['Quản lý tài khoản','Phân quyền User'],
   'Tổng quan':['Tổng quan'],
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Nhập hàng','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
@@ -240,6 +242,32 @@ const menus={
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
 };
 
+
+const permissionCatalog={
+  'Tổng quan':['Xem Dashboard','Xem doanh thu'],
+  'Bán hàng':['Xem hóa đơn','Tạo hóa đơn','Hủy hóa đơn','Xem thanh toán'],
+  'Khách hàng':['Xem khách hàng','Thêm khách hàng','Xem lịch sử khách hàng'],
+  'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Cập nhật giá','Quản lý tồn kho'],
+  'Thu / Chi':['Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi'],
+  'Báo cáo':['Xem Pivot','Xem biểu đồ','Xuất Excel'],
+  'Quản trị':['Quản lý tài khoản','Phân quyền User']
+};
+const allPermissions=Object.values(permissionCatalog).flat();
+function defaultPermissions(role){
+  if(role==='Admin') return [...allPermissions];
+  if(role==='Quản lý') return allPermissions.filter(p=>!['Quản lý tài khoản','Phân quyền User'].includes(p));
+  return ['Xem Dashboard','Xem hóa đơn','Tạo hóa đơn','Xem thanh toán','Xem khách hàng','Thêm khách hàng','Xem sản phẩm'];
+}
+function hasPermission(permission){
+  const u=state.currentUser;
+  if(!u) return false;
+  if(u.role==='Admin') return true;
+  return Array.isArray(u.permissions) && u.permissions.includes(permission);
+}
+function accountPermissions(account){
+  if(!Array.isArray(account.permissions)) account.permissions=defaultPermissions(account.role);
+  return account.permissions;
+}
 function togglePassword(){
   const input=document.getElementById('loginPassword');
   input.type=input.type==='password'?'text':'password';
@@ -318,20 +346,29 @@ syncAutoCodeCounter('spa_next_employee_id','NV',state.accounts,'id');
 syncAutoCodeCounter('spa_next_invoice_id','HD',state.invoices,'id');
 syncAutoCodeCounter('spa_next_customer_id','KH',state.customers,'code');
 function renderNav(){
-  document.getElementById('nav').innerHTML=Object.keys(menus).map(x=>`<button class="${state.section===x?'active':''}" onclick="selectSection('${x}')">${x}</button>`).join('');
+  const sections=Object.keys(menus).filter(x=>{
+    if(x==='Quản trị') return hasPermission('Quản lý tài khoản')||hasPermission('Phân quyền User');
+    return x!=='Quản trị';
+  });
+  document.getElementById('nav').innerHTML=sections.map(x=>`<button class="${state.section===x?'active':''}" onclick="selectSection('${x}')">${x}</button>`).join('');
 }
 function renderSidebar(){
-  const list=menus[state.section]||[];
-  document.getElementById('sidebar').innerHTML=list.map((x,i)=>{
-    if(i===0 && state.section!=='Đơn hàng' && state.section!=='Hàng hóa') return `<div class="section-link ${state.page===x?'active':''}" onclick="selectPage('${x}')">${x}</div>`;
-    return `<div class="section-link ${state.page===x?'active':''}" onclick="selectPage('${x}')">${x}</div>`;
-  }).join('');
+  let list=menus[state.section]||[];
+  if(state.currentUser && state.currentUser.role!=='Admin'){
+    list=list.filter(x=>{
+      if(x==='Quản lý tài khoản'||x==='Phân quyền User') return false;
+      const map={'Tổng quan':'Xem Dashboard','Danh sách hàng hóa':'Xem sản phẩm','Thiết lập giá':'Cập nhật giá','Hóa đơn':'Xem hóa đơn','Trả hàng':'Hủy hóa đơn','Khách hàng':'Xem khách hàng','Phiếu thu':'Xem phiếu thu','Phiếu chi':'Xem phiếu chi'};
+      return !map[x] || hasPermission(map[x]);
+    });
+  }
+  document.getElementById('sidebar').innerHTML=list.map(x=>`<div class="section-link ${state.page===x?'active':''}" onclick="selectPage('${x}')">${x}</div>`).join('');
 }
 function selectSection(s){state.section=s;state.page=menus[s][0];renderAll()}
 function selectPage(p){state.page=p;renderAll()}
 
 function renderAll(){saveState();renderNav();renderSidebar();renderPage()}
 function renderPage(){
+  if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
   if(state.page==='Hóa đơn') return invoicePage(c);
   if(state.page==='Danh sách hàng hóa') return productPage(c);
@@ -346,6 +383,7 @@ function renderPage(){
   if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
   if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
+  if(state.page==='Phân quyền User') return adminPermissionsPage(c);
   return genericPage(c,state.page,'Mã chứng từ','Đối tượng');
 }
 
@@ -431,6 +469,57 @@ function openAdminAccounts(){
   renderPage();
 }
 
+
+function adminPermissionsPage(c){
+  const users=state.accounts.filter(a=>a.role!=='Admin');
+  c.innerHTML=`
+    <div class="page-title">Phân quyền User</div>
+    <div class="account-toolbar">
+      <div style="font-size:13px;color:#667085">Admin cấp quyền theo từng tài khoản. Quyền quản trị chỉ dành cho Admin.</div>
+    </div>
+    <div class="card table-wrap">
+      <table class="account-table">
+        <thead><tr><th>ID</th><th>Họ và tên</th><th>Username</th><th>Vai trò</th><th>Số quyền</th><th>Thao tác</th></tr></thead>
+        <tbody>${users.length?users.map(a=>`
+          <tr><td><span class="account-id">${esc(a.id)}</span></td><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.role)}</td>
+          <td>${accountPermissions(a).length}/${allPermissions.length}</td>
+          <td><button class="btn btn-secondary" onclick="openPermissions('${esc(a.id)}')">Phân quyền</button></td></tr>`).join(''):
+          '<tr><td colspan="6"><div class="empty"><div class="circle">♙</div>Chưa có User</div></td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+}
+function openPermissions(id){
+  const account=state.accounts.find(a=>a.id===id);
+  if(!account) return;
+  const selected=new Set(accountPermissions(account));
+  const groups=Object.entries(permissionCatalog).map(([group,perms])=>`
+    <div style="margin-bottom:16px">
+      <div style="font-weight:700;margin-bottom:8px">${group}</div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+        ${perms.map(p=>`<label style="display:flex;gap:8px;align-items:center;padding:9px;border:1px solid #eaecf0;border-radius:8px">
+          <input type="checkbox" class="permission-check" value="${esc(p)}" ${selected.has(p)?'checked':''}>
+          <span>${esc(p)}</span>
+        </label>`).join('')}
+      </div>
+    </div>`).join('');
+  openModal('Phân quyền: '+account.name,`
+    <div style="font-size:12px;color:#667085;margin-bottom:12px">ID: <b>${esc(account.id)}</b> · Vai trò: <b>${esc(account.role)}</b></div>
+    ${groups}
+  `,`
+    <button class="btn btn-secondary" onclick="closeModal()">Hủy</button>
+    <button class="btn btn-primary" onclick="savePermissions('${esc(account.id)}')">Lưu phân quyền</button>
+  `);
+}
+function savePermissions(id){
+  const account=state.accounts.find(a=>a.id===id);
+  if(!account) return;
+  if(account.role==='Admin'){closeModal();return;}
+  account.permissions=[...document.querySelectorAll('.permission-check:checked')].map(x=>x.value);
+  saveState();
+  closeModal();
+  adminPermissionsPage(document.getElementById('content'));
+}
 function adminAccountPage(c){
   const employees=state.accounts.filter(a=>a.role!=='Admin');
   c.innerHTML=`
@@ -444,13 +533,13 @@ function adminAccountPage(c){
     <div class="card table-wrap">
       <table class="account-table">
         <thead><tr>
-          <th>ID</th><th>Họ và tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th>
+          <th>ID</th><th>Họ và tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th>Phân quyền</th><th>Thao tác</th>
         </tr></thead>
         <tbody>
           <tr>
             <td><span class="account-id">ADMIN001</span></td><td>Quản trị viên</td><td>admin</td><td>Admin</td>
             <td><span class="status-active">Hoạt động</span></td>
-            <td style="color:#98a2b3">Tài khoản hệ thống</td>
+            <td><button class="btn btn-secondary" onclick="openPermissions('ADMIN001')">Xem quyền</button></td><td style="color:#98a2b3">Tài khoản hệ thống</td>
           </tr>
           ${employees.length?employees.map(a=>`
             <tr>
@@ -459,9 +548,10 @@ function adminAccountPage(c){
               <td>${esc(a.username)}</td>
               <td>${esc(a.role)}</td>
               <td><span class="${a.status==='Hoạt động'?'status-active':'status-locked'}">${esc(a.status)}</span></td>
+              <td><button class="btn btn-secondary" onclick="openPermissions('${esc(a.id)}')">Phân quyền</button></td>
               <td><button class="btn btn-secondary" onclick="toggleAccountStatus('${esc(a.id)}')">${a.status==='Hoạt động'?'Khóa tài khoản':'Mở khóa'}</button></td>
             </tr>`).join(''):`
-            <tr><td colspan="6"><div class="empty"><div class="circle">♙</div>Chưa có tài khoản nhân viên hoặc quản lý</div></td></tr>`}
+            <tr><td colspan="7"><div class="empty"><div class="circle">♙</div>Chưa có tài khoản nhân viên hoặc quản lý</div></td></tr>`}
         </tbody>
       </table>
     </div>`;
@@ -491,7 +581,7 @@ function createAccount(){
   if(!name||!username||!password){alert('Vui lòng nhập đầy đủ thông tin bắt buộc.');return;}
   if(state.accounts.some(a=>a.username.toLowerCase()===username.toLowerCase())){alert('Tên đăng nhập đã tồn tại.');return;}
   const id=nextAutoCode('NV',4,'spa_next_employee_id',state.accounts,'id');
-  state.accounts.push({id,name,username,password,role,status:'Hoạt động'});
+  state.accounts.push({id,name,username,password,role,status:'Hoạt động',permissions:defaultPermissions(role)});
   saveState();
   closeModal();
   adminAccountPage(document.getElementById('content'));
