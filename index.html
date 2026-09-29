@@ -1,3 +1,4 @@
+/* S6: User-controlled values must be escaped before HTML insertion; parameterized actions use data-* + delegated listeners. */
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -586,7 +587,7 @@ function header(title,buttonText,action){
  <div class="toolbar">
   <input id="commonSearch" class="search" placeholder="🔍 Tìm theo mã, tên, điện thoại..." oninput="applyInvoiceFilters()">
   <div style="margin-left:auto"></div>
-  ${buttonText?`<button class="btn btn-primary" onclick="${action}">＋ ${buttonText}</button>`:''}
+  ${buttonText?`<button class="btn btn-primary" data-action="toolbar-action" data-action-name="${esc(action)}">＋ ${buttonText}</button>`:''}
   <button class="btn btn-secondary" onclick="toggleColumns()">☷</button>
  </div>
  <div class="columns-panel" id="columnsPanel">
@@ -784,7 +785,7 @@ function openPermissions(id){
         </label>`).join('')}
       </div>
     </div>`).join('');
-  openModal('Phân quyền: '+account.name,`
+  openModal('Phân quyền: '+esc(account.name),`
     <div style="font-size:12px;color:#667085;margin-bottom:12px">ID: <b>${esc(account.id)}</b> · Vai trò: <b>${esc(account.role)}</b></div>
     ${groups}
   `,`
