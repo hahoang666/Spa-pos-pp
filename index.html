@@ -302,7 +302,7 @@ const permissionCatalog={
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Thêm bảng giá','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
   'Báo cáo':['Xem biểu đồ','Xuất Excel'],
-  'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ'],
+  'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ','Quản lý kho nguyên liệu'],
   'Quản trị':['Quản lý tài khoản','Phân quyền User']
 };
 const allPermissions=Object.values(permissionCatalog).flat();
@@ -596,6 +596,55 @@ function saveCloseShift(){
  Object.assign(x.sh,{closedAt:new Date().toISOString(),closedBy:state.currentUser?.id||'',totalIncome:x.income,totalExpense:x.expense,expectedCash:x.expected,actualCash:d,difference:d-x.expected,status:'Đã chốt',closeNote:document.getElementById('closeNote').value.trim()});
  saveState();window._closingShift=null;closeModal();shiftClosePage(document.getElementById('content'));alert('Đã chốt quỹ.');
 }
+
+function materialStockPage(c){
+ const mats=Array.isArray(state.materials)?state.materials:[];
+ const rows=mats.map(m=>'<tr><td>'+esc(m.code)+'</td><td>'+esc(m.name)+'</td><td>'+esc(m.unit||'')+'</td><td>'+Number(m.stock||0)+'</td><td>'+Number(m.minStock||0)+'</td><td>'+esc(m.status||'Đang sử dụng')+'</td></tr>').join('');
+ c.innerHTML=header('Kho nguyên liệu','Thêm nguyên liệu','openMaterial()')+'<div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Nguyên liệu</th><th>ĐVT</th><th>Tồn kho</th><th>Tồn tối thiểu</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6"><div class="empty">Chưa có nguyên liệu</div></td></tr>')+'</tbody></table></div>';
+}
+function openMaterial(){
+ if(!hasPermission('Quản lý kho nguyên liệu'))return alert('Bạn không có quyền.');
+ openModal('Thêm nguyên liệu','<div class="form-grid"><div><label>Tên nguyên liệu *</label><input id="matName" class="field"></div><div><label>Đơn vị tính *</label><input id="matUnit" class="field" placeholder="ml, chai, cái..."></div><div><label>Tồn đầu kỳ</label><input id="matStock" class="field" type="number" min="0"></div><div><label>Tồn tối thiểu</label><input id="matMin" class="field" type="number" min="0"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveMaterial()">Lưu</button>');
+}
+function saveMaterial(){
+ if(!hasPermission('Quản lý kho nguyên liệu'))return alert('Bạn không có quyền.');
+ const name=document.getElementById('matName').value.trim(),unit=document.getElementById('matUnit').value.trim(),stock=Number(document.getElementById('matStock').value)||0,min=Number(document.getElementById('matMin').value)||0;
+ if(!name||!unit||stock<0||min<0)return alert('Thông tin nguyên liệu không hợp lệ.');
+ state.materials=Array.isArray(state.materials)?state.materials:[];
+ state.materials.push({code:nextAutoCode('NL',6,'spa_next_material_id',state.materials,'code'),name,unit,stock,minStock:min,status:'Đang sử dụng'});
+ saveState();closeModal();materialStockPage(document.getElementById('content'));alert('Đã thêm nguyên liệu.');
+}
+function materialUsagePage(c){
+ const rules=Array.isArray(state.serviceMaterials)?state.serviceMaterials:[];
+ const rows=rules.map(x=>'<tr><td>'+esc(x.serviceName||x.serviceCode)+'</td><td>'+esc(x.materialName||x.materialCode)+'</td><td>'+x.quantity+' '+esc(x.unit||'')+'</td></tr>').join('');
+ c.innerHTML=header('Định mức nguyên liệu','Thiết lập định mức','openMaterialRule()')+'<div class="card table-wrap"><table><thead><tr><th>Dịch vụ</th><th>Nguyên liệu</th><th>Định mức / 1 lần</th></tr></thead><tbody>'+(rows||'<tr><td colspan="3"><div class="empty">Chưa có định mức</div></td></tr>')+'</tbody></table></div>';
+}
+function openMaterialRule(){
+ if(!hasPermission('Quản lý kho nguyên liệu'))return alert('Bạn không có quyền.');
+ const services=state.products.filter(p=>p.type==='Dịch vụ').map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>').join('');
+ const mats=(state.materials||[]).map(m=>'<option value="'+esc(m.code)+'">'+esc(m.name)+'</option>').join('');
+ openModal('Thiết lập định mức','<div class="form-grid"><div><label>Dịch vụ *</label><select id="mrService" class="field">'+services+'</select></div><div><label>Nguyên liệu *</label><select id="mrMaterial" class="field">'+mats+'</select></div><div><label>Số lượng / 1 lần *</label><input id="mrQty" class="field" type="number" min="0.001" step="0.001"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveMaterialRule()">Lưu</button>');
+}
+function saveMaterialRule(){
+ if(!hasPermission('Quản lý kho nguyên liệu'))return alert('Bạn không có quyền.');
+ const sc=document.getElementById('mrService').value,mc=document.getElementById('mrMaterial').value,q=Number(document.getElementById('mrQty').value),p=state.products.find(x=>x.code===sc),m=(state.materials||[]).find(x=>x.code===mc);
+ if(!sc||!mc||!Number.isFinite(q)||q<=0)return alert('Định mức không hợp lệ.');
+ state.serviceMaterials=Array.isArray(state.serviceMaterials)?state.serviceMaterials:[];
+ const old=state.serviceMaterials.find(x=>x.serviceCode===sc&&x.materialCode===mc);
+ if(old)old.quantity=q;else state.serviceMaterials.push({serviceCode:sc,serviceName:p?.name||'',materialCode:mc,materialName:m?.name||'',unit:m?.unit||'',quantity:q});
+ saveState();closeModal();materialUsagePage(document.getElementById('content'));alert('Đã lưu định mức.');
+}
+function consumeMaterialsForService(serviceCode, multiplier=1, refId=''){
+ const rules=(state.serviceMaterials||[]).filter(x=>x.serviceCode===serviceCode);
+ if(!rules.length)return;
+ state.materialMovements=Array.isArray(state.materialMovements)?state.materialMovements:[];
+ rules.forEach(r=>{
+   const m=(state.materials||[]).find(x=>x.code===r.materialCode); if(!m)return;
+   const qty=Number(r.quantity)*Number(multiplier);
+   m.stock=Number(m.stock||0)-qty;
+   state.materialMovements.push({id:nextAutoCode('XK',6,'spa_next_material_movement_id',state.materialMovements,'id'),materialCode:m.code,quantity:-qty,reason:'Sử dụng dịch vụ',referenceId:refId,createdAt:new Date().toISOString()});
+ });
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
@@ -606,6 +655,8 @@ function renderPage(){
   if(state.page==='Nhà cung cấp') return supplierPage(c);
   if(state.page==='Khách hàng') return customerPage(c);
   if(state.page==='Nhân viên') return employeeSpaPage(c);
+  if(state.page==='Kho nguyên liệu') return materialStockPage(c);
+  if(state.page==='Định mức nguyên liệu') return materialUsagePage(c);
   if(state.page==='Đóng ca / Chốt quỹ') return shiftClosePage(c);
   if(state.page==='Thẻ liệu trình') return therapyCardsPage(c);
   if(state.page==='Nhập hàng') return genericPage(c,'Nhập hàng','Mã nhập hàng','Nhà cung cấp');
