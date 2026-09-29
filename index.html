@@ -288,7 +288,7 @@ const menus={
   'Tổng quan':['Tổng quan'],
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
-  'Khách hàng':['Thẻ liệu trình','Khách hàng'],
+  'Khách hàng':['Thẻ liệu trình','Khách hàng','Nhân viên'],
   'Sổ quỹ':['Phiếu thu','Phiếu chi'],
   'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
@@ -302,6 +302,7 @@ const permissionCatalog={
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Thêm bảng giá','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
   'Báo cáo':['Xem biểu đồ','Xuất Excel'],
+  'Spa':['Chấm công nhân viên','Quản lý hoa hồng'],
   'Quản trị':['Quản lý tài khoản','Phân quyền User']
 };
 const allPermissions=Object.values(permissionCatalog).flat();
@@ -498,6 +499,63 @@ function useTherapySession(id){
  x.lastUsedAt=new Date().toISOString();x.usageHistory=Array.isArray(x.usageHistory)?x.usageHistory:[];x.usageHistory.push({at:x.lastUsedAt,employeeId:state.currentUser?.id||''});
  saveState();therapyCardsPage(document.getElementById('content'));alert('Đã trừ 1 buổi. Còn '+x.remainingSessions+' buổi.');
 }
+
+function employeeSpaPage(c){
+ const emps=state.accounts.filter(a=>a.role!=='Admin');
+ const att=Array.isArray(state.attendance)?state.attendance:[];
+ const comm=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
+ const rows=emps.map(a=>{
+   const days=att.filter(x=>x.employeeId===a.id&&x.date===new Date().toISOString().slice(0,10));
+   const today=days.length?days[0]:null;
+   const totalComm=comm.filter(x=>x.employeeId===a.id).reduce((n,x)=>n+Number(x.amount||0),0);
+   return '<tr><td>'+esc(a.id)+'</td><td>'+esc(a.name||'')+'</td><td>'+esc(a.username||'')+'</td><td>'+esc(a.role||'')+'</td><td>'+esc(a.status||'')+'</td><td>'+esc(today?.checkIn||'—')+'</td><td>'+esc(today?.checkOut||'—')+'</td><td>'+money(totalComm)+' ₫</td></tr>';
+ }).join('');
+ c.innerHTML=header('Nhân viên','Chấm công','openAttendance()')+
+ '<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="openAttendance()">＋ Chấm công</button><button class="btn btn-secondary" onclick="openCommission()">＋ Ghi nhận hoa hồng</button><button class="btn btn-secondary" onclick="openCommissionRules()">Thiết lập hoa hồng dịch vụ</button></div></div>'+
+ '<div class="card table-wrap"><table><thead><tr><th>ID</th><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Trạng thái</th><th>Check-in hôm nay</th><th>Check-out hôm nay</th><th>Hoa hồng đã ghi nhận</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có nhân viên</div></td></tr>')+'</tbody></table></div>';
+}
+function openAttendance(){
+ if(!hasPermission('Chấm công nhân viên'))return alert('Bạn không có quyền chấm công.');
+ const emps=state.accounts.filter(a=>a.role!=='Admin'&&a.status==='Hoạt động').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.id)+'</option>').join('');
+ openModal('Chấm công','<div class="form-grid"><div><label>Nhân viên *</label><select id="attEmployee" class="field">'+emps+'</select></div><div><label>Ngày</label><input id="attDate" class="field" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div><div><label>Giờ vào</label><input id="attIn" class="field" type="time"></div><div><label>Giờ ra</label><input id="attOut" class="field" type="time"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveAttendance()">Lưu</button>');
+}
+function saveAttendance(){
+ if(!hasPermission('Chấm công nhân viên'))return alert('Bạn không có quyền chấm công.');
+ const eid=document.getElementById('attEmployee').value,date=document.getElementById('attDate').value,ci=document.getElementById('attIn').value,co=document.getElementById('attOut').value;
+ if(!eid||!date||!ci)return alert('Nhân viên, ngày và giờ vào là bắt buộc.');
+ if(co&&co<=ci)return alert('Giờ ra phải sau giờ vào.');
+ state.attendance=Array.isArray(state.attendance)?state.attendance:[];
+ const old=state.attendance.find(x=>x.employeeId===eid&&x.date===date);
+ if(old)Object.assign(old,{checkIn:ci,checkOut:co||old.checkOut||'',updatedAt:new Date().toISOString()});
+ else state.attendance.push({id:nextAutoCode('CC',6,'spa_next_attendance_id',state.attendance,'id'),employeeId:eid,date,checkIn:ci,checkOut:co||'',createdAt:new Date().toISOString()});
+ saveState();closeModal();employeeSpaPage(document.getElementById('content'));alert('Đã lưu chấm công.');
+}
+function openCommission(){
+ if(!hasPermission('Quản lý hoa hồng'))return alert('Bạn không có quyền quản lý hoa hồng.');
+ const emps=state.accounts.filter(a=>a.role!=='Admin').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.id)+'</option>').join('');
+ const ps=state.products.filter(p=>p.type==='Dịch vụ'||p.type==='Gói dịch vụ, liệu trình').map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>').join('');
+ openModal('Ghi nhận hoa hồng','<div class="form-grid"><div><label>Nhân viên *</label><select id="comEmployee" class="field">'+emps+'</select></div><div><label>Dịch vụ *</label><select id="comProduct" class="field">'+ps+'</select></div><div><label>Doanh số *</label><input id="comRevenue" class="field" type="number" min="0"></div><div><label>Tỷ lệ (%)</label><input id="comRate" class="field" type="number" min="0" max="100" step="0.01"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCommission()">Lưu</button>');
+}
+function saveCommission(){
+ if(!hasPermission('Quản lý hoa hồng'))return alert('Bạn không có quyền quản lý hoa hồng.');
+ const revenue=Number(document.getElementById('comRevenue').value),rate=Number(document.getElementById('comRate').value);
+ if(!Number.isFinite(revenue)||revenue<0||!Number.isFinite(rate)||rate<0||rate>100)return alert('Doanh số/tỷ lệ hoa hồng không hợp lệ.');
+ const eid=document.getElementById('comEmployee').value,pc=document.getElementById('comProduct').value,pr=state.products.find(x=>x.code===pc);
+ state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
+ state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),employeeId:eid,productCode:pc,productName:pr?.name||'',revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString()});
+ saveState();closeModal();employeeSpaPage(document.getElementById('content'));alert('Đã ghi nhận hoa hồng.');
+}
+function openCommissionRules(){
+ if(!hasPermission('Quản lý hoa hồng'))return alert('Bạn không có quyền quản lý hoa hồng.');
+ const ps=state.products.filter(p=>p.type==='Dịch vụ'||p.type==='Gói dịch vụ, liệu trình');
+ const rows=ps.map(p=>{const r=(state.commissionRules||[]).find(x=>x.productCode===p.code);return '<div class="form-grid" style="margin-bottom:8px"><div><label>'+esc(p.name)+'</label><input class="field commission-rule" data-code="'+esc(p.code)+'" type="number" min="0" max="100" step="0.01" value="'+(r?.rate??0)+'"></div></div>';}).join('');
+ openModal('Thiết lập hoa hồng theo dịch vụ',rows||'<div class="empty">Chưa có sản phẩm dịch vụ.</div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCommissionRules()">Lưu</button>');
+}
+function saveCommissionRules(){
+ state.commissionRules=Array.isArray(state.commissionRules)?state.commissionRules:[];
+ document.querySelectorAll('.commission-rule').forEach(el=>{const rate=Number(el.value);if(Number.isFinite(rate)&&rate>=0&&rate<=100){const old=state.commissionRules.find(x=>x.productCode===el.dataset.code);if(old)old.rate=rate;else state.commissionRules.push({productCode:el.dataset.code,rate});}});
+ saveState();closeModal();alert('Đã lưu thiết lập hoa hồng theo dịch vụ.');
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
@@ -507,6 +565,7 @@ function renderPage(){
   if(state.page==='Thiết lập giá') return pricePage(c);
   if(state.page==='Nhà cung cấp') return supplierPage(c);
   if(state.page==='Khách hàng') return customerPage(c);
+  if(state.page==='Nhân viên') return employeeSpaPage(c);
   if(state.page==='Thẻ liệu trình') return therapyCardsPage(c);
   if(state.page==='Nhập hàng') return genericPage(c,'Nhập hàng','Mã nhập hàng','Nhà cung cấp');
   if(state.page==='Trả hàng nhập') return genericPage(c,'Trả hàng nhập','Mã trả hàng nhập','Nhà cung cấp');
