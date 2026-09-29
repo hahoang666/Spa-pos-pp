@@ -125,6 +125,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .status-active{color:#15803d;background:#ecfdf3;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:600}
 .status-locked{color:#b42318;background:#fef3f2;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:600}
 
+.login-forgot{border:0;background:none;color:#3b6f63;font-size:13px;cursor:pointer;padding:0}.login-forgot:hover{text-decoration:underline}
 .login-error{display:none;color:#c53b40;background:#fff1f1;border:1px solid #ffd4d4;border-radius:8px;padding:9px 11px;font-size:13px}
 .login-error.show{display:block}
 @media(max-width:700px){.login-screen{justify-content:center;padding:20px}.login-panel{padding:30px 24px;border-radius:16px}}
@@ -152,6 +153,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
       <div class="login-error" id="loginError">Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.</div>
       <div class="login-options">
         <label class="login-remember"><input type="checkbox" id="rememberLogin"> Ghi nhớ đăng nhập</label>
+        <button type="button" class="login-forgot" onclick="forgotPassword()">Quên mật khẩu?</button>
       </div>
       <button class="login-button" type="submit">↪ &nbsp; Đăng nhập</button>
     </form>
@@ -283,7 +285,22 @@ function togglePassword(){
   input.type=input.type==='password'?'text':'password';
 }
 function forgotPassword(){
-  alert('Vui lòng liên hệ quản trị viên để đặt lại mật khẩu.');
+  const username=(document.getElementById('loginUsername').value||'').trim();
+  const account=state.accounts.find(a=>a.username.toLowerCase()===(username||'').toLowerCase());
+  if(!username){
+    alert('Vui lòng nhập Tên đăng nhập trước, sau đó chọn Quên mật khẩu.');
+    document.getElementById('loginUsername').focus();
+    return;
+  }
+  if(!account){
+    alert('Không tìm thấy tài khoản. Vui lòng kiểm tra lại Tên đăng nhập hoặc liên hệ Admin.');
+    return;
+  }
+  if(account.id==='ADMIN001' || account.role==='Admin'){
+    alert('Tài khoản Admin: vui lòng liên hệ quản trị hệ thống để đặt lại mật khẩu.');
+    return;
+  }
+  alert('Yêu cầu đặt lại mật khẩu đã được ghi nhận. Vui lòng liên hệ Admin để cấp mật khẩu mới.');
 }
 function login(){
   const username=document.getElementById('loginUsername').value.trim();
@@ -303,8 +320,13 @@ function login(){
     error.classList.add('show');return;
   }
   error.classList.remove('show');
-  if(document.getElementById('rememberLogin').checked)localStorage.setItem('spa_pos_username',account.username);
-  else localStorage.removeItem('spa_pos_username');
+  if(document.getElementById('rememberLogin').checked){
+    localStorage.setItem('spa_pos_username',account.username);
+    localStorage.setItem('spa_pos_remember_username',account.username);
+  }else{
+    localStorage.removeItem('spa_pos_username');
+    localStorage.removeItem('spa_pos_remember_username');
+  }
   localStorage.setItem('spa_pos_role',account.role);
   localStorage.setItem('spa_pos_user_id',account.id);
   localStorage.setItem('spa_pos_user_name',account.name);
@@ -318,6 +340,24 @@ function login(){
   renderAll();
 }
 function initLogin(){
+  const rememberedUsername=localStorage.getItem('spa_pos_remember_username');
+  if(rememberedUsername){
+    const account=state.accounts.find(a=>a.username.toLowerCase()===rememberedUsername.toLowerCase() && a.status==='Hoạt động');
+    if(account){
+      state.currentUser=account;
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('loginUsername').value=account.username;
+      document.getElementById('rememberLogin').checked=true;
+      if(account.role==='Admin'){
+        state.section='Quản trị';state.page='Quản lý tài khoản';
+      }else{
+        state.section='Tổng quan';state.page='Tổng quan';
+      }
+      renderAll();
+      return;
+    }
+    localStorage.removeItem('spa_pos_remember_username');
+  }
   const remembered=localStorage.getItem('spa_pos_username');
   if(remembered){
     document.getElementById('loginUsername').value=remembered;
