@@ -205,6 +205,11 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 
 <script>
 const PAYMENT_METHODS=['Tiền mặt','Chuyển khoản','Ví điện tử','Thẻ'];
+function localDateKey(date){
+ const d=date instanceof Date?date:new Date(date);
+ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+ return `${y}-${m}-${day}`;
+}
 function normalizePaymentMethod(value){
  const v=(value||'').trim();
  if(v==='Ngân hàng') return 'Chuyển khoản';
@@ -995,11 +1000,11 @@ function getChartBuckets(period,granularity){
   }else{
     const cursor=new Date(range.start), end=new Date(range.end), map=new Map();
     while(cursor<=end){
-      const key=cursor.toISOString().slice(0,10);
+      const key=localDateKey(cursor);
       labels.push(cursor.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}));map.set(key,labels.length-1);
       values.push(0);customers.push(0);cursor.setDate(cursor.getDate()+1);
     }
-    rows.forEach(x=>{const d=x.createdAt?new Date(x.createdAt):null;if(!d)return;const idx=map.get(d.toISOString().slice(0,10));if(idx!==undefined){values[idx]+=Number(x.total||0);customers[idx]+=1;}});
+    rows.forEach(x=>{const d=x.createdAt?new Date(x.createdAt):null;if(!d)return;const idx=map.get(localDateKey(d));if(idx!==undefined){values[idx]+=Number(x.total||0);customers[idx]+=1;}});
   }
   return {labels,values,customers};
 }
