@@ -455,6 +455,7 @@ function initLogin(){
 }
 function money(n){return new Intl.NumberFormat('vi-VN').format(n||0)}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function escJs(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r/g,'\\r').replace(/\n/g,'\\n').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029')}
 
 function peekAutoCode(prefix,width,storageKey,collection,field){
   const nums=(collection||[]).map(x=>{
@@ -509,7 +510,7 @@ function renderAll(){saveState();renderNav();renderSidebar();renderUserSession()
 
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const rows=cards.slice().reverse().map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="useTherapySession('${esc(x.id)}')">Sử dụng 1 buổi</button></td></tr>`).join('');
+ const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="useTherapySession('${escJs(x.id)}')">Sử dụng 1 buổi</button></td></tr>`).join('');
  c.innerHTML=header('Thẻ liệu trình','Tạo thẻ liệu trình','openTherapyCard()')+'<div class="card table-wrap"><table><thead><tr><th>Mã thẻ</th><th>Khách hàng</th><th>Liệu trình</th><th>Tổng buổi</th><th>Còn lại</th><th>Hạn dùng</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có thẻ liệu trình</div></td></tr>')+'</tbody></table></div>';
 }
 function openTherapyCard(){
@@ -803,9 +804,9 @@ function renderCashierProducts(keyword){
   const q=(keyword||'').toLowerCase();
   const products=state.products.filter(p=>(p.name+' '+p.code+' '+(p.barcode||'')).toLowerCase().includes(q));
   box.innerHTML=products.map(p=>`
-    <button class="card" style="text-align:left;padding:12px;cursor:pointer;border:1px solid var(--border);background:#fff" onclick="addToCashierCart('${esc(p.code)}')">
+    <button class="card" style="text-align:left;padding:12px;cursor:pointer;border:1px solid var(--border);background:#fff" onclick="addToCashierCart('${escJs(p.code)}')">
       <div style="font-weight:700;margin-bottom:6px">${esc(p.name)}</div>
-      <div style="font-size:12px;color:#667085">${esc(p.code)} · ${esc(p.type)}</div>
+      <div style="font-size:12px;color:#667085">${escJs(p.code)} · ${esc(p.type)}</div>
       <div style="margin-top:8px;font-weight:700;color:var(--primary)">${money(p.price)}</div>
     </button>`).join('')||'<div style="color:#667085">Không tìm thấy hàng hóa</div>';
 }
@@ -1101,7 +1102,7 @@ function viewCustomer(code){
 function supplierPage(c){
  c.innerHTML=header('Nhà cung cấp','Nhà cung cấp','openSupplier')+`
  <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px"><div class="filter-group"><div class="filter-title">Nhóm nhà cung cấp</div><select class="field"><option>Tất cả các nhóm</option></select></div><div class="filter-group"><div class="filter-title">Tổng mua</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Nợ hiện tại</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div><div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field"><option>Đang hoạt động</option></select></div></div>
- <div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>Mã nhà cung cấp</th><th>Tên nhà cung cấp</th><th>Điện thoại</th><th>Email</th><th>Nợ hiện tại</th><th>Tổng mua</th></tr></thead><tbody>${state.suppliers.length?state.suppliers.map(x=>`<tr><td>☐</td><td>${x.code}</td><td>${esc(x.name)}</td><td>${x.phone}</td><td>${x.email}</td><td>${money(x.debt)}</td><td>${money(x.buy)}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty"><div class="circle">♙</div>Chưa có nhà cung cấp</div></td></tr>`}</tbody></table></div></div>`;
+ <div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>Mã nhà cung cấp</th><th>Tên nhà cung cấp</th><th>Điện thoại</th><th>Email</th><th>Nợ hiện tại</th><th>Tổng mua</th></tr></thead><tbody>${state.suppliers.length?state.suppliers.map(x=>`<tr><td>☐</td><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.email)}</td><td>${money(x.debt)}</td><td>${money(x.buy)}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty"><div class="circle">♙</div>Chưa có nhà cung cấp</div></td></tr>`}</tbody></table></div></div>`;
 }
 function setTheme(theme){
   const themes={
@@ -1206,9 +1207,9 @@ function adminPermissionsPage(c){
       <table class="account-table">
         <thead><tr><th>ID</th><th>Họ và tên</th><th>Username</th><th>Vai trò</th><th>Số quyền</th><th>Thao tác</th></tr></thead>
         <tbody>${users.length?users.map(a=>`
-          <tr><td><span class="account-id">${esc(a.id)}</span></td><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.role)}</td>
+          <tr><td><span class="account-id">${escJs(a.id)}</span></td><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.role)}</td>
           <td>${accountPermissions(a).length}/${allPermissions.length}</td>
-          <td><button class="btn btn-secondary" onclick="openPermissions('${esc(a.id)}')">Phân quyền</button></td></tr>`).join(''):
+          <td><button class="btn btn-secondary" onclick="openPermissions('${escJs(a.id)}')">Phân quyền</button></td></tr>`).join(''):
           '<tr><td colspan="6"><div class="empty"><div class="circle">♙</div>Chưa có User</div></td></tr>'}
         </tbody>
       </table>
@@ -1230,11 +1231,11 @@ function openPermissions(id){
       </div>
     </div>`).join('');
   openModal('Phân quyền: '+esc(account.name),`
-    <div style="font-size:12px;color:#667085;margin-bottom:12px">ID: <b>${esc(account.id)}</b> · Vai trò: <b>${esc(account.role)}</b></div>
+    <div style="font-size:12px;color:#667085;margin-bottom:12px">ID: <b>${escJs(account.id)}</b> · Vai trò: <b>${esc(account.role)}</b></div>
     ${groups}
   `,`
     <button class="btn btn-secondary" onclick="closeModal()">Hủy</button>
-    <button class="btn btn-primary" onclick="savePermissions('${esc(account.id)}')">Lưu phân quyền</button>
+    <button class="btn btn-primary" onclick="savePermissions('${escJs(account.id)}')">Lưu phân quyền</button>
   `);
 }
 function savePermissions(id){
@@ -1255,7 +1256,7 @@ function adminAccountPage(c){
   <div class="account-toolbar"><div><div style="font-size:13px;color:#667085">Quản lý tài khoản nhân viên và quản lý</div></div><button class="btn btn-primary" onclick="openCreateAccount()">＋ Tạo tài khoản</button></div>
   <div class="card table-wrap"><table class="account-table"><thead><tr><th>ID</th><th>Họ và tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th>Phân quyền</th><th>Thao tác</th></tr></thead><tbody>
    <tr><td><span class="account-id">ADMIN001</span></td><td>Quản trị viên</td><td>admin</td><td>Admin</td><td><span class="status-active">Hoạt động</span></td><td><button class="btn btn-secondary" onclick="openPermissions('ADMIN001')">Xem quyền</button></td><td><button class="btn btn-secondary" onclick="openResetPassword('ADMIN001')">Reset mật khẩu</button></td></tr>
-   ${employees.length?employees.map(a=>`<tr><td><span class="account-id">${esc(a.id)}</span></td><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.role)}</td><td><span class="${a.status==='Hoạt động'?'status-active':'status-locked'}">${esc(a.status)}</span>${a.lockedUntil&&Date.now()<a.lockedUntil?' <small>(khóa tạm)</small>':''}</td><td><button class="btn btn-secondary" onclick="openPermissions('${esc(a.id)}')">Phân quyền</button></td><td><button class="btn btn-secondary" onclick="openEditAccount('${esc(a.id)}')">Sửa</button> <button class="btn btn-secondary" onclick="openResetPassword('${esc(a.id)}')">Reset MK</button> <button class="btn btn-secondary" onclick="toggleAccountStatus('${esc(a.id)}')">${a.status==='Hoạt động'?'Khóa':'Mở khóa'}</button> <button class="btn btn-danger" onclick="deleteAccount('${esc(a.id)}')">Xóa</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty">Chưa có tài khoản nhân viên hoặc quản lý</div></td></tr>'}
+   ${employees.length?employees.map(a=>`<tr><td><span class="account-id">${escJs(a.id)}</span></td><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.role)}</td><td><span class="${a.status==='Hoạt động'?'status-active':'status-locked'}">${esc(a.status)}</span>${a.lockedUntil&&Date.now()<a.lockedUntil?' <small>(khóa tạm)</small>':''}</td><td><button class="btn btn-secondary" onclick="openPermissions('${escJs(a.id)}')">Phân quyền</button></td><td><button class="btn btn-secondary" onclick="openEditAccount('${escJs(a.id)}')">Sửa</button> <button class="btn btn-secondary" onclick="openResetPassword('${escJs(a.id)}')">Reset MK</button> <button class="btn btn-secondary" onclick="toggleAccountStatus('${escJs(a.id)}')">${a.status==='Hoạt động'?'Khóa':'Mở khóa'}</button> <button class="btn btn-danger" onclick="deleteAccount('${escJs(a.id)}')">Xóa</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty">Chưa có tài khoản nhân viên hoặc quản lý</div></td></tr>'}
   </tbody></table></div>`;
 }
 function openCreateAccount(){
@@ -1292,7 +1293,7 @@ function createAccount(){
 function openEditAccount(id){
  if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
  const a=state.accounts.find(x=>x.id===id); if(!a||a.role==='Admin')return;
- openModal('Sửa tài khoản',`<div class="form-grid"><div><label>ID nhân viên</label><input class="field" value="${esc(a.id)}" readonly></div><div><label>Họ và tên *</label><input id="editName" class="field" value="${esc(a.name)}"></div><div><label>Tên đăng nhập *</label><input id="editUsername" class="field" value="${esc(a.username)}"></div><div><label>Vai trò *</label><select id="editRole" class="field"><option ${a.role==='Nhân viên'?'selected':''}>Nhân viên</option><option ${a.role==='Quản lý'?'selected':''}>Quản lý</option></select></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEditAccount('${esc(id)}')">Lưu</button>`);
+ openModal('Sửa tài khoản',`<div class="form-grid"><div><label>ID nhân viên</label><input class="field" value="${escJs(a.id)}" readonly></div><div><label>Họ và tên *</label><input id="editName" class="field" value="${esc(a.name)}"></div><div><label>Tên đăng nhập *</label><input id="editUsername" class="field" value="${esc(a.username)}"></div><div><label>Vai trò *</label><select id="editRole" class="field"><option ${a.role==='Nhân viên'?'selected':''}>Nhân viên</option><option ${a.role==='Quản lý'?'selected':''}>Quản lý</option></select></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEditAccount('${escJs(id)}')">Lưu</button>`);
 }
 function saveEditAccount(id){
  const a=state.accounts.find(x=>x.id===id), name=document.getElementById('editName').value.trim(), username=document.getElementById('editUsername').value.trim(), role=document.getElementById('editRole').value;
@@ -1303,7 +1304,7 @@ function saveEditAccount(id){
 function openResetPassword(id){
  if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
  const a=state.accounts.find(x=>x.id===id);if(!a)return;
- openModal('Admin reset mật khẩu',`<div class="form-grid"><div class="full"><label>Tài khoản</label><input class="field" value="${esc(a.username)}" readonly></div><div class="full"><label>Mật khẩu mới *</label><input id="resetPassword" class="field" type="password" placeholder="Tối thiểu 8 ký tự"></div><div class="full"><label>Nhập lại mật khẩu *</label><input id="resetPassword2" class="field" type="password"></div><div class="full"><div style="font-size:12px;color:#667085">${passwordPolicyMessage()}</div></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveResetPassword('${esc(id)}')">Đặt lại mật khẩu</button>`);
+ openModal('Admin reset mật khẩu',`<div class="form-grid"><div class="full"><label>Tài khoản</label><input class="field" value="${esc(a.username)}" readonly></div><div class="full"><label>Mật khẩu mới *</label><input id="resetPassword" class="field" type="password" placeholder="Tối thiểu 8 ký tự"></div><div class="full"><label>Nhập lại mật khẩu *</label><input id="resetPassword2" class="field" type="password"></div><div class="full"><div style="font-size:12px;color:#667085">${passwordPolicyMessage()}</div></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveResetPassword('${escJs(id)}')">Đặt lại mật khẩu</button>`);
 }
 function saveResetPassword(id){
  const a=state.accounts.find(x=>x.id===id), p=document.getElementById('resetPassword').value, p2=document.getElementById('resetPassword2').value;
@@ -1659,7 +1660,7 @@ function openInvoice(){
   <div><label>Nhân viên tư vấn</label><select class="field" id="invoiceConsultant">${invoiceEmployeeOptions()}</select></div>
   <div><label>Kênh bán</label><select class="field"><option>Trực tiếp</option><option>Facebook</option><option>Zalo</option></select></div>
   <div><label>Phương thức</label><select class="field" id="pay">${paymentOptions('Tiền mặt')}</select></div>
-  <div class="full"><label>Sản phẩm / dịch vụ</label><select class="field" id="productSelect">${state.products.map((p,i)=>`<option value="${i}">${p.code} - ${esc(p.name)} - ${money(p.price)} ₫</option>`).join('')}</select></div>
+  <div class="full"><label>Sản phẩm / dịch vụ</label><select class="field" id="productSelect">${state.products.map((p,i)=>`<option value="${i}">${esc(p.code)} - ${esc(p.name)} - ${money(p.price)} ₫</option>`).join('')}</select></div>
   <div><label>Số lượng</label><input id="qty" class="field" type="number" value="1" min="1" max="9999"></div>
   <div><label>Đơn giá</label><input id="rate" class="field" type="number" value="${state.products[0].price}" min="0" step="0.01"></div>
   <div><label>Giảm giá</label><input id="discount" class="field" type="number" value="0" min="0"></div>
@@ -1806,7 +1807,7 @@ function openProduct(code){
  document.getElementById('productGroup')&&(document.getElementById('productGroup').value=product.group||'Mỹ phẩm');
  openModal(editing?'Sửa hàng hóa':'Thêm hàng hóa',`
    <div class="form-grid">
-    <div><label>Mã hàng hóa</label><input id="productCode" class="field" value="${esc(product.code)}" readonly></div>
+    <div><label>Mã hàng hóa</label><input id="productCode" class="field" value="${escJs(product.code)}" readonly></div>
     <div><label>Nhóm hàng</label><select id="productGroup" class="field"><option value="Mỹ phẩm">Mỹ phẩm</option><option value="Dịch vụ">Dịch vụ</option><option value="Gói dịch vụ">Gói dịch vụ</option><option value="Khác">Khác</option></select></div><div><label>Đơn vị tính</label><select id="productUnit" class="field"><option>Chai</option><option>Hộp</option><option>Cái</option><option>Lần</option><option>Gói</option><option>Kg</option></select></div><div><label>Loại hàng</label><select id="productType" class="field"><option>Dịch vụ</option><option>Hàng hóa</option><option>Gói dịch vụ, liệu trình</option></select></div>
     <div class="full"><label>Tên hàng hóa</label><input id="productName" class="field" value="${esc(product.name)}"></div><div><label>Barcode</label><input id="productBarcode" class="field" value="${esc(product.barcode||"")}"></div>
     <div><label>VAT (%)</label><select id="productVat" class="field"><option>0</option><option>5</option><option>8</option><option selected>10</option></select></div>
@@ -1814,7 +1815,7 @@ function openProduct(code){
     <div><label>Giá bán trước thuế</label><input id="productPre" class="field" type="text" value="${formatProductPreTax(Number(product.price)||0)}" readonly></div>
     <div><label>Trạng thái</label><select id="productStatus" class="field"><option>Đang kinh doanh</option><option>Ngừng kinh doanh</option></select></div><div><label>Giá vốn</label><input id="productCost" class="field" type="number" min="0" step="0.001" value="${Number(product.cost)||0}"></div>
    </div>`,
-   `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProduct('${esc(product.code)}',${editing})">Lưu</button>`
+   `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProduct('${escJs(product.code)}',${editing})">Lưu</button>`
  );
 }
 function formatProductPreTax(price){
