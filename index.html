@@ -1377,20 +1377,28 @@ function saveMultiLineInvoice(){
  createInvoice({type:'Thu',customer:c.name,customerCode:c.code,customerName:c.name,phone:c.phone||'',productCode:items[0].code,productName:items.map(x=>x.name).join(', '),amount,discount,total,tax,paid:total,paymentMethod:document.getElementById('multiPay').value,items,status:'Đã thanh toán'});
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn thành công.');
 }
+function deleteProduct(code){
+ if(!hasPermission('Xóa sản phẩm'))return alert('Bạn không có quyền xóa sản phẩm.');
+ const p=state.products.find(x=>x.code===code);if(!p)return;
+ const used=state.invoices.some(i=>(Array.isArray(i.items)?i.items:[]).some(it=>it.code===code)||i.productCode===code);
+ if(used){p.status='Ngừng kinh doanh';saveState();productPage(document.getElementById('content'));return alert('Sản phẩm đã có giao dịch nên được chuyển sang Ngừng kinh doanh.');}
+ if(confirm('Xóa sản phẩm '+p.name+'?')){state.products=state.products.filter(x=>x.code!==code);saveState();productPage(document.getElementById('content'));}
+}
 function openProduct(code){
  const editing=!!code;
  const p=editing?state.products.find(x=>x.code===code):null;
  if(editing&&!p)return;
- const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'};
+ const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Dịch vụ',group:'Mỹ phẩm',unit:'Cái',pre:0,vat:Number(document.getElementById('productVat').value)||0,price:0,cost:0,stock:'---',status:'Đang kinh doanh'};
+ document.getElementById('productGroup')&&(document.getElementById('productGroup').value=product.group||'Mỹ phẩm');
  openModal(editing?'Sửa hàng hóa':'Thêm hàng hóa',`
    <div class="form-grid">
     <div><label>Mã hàng hóa</label><input id="productCode" class="field" value="${esc(product.code)}" readonly></div>
-    <div><label>Loại hàng</label><select id="productType" class="field"><option ${product.type==='Dịch vụ'?'selected':''}>Dịch vụ</option><option ${product.type==='Gói dịch vụ, liệu trình'?'selected':''}>Gói dịch vụ, liệu trình</option></select></div>
+    <div><label>Nhóm hàng</label><select id="productGroup" class="field"><option value="Mỹ phẩm">Mỹ phẩm</option><option value="Dịch vụ">Dịch vụ</option><option value="Gói dịch vụ">Gói dịch vụ</option><option value="Khác">Khác</option></select></div><div><label>Đơn vị tính</label><select id="productUnit" class="field"><option>Chai</option><option>Hộp</option><option>Cái</option><option>Lần</option><option>Gói</option><option>Kg</option></select></div><div><label>Loại hàng</label><select id="productType" class="field"><option>Dịch vụ</option><option>Hàng hóa</option><option>Gói dịch vụ, liệu trình</option></select></div>
     <div class="full"><label>Tên hàng hóa</label><input id="productName" class="field" value="${esc(product.name)}"></div><div><label>Barcode</label><input id="productBarcode" class="field" value="${esc(product.barcode||"")}"></div>
-    <div><label>VAT (%)</label><input id="productVat" class="field" value="10%" readonly disabled></div>
+    <div><label>VAT (%)</label><select id="productVat" class="field"><option>0</option><option>5</option><option>8</option><option selected>10</option></select></div>
     <div><label>Giá bán sau thuế</label><input id="productPrice" class="field" type="number" min="0" step="0.001" value="${Number(product.price)||0}" oninput="calculateProductPreTax()"></div>
     <div><label>Giá bán trước thuế</label><input id="productPre" class="field" type="text" value="${formatProductPreTax(Number(product.price)||0)}" readonly></div>
-    <div><label>Giá vốn</label><input id="productCost" class="field" type="number" min="0" step="0.001" value="${Number(product.cost)||0}"></div>
+    <div><label>Trạng thái</label><select id="productStatus" class="field"><option>Đang kinh doanh</option><option>Ngừng kinh doanh</option></select></div><div><label>Giá vốn</label><input id="productCost" class="field" type="number" min="0" step="0.001" value="${Number(product.cost)||0}"></div>
    </div>`,
    `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProduct('${esc(product.code)}',${editing})">Lưu</button>`
  );
@@ -1408,7 +1416,11 @@ function saveProduct(code,editing){
   if(!hasPermission(editing?'Sửa sản phẩm':'Thêm sản phẩm')) return alert('Bạn không có quyền thực hiện thao tác này.');
  const name=document.getElementById('productName').value.trim();
  if(!name){alert('Vui lòng nhập tên hàng hóa.');return;}
- const price=Number(document.getElementById('productPrice').value)||0;
+ const rawPrice=document.getElementById('productPrice').value;
+ if(rawPrice!==''&&Number(rawPrice)<0)return alert('Giá bán không được âm.');
+ const rawCost=document.getElementById('productCost').value;
+ if(rawCost!==''&&Number(rawCost)<0)return alert('Giá vốn không được âm.');
+ const price=Number(rawPrice)||0;
  const data={
   name,
   barcode:(document.getElementById('productBarcode')?.value||'').trim(),
@@ -1416,7 +1428,10 @@ function saveProduct(code,editing){
   pre:Number((price/1.1).toFixed(3)),
   vat:10,
   price,
-  cost:Number(document.getElementById('productCost').value)||0
+  cost:Number(document.getElementById('productCost').value)||0,
+  group:document.getElementById('productGroup').value,
+  unit:document.getElementById('productUnit').value,
+  status:document.getElementById('productStatus')?.value||'Đang kinh doanh'
  };
  if(editing){
   const p=state.products.find(x=>x.code===code);
