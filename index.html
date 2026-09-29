@@ -120,6 +120,13 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .settings-menu .menu-title{padding:8px 10px 6px;font-size:12px;color:#98a2b3;text-transform:uppercase;font-weight:700}
 .settings-menu button{display:block;width:100%;text-align:left;border:0!important;background:#fff!important;color:#252525!important;border-radius:7px!important;padding:10px!important;cursor:pointer}
 .settings-menu button:hover{background:#f2f7ff!important;color:#0875e5!important}
+.user-session{display:flex;align-items:center;gap:9px;padding:4px 10px;border-left:1px solid var(--border);margin-left:4px}
+.user-session-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;font-weight:700;font-size:13px}
+.user-session-info{display:flex;flex-direction:column;line-height:1.25;min-width:90px}
+.user-session-name{font-size:13px;font-weight:700;color:#27313a}
+.user-session-role{font-size:11px;color:#7a8790}
+.settings-menu .logout-btn{color:#b42318!important;margin-top:4px;border-top:1px solid #eee!important;border-radius:0!important}
+
 .settings-menu .theme-swatch:hover{background:inherit!important}
 .theme-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:8px}
 .theme-swatches{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:7px!important;padding:8px!important}
@@ -176,6 +183,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
     <button onclick="selectPage('Thu ngân')">🛒 Thu ngân</button>
     <button class="iconbtn" title="Thông báo">🔔</button>
     <button class="iconbtn" title="Trợ giúp">?</button>
+    <div class="user-session" id="userSession"></div>
     <div class="settings-wrap">
     <button class="iconbtn" title="Cài đặt" onclick="toggleSettingsMenu()">⚙</button>
     <div class="settings-menu" id="settingsMenu">
@@ -188,6 +196,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
       </div>
       <div class="menu-title">Admin</div>
       <button onclick="openAdminAccounts()">Quản lý tài khoản</button>
+      <button class="logout-btn" onclick="logout()">↪ Đăng xuất</button>
     </div>
   </div>
   </div>
@@ -451,7 +460,7 @@ function renderSidebar(){
 function selectSection(s){state.section=s;state.page=menus[s][0];renderAll()}
 function selectPage(p){state.page=p;renderAll()}
 
-function renderAll(){saveState();renderNav();renderSidebar();renderPage()}
+function renderAll(){saveState();renderNav();renderSidebar();renderUserSession();renderPage()}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
@@ -676,6 +685,36 @@ function setTheme(theme){
 }
 function loadTheme(){
   setTheme(localStorage.getItem('spa_pos_theme')||'green');
+}
+function renderUserSession(){
+ const el=document.getElementById('userSession');
+ const u=state.currentUser;
+ if(!el||!u)return;
+ const name=u.name||u.username||'Người dùng';
+ const role=u.role||'User';
+ const initial=String(name).trim().charAt(0).toUpperCase()||'U';
+ el.innerHTML=`<div class="user-session-avatar">${esc(initial)}</div><div class="user-session-info"><span class="user-session-name">${esc(name)}</span><span class="user-session-role">${esc(role)}</span></div>`;
+}
+function logout(){
+ localStorage.removeItem('spa_pos_username');
+ localStorage.removeItem('spa_pos_remember_username');
+ localStorage.removeItem('spa_pos_role');
+ localStorage.removeItem('spa_pos_user_id');
+ localStorage.removeItem('spa_pos_user_name');
+ state.currentUser=null;
+ state.section='Tổng quan';
+ state.page='Tổng quan';
+ const screen=document.getElementById('loginScreen');
+ if(screen)screen.style.display='flex';
+ const form=document.getElementById('loginForm');
+ if(form)form.reset();
+ const error=document.getElementById('loginError');
+ if(error)error.classList.remove('show');
+ const session=document.getElementById('userSession');
+ if(session)session.innerHTML='';
+ document.getElementById('content').innerHTML='';
+ document.getElementById('nav').innerHTML='';
+ document.getElementById('sidebar').innerHTML='';
 }
 function toggleSettingsMenu(){
   const menu=document.getElementById('settingsMenu');
