@@ -945,7 +945,7 @@ function toggleColumns(){document.getElementById('columnsPanel')?.classList.togg
 function filterRows(v){if(document.getElementById('commonSearch')){document.getElementById('commonSearch').value=v;applyInvoiceFilters();}}
 function applyInvoiceFilters(){
  const f=document.querySelectorAll('.invoice-filter');
- const period=f[0]?.value||'today', status=f[1]?.value||'all', employee=f[4]?.value||'all', payment=f[7]?.value||'all';
+ const period=f[0]?.value||'today', status=f[1]?.value||'all', employee=f[2]?.value||'all', payment=f[3]?.value||'all';
  const q=(document.getElementById('commonSearch')?.value||'').toLowerCase().trim();
  let rows=dashboardInvoices(period);
  if(status!=='all') rows=rows.filter(x=>(x.status||'')===status);
@@ -1020,7 +1020,7 @@ function invoicePage(c){
    <div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option><option>Đã thanh toán</option><option>Còn nợ</option><option>Đã hủy</option></select></div>
    <div class="filter-group"><div class="filter-title">Trạng thái HĐĐT</div><select class="field"><option>Tất cả</option></select></div>
    <div class="filter-group"><div class="filter-title">Còn nợ</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div>
-   <div class="filter-group"><div class="filter-title">Nhân viên thực hiện</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option><option>Lan</option><option>Hà</option></select></div>
+   <div class="filter-group"><div class="filter-title">Nhân viên thực hiện</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option>${[...new Set((state.accounts||[]).filter(a=>a.status!=='Khóa').map(a=>a.name||a.username).filter(Boolean))].map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')}</select></div>
    <div class="filter-group"><div class="filter-title">Nhân viên tư vấn</div><select class="field"><option>Tất cả</option></select></div>
    <div class="filter-group"><div class="filter-title">Kênh bán</div><select class="field"><option>Tất cả</option></select></div>
    <div class="filter-group"><div class="filter-title">Phương thức</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option>${paymentOptions('')}</select></div>
