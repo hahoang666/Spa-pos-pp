@@ -551,13 +551,13 @@ function renderAll(){saveState();renderNav();renderSidebar();renderUserSession()
 
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession('${escJs(x.id)}')">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession(\\''+escJs(x.id)+'\\',\\''+escJs(u.id)+'\\')">Hoàn tác</button>').join('')}</td></tr>`).join('');
+ const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession('${escJs(x.id)}')">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession('${escJs(x.id)}','${escJs(u.id)}')">Hoàn tác</button>').join('')}</td></tr>`).join('');
  c.innerHTML=header('Thẻ liệu trình','Tạo thẻ liệu trình','openTherapyCard()')+'<div class="card table-wrap"><table><thead><tr><th>Mã thẻ</th><th>Khách hàng</th><th>Liệu trình</th><th>Tổng buổi</th><th>Còn lại</th><th>Hạn dùng</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có thẻ liệu trình</div></td></tr>')+'</tbody></table></div>';
 }
 function getPackageSessions(product){
  const explicit=Number(product?.sessions||product?.totalSessions||product?.sessionCount);
  if(Number.isInteger(explicit)&&explicit>0)return explicit;
- const m=String(product?.name||'').match(/(?:-|\\(|\\s)(\\d+)\\s*B(?:\\)|\\b)/i);
+ const m=String(product?.name||'').match(/(?:-|\(|\s)(\d+)\s*B(?:\)|\b)/i);
  return m?Number(m[1]):1;
 }
 function findCommissionRate(productCode){
@@ -808,7 +808,6 @@ function filterPriceTable(value){
 }
 function saveInvoice(){
  const shift=requireOpenShift('tạo hóa đơn');if(!shift)return;
- if(!shift)return;
  if(!hasPermission('Tạo hóa đơn'))return alert('Bạn không có quyền tạo hóa đơn.');
  const customerIndex=Number(document.getElementById('customerSelect')?.value);
  const customer=state.customers[customerIndex]||{};
@@ -1056,7 +1055,7 @@ function completeCashierSale(){
  const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType,phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:t.lineDiscount+t.orderDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0,source:'sale'})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',shiftId:shift.id,status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:cart.map(x=>({code:x.code,name:x.name,qty:x.qty,price:x.price,discount:x.discount||0,vat:x.vat||0}))});
  createTherapyCardFromInvoice(invoice); payments.forEach(p=>addCashMovement({type:'thu',amount:p.amount,paymentMethod:p.method,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id}));
  const commissionRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
- cart.forEach(x=>{const rule=commissionRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0));state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
+ cart.forEach(x=>{const product=state.products.find(p=>p.code===x.code);if(product?.type==='Gói dịch vụ, liệu trình')return;const rule=commissionRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0));state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
  state.lastCashierInvoiceId=invoice.id;state.cashierCart=[];state.cashierOrderDiscount=0;state.cashierPayments=[{method:'Tiền mặt',amount:0,tendered:0}];
  saveState();alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận là Còn nợ.':''));renderAll();
 }
@@ -1982,7 +1981,7 @@ function saveMultiLineInvoice(){
  items.forEach(x=>{ /* stock is already reduced below */ });
  createTherapyCardFromInvoice(invoice); addCashMovement({type:'thu',amount:paid,paymentMethod:document.getElementById('multiPay').value,subject:invoice.customerName||c.name,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id});
  const multiRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
- items.forEach(x=>{const rule=multiRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,x.qty*x.price-x.discount);state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
+ items.forEach(x=>{const product=state.products.find(p=>p.code===x.code);if(product?.type==='Gói dịch vụ, liệu trình')return;const rule=multiRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,x.qty*x.price-x.discount);state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';saveState();renderAll();alert(paid>=t.total?'Đã tạo hóa đơn và thanh toán thành công.':'Đã tạo hóa đơn, phần còn lại được ghi nhận là Còn nợ.');
 }
 function deleteProduct(code){
