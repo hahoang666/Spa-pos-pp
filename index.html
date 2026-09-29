@@ -928,7 +928,8 @@ function completeCashierSale(){
  for(const x of cart){const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number'&&p.stock<x.qty)return alert('Không đủ tồn kho cho '+p.name+'.');}
  cart.forEach(x=>{const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number')p.stock-=x.qty;});
  const first=payments[0]||{method:'Tiền mặt'};
- const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType:customer.code==='KH000001'?'Mới':'Cũ',phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:t.lineDiscount+t.orderDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:cart.map(x=>({code:x.code,name:x.name,qty:x.qty,price:x.price,discount:x.discount||0,vat:x.vat||10}))});
+ const hasPriorPurchase=(state.invoices||[]).some(x=>x!==null&&x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===customer.code); const customerType=hasPriorPurchase?'Cũ':'Mới';
+ const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType,phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:t.lineDiscount+t.orderDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:cart.map(x=>({code:x.code,name:x.name,qty:x.qty,price:x.price,discount:x.discount||0,vat:x.vat||10}))});
  state.lastCashierInvoiceId=invoice.id; state.cashierCart=[];state.cashierOrderDiscount=0;state.cashierPayments=[{method:'Tiền mặt',amount:0,tendered:0}];saveState();alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận là Còn nợ.':''));renderAll();
 }
 function printLastCashierInvoice(){
@@ -1521,9 +1522,17 @@ function refreshDashboard(){
   document.getElementById('ewalletRevenue').innerText=money(ewalletRevenue)+' ₫';
   document.getElementById('otherRevenue').innerText=money(otherRevenue)+' ₫';
   document.getElementById('dashboardInvoices').innerText=rows.length;
-  document.getElementById('dashboardCustomers').innerText=rows.length+' lượt';
-  document.getElementById('oldCustomers').innerText=rows.filter(x=>x.customerType==='Cũ').length;
-  document.getElementById('newCustomers').innerText=rows.filter(x=>x.customerType!=='Cũ').length;
+  const customerRows=rows.filter(x=>(x.type||'Thu')==='Thu'&&x.status!=='Đã hủy'&&x.customerCode);
+  const uniqueCustomers=new Map();
+  customerRows.forEach(x=>{if(!uniqueCustomers.has(x.customerCode))uniqueCustomers.set(x.customerCode,x);});
+  document.getElementById('dashboardCustomers').innerText=uniqueCustomers.size+' khách';
+  let oldCount=0,newCount=0;
+  uniqueCustomers.forEach((x,code)=>{
+    const hadPrior=(state.invoices||[]).some(i=>i!==x&&i.status!=='Đã hủy'&&(i.type||'Thu')==='Thu'&&i.customerCode===code);
+    if(hadPrior)oldCount++;else newCount++;
+  });
+  document.getElementById('oldCustomers').innerText=oldCount;
+  document.getElementById('newCustomers').innerText=newCount;
   document.getElementById('dashboardDebt').innerText=money(debt)+' ₫';
   document.getElementById('totalIncome').innerText=money(income)+' ₫';
   document.getElementById('totalExpense').innerText=money(expense)+' ₫';
