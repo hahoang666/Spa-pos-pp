@@ -320,6 +320,12 @@ state.stocktakes=Array.isArray(state.stocktakes)?state.stocktakes:[];
 state.purchaseInvoices=Array.isArray(state.purchaseInvoices)?state.purchaseInvoices:[];
 state.products=Array.isArray(state.products)?state.products:[];
 state.products.forEach(p=>{if(p.type!=='Dịch vụ'&&p.type!=='Gói dịch vụ, liệu trình'&&(!Number.isFinite(Number(p.stock))||p.stock==='---'))p.stock=0;});
+state.accounts=Array.isArray(state.accounts)?state.accounts:[];
+state.employees=Array.isArray(state.employees)?state.employees:[];
+if(!state.employees.length){
+ state.accounts.filter(a=>a.role!=='Admin').forEach(a=>state.employees.push({id:a.id,name:a.name||'',phone:'',email:'',position:a.role==='Quản lý'?'Quản lý':'Nhân viên',specialties:'',status:a.status||'Hoạt động',accountId:a.id,createdAt:a.createdAt||new Date().toISOString()}));
+}
+
 
 state.suppliers=Array.isArray(state.suppliers)?state.suppliers:[];
 state.heldOrders=Array.isArray(state.heldOrders)?state.heldOrders:[];
@@ -650,23 +656,47 @@ function undoTherapySession(cardId,usageId){
  saveState();therapyCardsPage(document.getElementById('content'));alert('Đã hoàn tác buổi thực hiện.');
 }
 
-function employeeSpaPage(c){
- const emps=state.accounts.filter(a=>a.role!=='Admin');
- const att=Array.isArray(state.attendance)?state.attendance:[];
- const comm=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
- const rows=emps.map(a=>{
-   const days=att.filter(x=>x.employeeId===a.id&&x.date===localDateKey(new Date()));
-   const today=days.length?days[0]:null;
-   const totalComm=comm.filter(x=>x.employeeId===a.id).reduce((n,x)=>n+Number(x.amount||0),0);
-   return '<tr><td>'+esc(a.id)+'</td><td>'+esc(a.name||'')+'</td><td>'+esc(a.username||'')+'</td><td>'+esc(a.role||'')+'</td><td>'+esc(a.status||'')+'</td><td>'+esc(today?.checkIn||'—')+'</td><td>'+esc(today?.checkOut||'—')+'</td><td>'+money(totalComm)+' ₫</td></tr>';
- }).join('');
- c.innerHTML=header('Nhân viên','Chấm công','openAttendance()')+
- '<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="openAttendance()">＋ Chấm công</button><button class="btn btn-secondary" onclick="openCommission()">＋ Ghi nhận hoa hồng</button><button class="btn btn-secondary" onclick="openCommissionRules()">Thiết lập hoa hồng dịch vụ</button></div></div>'+
- '<div class="card table-wrap"><table><thead><tr><th>ID</th><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Trạng thái</th><th>Check-in hôm nay</th><th>Check-out hôm nay</th><th>Hoa hồng đã ghi nhận</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có nhân viên</div></td></tr>')+'</tbody></table></div>';
+function employeeProfilePage(c){
+ const emps=Array.isArray(state.employees)?state.employees:[];
+ const rows=emps.map(e=>{const acc=e.accountId?state.accounts.find(a=>a.id===e.accountId):null;return '<tr><td>'+esc(e.id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.phone||'—')+'</td><td>'+esc(e.position||'—')+'</td><td>'+esc(e.specialties||'—')+'</td><td>'+esc(e.status||'')+'</td><td>'+esc(acc?.username||'Không có')+'</td><td><button class="btn btn-secondary" onclick="openEditEmployeeProfile(\\''+escJs(e.id)+'\\')">Sửa</button></td></tr>';}).join('');
+ c.innerHTML=header('Nhân viên','Thêm nhân sự','openCreateEmployeeProfile')+'<div class="card" style="margin-bottom:12px;padding:14px"><div style="font-size:13px;color:#667085">Hồ sơ nhân sự độc lập với tài khoản đăng nhập. Kỹ thuật viên/tư vấn có thể tồn tại mà không cần username/password.</div></div><div class="card table-wrap"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>SĐT</th><th>Chức danh</th><th>Chuyên môn</th><th>Trạng thái</th><th>Tài khoản</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có hồ sơ nhân sự</div></td></tr>')+'</tbody></table></div>';
 }
+function openCreateEmployeeProfile(){
+ const id=nextAutoCode('NV',6,'spa_next_employee_profile_id',state.employees,'id');
+ const accounts=state.accounts.filter(a=>a.role!=='Admin'&&!state.employees.some(e=>e.accountId===a.id)).map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name)+' - '+esc(a.username)+'</option>').join('');
+ openModal('Thêm hồ sơ nhân sự','<div class="form-grid"><div><label>Mã NV</label><input class="field" value="'+id+'" readonly></div><div><label>Họ và tên *</label><input id="epName" class="field"></div><div><label>Số điện thoại</label><input id="epPhone" class="field"></div><div><label>Email</label><input id="epEmail" class="field"></div><div><label>Chức danh *</label><input id="epPosition" class="field" placeholder="Kỹ thuật viên / Tư vấn / Quản lý..."></div><div><label>Chuyên môn</label><input id="epSpecialties" class="field"></div><div><label>Tài khoản hệ thống</label><select id="epAccount" class="field"><option value="">Không có tài khoản</option>'+accounts+'</select></div><div><label>Trạng thái</label><select id="epStatus" class="field"><option>Hoạt động</option><option>Ngừng hoạt động</option></select></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEmployeeProfile()">Lưu</button>');
+}
+function saveEmployeeProfile(){
+ const name=document.getElementById('epName').value.trim(),position=document.getElementById('epPosition').value.trim(),accountId=document.getElementById('epAccount').value;
+ if(!name||!position)return alert('Họ tên và chức danh là bắt buộc.');
+ if(accountId&&state.employees.some(e=>e.accountId===accountId))return alert('Tài khoản đã được liên kết với hồ sơ khác.');
+ const id=document.querySelector('#modal input[readonly]')?.value||nextAutoCode('NV',6,'spa_next_employee_profile_id',state.employees,'id');
+ state.employees.push({id,name,phone:document.getElementById('epPhone').value.trim(),email:document.getElementById('epEmail').value.trim(),position,specialties:document.getElementById('epSpecialties').value.trim(),accountId,status:document.getElementById('epStatus').value,createdAt:new Date().toISOString()});
+ saveState();closeModal();employeeProfilePage(document.getElementById('content'));
+}
+function openEditEmployeeProfile(id){
+ const e=state.employees.find(x=>x.id===id);if(!e)return;
+ const accounts=state.accounts.filter(a=>a.role!=='Admin'&&(!state.employees.some(x=>x.id!==id&&x.accountId===a.id)||a.id===e.accountId)).map(a=>'<option value="'+esc(a.id)+'" '+(a.id===e.accountId?'selected':'')+'>'+esc(a.name)+' - '+esc(a.username)+'</option>').join('');
+ openModal('Sửa hồ sơ nhân sự','<div class="form-grid"><div><label>Mã NV</label><input class="field" value="'+esc(e.id)+'" readonly></div><div><label>Họ và tên *</label><input id="epName" class="field" value="'+esc(e.name)+'"></div><div><label>Số điện thoại</label><input id="epPhone" class="field" value="'+esc(e.phone||'')+'"></div><div><label>Email</label><input id="epEmail" class="field" value="'+esc(e.email||'')+'"></div><div><label>Chức danh *</label><input id="epPosition" class="field" value="'+esc(e.position||'')+'"></div><div><label>Chuyên môn</label><input id="epSpecialties" class="field" value="'+esc(e.specialties||'')+'"></div><div><label>Tài khoản hệ thống</label><select id="epAccount" class="field"><option value="">Không có tài khoản</option>'+accounts+'</select></div><div><label>Trạng thái</label><select id="epStatus" class="field"><option '+(e.status==='Hoạt động'?'selected':'')+'>Hoạt động</option><option '+(e.status==='Ngừng hoạt động'?'selected':'')+'>Ngừng hoạt động</option></select></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="updateEmployeeProfile(\\''+escJs(id)+'\\')">Lưu</button>');
+}
+function updateEmployeeProfile(id){
+ const e=state.employees.find(x=>x.id===id);if(!e)return;
+ const name=document.getElementById('epName').value.trim(),position=document.getElementById('epPosition').value.trim(),accountId=document.getElementById('epAccount').value;
+ if(!name||!position)return alert('Họ tên và chức danh là bắt buộc.');
+ if(accountId&&state.employees.some(x=>x.id!==id&&x.accountId===accountId))return alert('Tài khoản đã được liên kết với hồ sơ khác.');
+ Object.assign(e,{name,phone:document.getElementById('epPhone').value.trim(),email:document.getElementById('epEmail').value.trim(),position,specialties:document.getElementById('epSpecialties').value.trim(),accountId,status:document.getElementById('epStatus').value,updatedAt:new Date().toISOString()});
+ saveState();closeModal();employeeProfilePage(document.getElementById('content'));
+}
+function employeeOptionsHtml(){return '<option value="">Chọn nhân sự</option>'+(state.employees||[]).filter(e=>e.status==='Hoạt động').map(e=>'<option value="'+esc(e.id)+'">'+esc(e.name)+' - '+esc(e.position||'')+'</option>').join('');}
+function employeeSpaPage(c){
+ const emps=Array.isArray(state.employees)?state.employees:[],att=Array.isArray(state.attendance)?state.attendance:[],comm=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
+ const rows=emps.map(x=>{const t=att.find(a=>a.employeeId===x.id&&a.date===localDateKey(new Date()));const total=comm.filter(a=>a.employeeId===x.id).reduce((n,a)=>n+Number(a.amount||0),0);return '<tr><td>'+esc(x.id)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.position||'')+'</td><td>'+esc(x.status||'')+'</td><td>'+esc(t?.checkIn||'—')+'</td><td>'+esc(t?.checkOut||'—')+'</td><td>'+money(total)+' ₫</td></tr>';}).join('');
+ c.innerHTML=header('Nhân viên','Thêm nhân sự','openCreateEmployeeProfile')+'<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="openCreateEmployeeProfile()">＋ Hồ sơ nhân sự</button><button class="btn btn-secondary" onclick="openAttendance()">＋ Chấm công</button><button class="btn btn-secondary" onclick="openCommission()">＋ Ghi nhận hoa hồng</button><button class="btn btn-secondary" onclick="openCommissionRules()">Thiết lập hoa hồng dịch vụ</button></div></div><div class="card table-wrap"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Trạng thái</th><th>Check-in</th><th>Check-out</th><th>Hoa hồng</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có hồ sơ nhân sự</div></td></tr>')+'</tbody></table></div>';
+}
+
 function openAttendance(){
  if(!hasPermission('Chấm công nhân viên'))return alert('Bạn không có quyền chấm công.');
- const emps=state.accounts.filter(a=>a.role!=='Admin'&&a.status==='Hoạt động').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.id)+'</option>').join('');
+ const emps=employeeOptionsHtml();
  openModal('Chấm công','<div class="form-grid"><div><label>Nhân viên *</label><select id="attEmployee" class="field">'+emps+'</select></div><div><label>Ngày</label><input id="attDate" class="field" type="date" value="'+localDateKey(new Date())+'"></div><div><label>Giờ vào</label><input id="attIn" class="field" type="time"></div><div><label>Giờ ra</label><input id="attOut" class="field" type="time"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveAttendance()">Lưu</button>');
 }
 function saveAttendance(){
@@ -682,7 +712,7 @@ function saveAttendance(){
 }
 function openCommission(){
  if(!hasPermission('Quản lý hoa hồng'))return alert('Bạn không có quyền quản lý hoa hồng.');
- const emps=state.accounts.filter(a=>a.role!=='Admin').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.id)+'</option>').join('');
+ const emps=employeeOptionsHtml();
  const ps=state.products.filter(p=>p.type==='Dịch vụ'||p.type==='Gói dịch vụ, liệu trình').map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>').join('');
  openModal('Ghi nhận hoa hồng','<div class="form-grid"><div><label>Nhân viên *</label><select id="comEmployee" class="field">'+emps+'</select></div><div><label>Dịch vụ *</label><select id="comProduct" class="field">'+ps+'</select></div><div><label>Doanh số *</label><input id="comRevenue" class="field" type="number" min="0"></div><div><label>Tỷ lệ (%)</label><input id="comRate" class="field" type="number" min="0" max="100" step="0.01"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCommission()">Lưu</button>');
 }
@@ -854,7 +884,7 @@ function renderPage(){
   if(state.page==='Thiết lập giá') return pricePage(c);
   if(state.page==='Nhà cung cấp') return supplierPage(c);
   if(state.page==='Khách hàng') return customerPage(c);
-  if(state.page==='Nhân viên') return employeeSpaPage(c);
+  if(state.page==='Nhân viên') return employeeProfilePage(c);
   if(state.page==='Kho nguyên liệu') return materialStockPage(c);
   if(state.page==='Định mức nguyên liệu') return materialUsagePage(c);
   if(state.page==='Đóng ca / Chốt quỹ') return shiftClosePage(c);
@@ -882,8 +912,8 @@ function cashierPage(c){
   state.cashierEmployeeId=state.cashierEmployeeId||(state.currentUser?.id||'');
   state.cashierConsultantId=state.cashierConsultantId||'';
   const customerOptions=state.customers.map(x=>'<option value="'+esc(x.code)+'" '+(x.code===state.cashierCustomerCode?'selected':'')+'>'+esc(x.name)+' - '+esc(x.code)+'</option>').join('');
-  const employees=state.accounts.filter(a=>a.status==='Hoạt động'&&(a.role==='Nhân viên'||a.role==='Quản lý'||a.role==='Admin'));
-  const employeeOptions='<option value="">Chọn nhân viên</option>'+employees.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===state.cashierEmployeeId?'selected':'')+'>'+esc(a.name)+' - '+esc(a.role)+'</option>').join('');
+  const employees=(state.employees||[]).filter(e=>e.status==='Hoạt động');
+  const employeeOptions='<option value="">Chọn nhân sự</option>'+employees.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===state.cashierEmployeeId?'selected':'')+'>'+esc(a.name)+' - '+esc(a.position||'')+'</option>').join('');
   c.innerHTML=
     '<div class="page-title">Thu ngân</div>'+
     '<div class="cashier-layout">'+
