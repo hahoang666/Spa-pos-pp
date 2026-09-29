@@ -129,6 +129,8 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .settings-menu .theme-swatch.active{border-color:#111!important;box-shadow:0 0 0 2px #fff inset!important}
 .theme-swatch.active{border-color:#111!important;box-shadow:0 0 0 2px #fff inset}
 
+.product-actions{display:flex;gap:8px;align-items:center;margin-left:auto}
+.product-selected{font-size:13px;color:#667085}
 .account-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
 .account-table th,.account-table td{padding:12px}
 .status-active{color:#15803d;background:#ecfdf3;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:600}
@@ -492,16 +494,67 @@ function invoicePage(c){
 }
 
 function productPage(c){
- c.innerHTML=header('Hàng hóa','Hàng hóa','openProduct')+`
+ c.innerHTML=`
+ <div class="page-title">Hàng hóa</div>
+ <div class="toolbar">
+   <input class="search" placeholder="🔍  Tìm theo mã, tên..." oninput="filterRows(this.value)">
+   <div style="margin-left:auto"></div>
+   <div id="productActions" class="product-actions"></div>
+   <button class="btn btn-primary" onclick="openProduct()">＋ Thêm mới</button>
+   <button class="btn btn-secondary" onclick="toggleColumns()">☷</button>
+ </div>
+ <div class="card" style="margin-bottom:12px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+   <span class="product-selected" id="productSelectedInfo">Chưa chọn mặt hàng</span>
+ </div>
  <div style="display:flex;gap:14px">
   <div class="card" style="width:245px;padding:16px;flex-shrink:0">
    ${['Loại hàng','Nhóm hàng','VAT (%)','Tồn kho','Thương hiệu','Thuộc tính','Trạng thái'].map((x,i)=>`<div class="filter-group"><div class="filter-title">${x}</div><select class="field"><option>${i===1?'Tất cả':i===6?'Đang kinh doanh':'Chọn '+x.toLowerCase()}</option></select></div>`).join('')}
   </div>
   <div class="card table-wrap" style="flex:1">
-   <table><thead><tr><th>☐</th><th>Mã hàng hóa</th><th>Tên hàng</th><th>Loại hàng</th><th>Giá bán trước thuế</th><th>VAT (%)</th><th>Giá bán sau thuế</th><th>Giá vốn</th><th>Tồn kho</th></tr></thead>
-   <tbody>${state.products.map(x=>`<tr><td>☐</td><td>${x.code}</td><td style="min-width:300px">${esc(x.name)}</td><td><span class="chip">${x.type}</span></td><td>${money(x.pre)}</td><td>${x.vat}%</td><td>${money(x.price)}</td><td>${money(x.cost)}</td><td>${x.stock}</td></tr>`).join('')}</tbody></table>
+   <table><thead><tr><th><input type="checkbox" id="productSelectAll" onchange="toggleAllProducts(this.checked)"></th><th>Mã hàng hóa</th><th>Tên hàng</th><th>Loại hàng</th><th>Giá bán trước thuế</th><th>VAT (%)</th><th>Giá bán sau thuế</th><th>Giá vốn</th><th>Tồn kho</th></tr></thead>
+   <tbody>${state.products.map(x=>`<tr><td><input type="checkbox" class="product-check" data-code="${esc(x.code)}" onchange="updateProductSelection()"></td><td>${x.code}</td><td style="min-width:300px">${esc(x.name)}</td><td><span class="chip">${x.type}</span></td><td>${money(x.pre)}</td><td>${x.vat}%</td><td>${money(x.price)}</td><td>${money(x.cost)}</td><td>${x.stock}</td></tr>`).join('')}</tbody></table>
   </div>
  </div>`;
+ updateProductSelection();
+}
+function getSelectedProductCodes(){
+ return [...document.querySelectorAll('.product-check:checked')].map(x=>x.dataset.code);
+}
+function toggleAllProducts(checked){
+ document.querySelectorAll('.product-check').forEach(x=>x.checked=checked);
+ updateProductSelection();
+}
+function updateProductSelection(){
+ const codes=getSelectedProductCodes();
+ const box=document.getElementById('productActions');
+ const info=document.getElementById('productSelectedInfo');
+ if(!box||!info) return;
+ info.textContent=codes.length?`Đã chọn ${codes.length} mặt hàng`:'Chưa chọn mặt hàng';
+ box.innerHTML=codes.length===1
+   ?`<button class="btn btn-secondary" onclick="editSelectedProduct()">✎ Sửa</button><button class="btn btn-danger" onclick="deleteSelectedProducts()">🗑 Xóa</button>`
+   :codes.length>1
+     ?`<button class="btn btn-danger" onclick="deleteSelectedProducts()">🗑 Xóa ${codes.length} mặt hàng</button>`
+     :'';
+ const all=document.getElementById('productSelectAll');
+ if(all){
+   const checks=[...document.querySelectorAll('.product-check')];
+   all.checked=checks.length>0&&checks.every(x=>x.checked);
+   all.indeterminate=checks.some(x=>x.checked)&&!all.checked;
+ }
+}
+function editSelectedProduct(){
+ const codes=getSelectedProductCodes();
+ if(codes.length!==1)return;
+ openProduct(codes[0]);
+}
+function deleteSelectedProducts(){
+ const codes=getSelectedProductCodes();
+ if(!codes.length)return;
+ const names=codes.map(code=>state.products.find(p=>p.code===code)?.name||code);
+ if(!confirm(`Bạn có chắc muốn xóa ${codes.length} mặt hàng đã chọn?\\n\\n${names.join('\\n')}`))return;
+ state.products=state.products.filter(p=>!codes.includes(p.code));
+ saveState();
+ productPage(document.getElementById('content'));
 }
 function pricePage(c){
  c.innerHTML=header('Thiết lập giá','Bảng giá','openPrice')+`
@@ -1054,7 +1107,46 @@ function saveInvoice(){
  });
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn demo. Hãy dùng chức năng này để thực hành test.');
 }
-function openProduct(){openModal('Thêm hàng hóa',`<div class="form-grid"><div><label>Mã hàng hóa</label><input class="field" value="SP000046"></div><div><label>Loại hàng</label><select class="field"><option>Dịch vụ</option><option>Gói dịch vụ, liệu trình</option></select></div><div class="full"><label>Tên hàng hóa</label><input class="field" value=""></div><div><label>Giá bán trước thuế</label><input class="field" type="number" value="0"></div><div><label>VAT (%)</label><input class="field" type="number" value="10"></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="alert('Demo: lưu hàng hóa');closeModal()">Lưu</button>`)}
+function openProduct(code){
+ const editing=!!code;
+ const p=editing?state.products.find(x=>x.code===code):null;
+ if(editing&&!p)return;
+ const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'};
+ openModal(editing?'Sửa hàng hóa':'Thêm hàng hóa',`
+   <div class="form-grid">
+    <div><label>Mã hàng hóa</label><input id="productCode" class="field" value="${esc(product.code)}" readonly></div>
+    <div><label>Loại hàng</label><select id="productType" class="field"><option ${product.type==='Dịch vụ'?'selected':''}>Dịch vụ</option><option ${product.type==='Gói dịch vụ, liệu trình'?'selected':''}>Gói dịch vụ, liệu trình</option></select></div>
+    <div class="full"><label>Tên hàng hóa</label><input id="productName" class="field" value="${esc(product.name)}"></div>
+    <div><label>Giá bán trước thuế</label><input id="productPre" class="field" type="number" min="0" value="${Number(product.pre)||0}"></div>
+    <div><label>VAT (%)</label><input id="productVat" class="field" type="number" min="0" value="${Number(product.vat)||0}"></div>
+    <div><label>Giá bán sau thuế</label><input id="productPrice" class="field" type="number" min="0" value="${Number(product.price)||0}"></div>
+    <div><label>Giá vốn</label><input id="productCost" class="field" type="number" min="0" value="${Number(product.cost)||0}"></div>
+   </div>`,
+   `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProduct('${esc(product.code)}',${editing})">Lưu</button>`
+ );
+}
+function saveProduct(code,editing){
+ const name=document.getElementById('productName').value.trim();
+ if(!name){alert('Vui lòng nhập tên hàng hóa.');return;}
+ const data={
+  name,
+  type:document.getElementById('productType').value,
+  pre:Number(document.getElementById('productPre').value)||0,
+  vat:Number(document.getElementById('productVat').value)||0,
+  price:Number(document.getElementById('productPrice').value)||0,
+  cost:Number(document.getElementById('productCost').value)||0
+ };
+ if(editing){
+  const p=state.products.find(x=>x.code===code);
+  if(!p)return;
+  Object.assign(p,data);
+ }else{
+  state.products.push({code,...data,stock:'---'});
+ }
+ saveState();
+ closeModal();
+ productPage(document.getElementById('content'));
+}
 function openPrice(){openModal('Tạo bảng giá',`<div class="form-grid"><div><label>Tên bảng giá</label><input class="field" value="Bảng giá mới"></div><div><label>Trạng thái</label><select class="field"><option>Đang áp dụng</option></select></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
 function openSupplier(){openModal('Thêm nhà cung cấp',`<div class="form-grid"><div><label>Mã nhà cung cấp</label><input class="field" value="NCC00001"></div><div><label>Tên nhà cung cấp</label><input class="field"></div><div><label>Điện thoại</label><input class="field"></div><div><label>Email</label><input class="field"></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
 function openGeneric(){openModal('Tạo chứng từ',`<div class="form-grid"><div><label>Mã chứng từ</label><input class="field" value="CT00001"></div><div><label>Ngày chứng từ</label><input class="field" type="date"></div><div class="full"><label>Đối tượng</label><select class="field"><option>Chọn đối tượng</option></select></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu nháp</button>`)}
