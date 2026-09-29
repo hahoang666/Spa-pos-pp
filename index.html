@@ -270,7 +270,7 @@ state.suppliers=Array.isArray(state.suppliers)?state.suppliers:[];
 const menus={
   'Quản trị':['Quản lý tài khoản','Phân quyền User'],
   'Tổng quan':['Tổng quan'],
-  'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Nhập hàng','Trả hàng nhập'],
+  'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
   'Khách hàng':['Khách hàng'],
   'Sổ quỹ':['Phiếu thu','Phiếu chi'],
@@ -461,6 +461,7 @@ function renderPage(){
   if(state.page==='Danh sách hàng hóa') return productPage(c);
   if(state.page==='Thiết lập giá') return pricePage(c);
   if(state.page==='Nhà cung cấp') return supplierPage(c);
+  if(state.page==='Khách hàng') return customerPage(c);
   if(state.page==='Nhập hàng') return genericPage(c,'Nhập hàng','Mã nhập hàng','Nhà cung cấp');
   if(state.page==='Trả hàng nhập') return genericPage(c,'Trả hàng nhập','Mã trả hàng nhập','Nhà cung cấp');
   if(state.page==='Xuất hủy') return genericPage(c,'Xuất hủy','Mã xuất hủy','Chi nhánh');
@@ -692,6 +693,34 @@ function saveProductPrices(){
  saveState();
  alert(changed?'Đã lưu thành công '+changed+' thay đổi giá.':'Không có thay đổi giá.');
  pricePage(document.getElementById('content'));
+}
+function customerPage(c){
+ c.innerHTML=header('Khách hàng','Thêm khách hàng','openCustomer')+`
+ <div class="card table-wrap">
+  <table><thead><tr><th>☐</th><th>Mã khách hàng</th><th>Tên khách hàng</th><th>Số điện thoại</th><th>Loại khách hàng</th><th>Công nợ</th></tr></thead>
+  <tbody>${state.customers.map(x=>`<tr><td>☐</td><td><b>${esc(x.code)}</b></td><td>${esc(x.name)}</td><td>${esc(x.phone||'')}</td><td>${esc(x.type||'Khách hàng')}</td><td>${money(x.debt||0)}</td></tr>`).join('')||'<tr><td colspan="6"><div class="empty"><div class="circle">👤</div>Chưa có khách hàng</div></td></tr>'}</tbody>
+  </table>
+ </div>`;
+}
+function openCustomer(){
+ const code=nextAutoCode('KH',6,'spa_next_customer_id',state.customers,'code');
+ openModal('Thêm khách hàng',`
+  <div class="form-grid">
+   <div><label>Mã khách hàng</label><input id="customerCode" class="field" value="${code}" readonly></div>
+   <div><label>Tên khách hàng *</label><input id="customerName" class="field"></div>
+   <div><label>Số điện thoại</label><input id="customerPhone" class="field"></div>
+   <div><label>Loại khách hàng</label><select id="customerType" class="field"><option>Khách hàng mới</option><option>Khách hàng cũ</option></select></div>
+  </div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCustomer()">Lưu</button>`
+ );
+}
+function saveCustomer(){
+ const code=document.getElementById('customerCode').value.trim();
+ const name=document.getElementById('customerName').value.trim();
+ if(!name)return alert('Vui lòng nhập Tên khách hàng.');
+ if(state.customers.some(x=>x.code===code))return alert('Mã khách hàng đã tồn tại.');
+ state.customers.push({code,name,phone:document.getElementById('customerPhone').value.trim(),type:document.getElementById('customerType').value,debt:0,createdAt:new Date().toISOString()});
+ saveState();closeModal();alert('Đã lưu khách hàng thành công.');customerPage(document.getElementById('content'));
 }
 function supplierPage(c){
  c.innerHTML=header('Nhà cung cấp','Nhà cung cấp','openSupplier')+`
