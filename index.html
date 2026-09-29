@@ -281,6 +281,7 @@ state.heldOrders=Array.isArray(state.heldOrders)?state.heldOrders:[];
 state.cashierCart=Array.isArray(state.cashierCart)?state.cashierCart:[];
 state.cashierPayments=Array.isArray(state.cashierPayments)?state.cashierPayments:[{method:'Tiền mặt',amount:0,tendered:0}];
 state.cashierOrderDiscount=Number(state.cashierOrderDiscount)||0;
+state.invoicePage=Number(state.invoicePage)||1;state.invoicePageSize=10;
 
 const menus={
   'Quản trị':['Quản lý tài khoản','Phân quyền User'],
@@ -691,11 +692,58 @@ function applyInvoiceFilters(){
  if(payment!=='all') rows=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)===payment);
  if(q) rows=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
  const body=document.getElementById('invoiceTableBody');
- if(body) body.innerHTML=rows.length?rows.map(invoiceTableRow).join(''):'<tr><td colspan="12"><div class="empty">Không có dữ liệu phù hợp</div></td></tr>';
- applyColumnVisibility();
+ const totalPages=Math.max(1,Math.ceil(rows.length/state.invoicePageSize));state.invoicePage=Math.min(state.invoicePage,totalPages);const pageRows=rows.slice((state.invoicePage-1)*state.invoicePageSize,state.invoicePage*state.invoicePageSize);if(body) body.innerHTML=pageRows.length?pageRows.map(invoiceTableRow).join(''):'<tr><td colspan="13"><div class="empty">Không có dữ liệu phù hợp</div></td></tr>';const pg=document.getElementById('invoicePagination');if(pg)pg.innerHTML='<button class="btn btn-secondary" onclick="changeInvoicePage(-1)" '+(state.invoicePage<=1?'disabled':'')+'>‹</button> Trang '+state.invoicePage+'/'+totalPages+' <button class="btn btn-secondary" onclick="changeInvoicePage(1)" '+(state.invoicePage>=totalPages?'disabled':'')+'>›</button>';applyColumnVisibility();
 }
+function changeInvoicePage(d){state.invoicePage=Math.max(1,state.invoicePage+d);applyInvoiceFilters();}
 function invoiceTableRow(x,i){
- return '<tr><td data-col="0"><b>'+esc(x.id||'')+'</b></td><td data-col="1">'+esc(x.time||new Date(x.createdAt).toLocaleString('vi-VN'))+'</td><td data-col="2">'+esc(x.customerName||x.customer||'')+'</td><td data-col="3">'+esc(x.phone||'')+'</td><td data-col="4">'+money(x.amount||x.total||0)+' ₫</td><td data-col="5">'+money(x.discount||0)+' ₫</td><td data-col="6">'+money(x.total||0)+' ₫</td><td data-col="7">'+money(x.tax||0)+' ₫</td><td data-col="8">'+money(x.total||0)+' ₫</td><td data-col="9">'+money(x.paid||0)+' ₫</td><td data-col="10">'+esc(x.status||'')+'</td><td data-col="11">'+esc(x.note||'')+'</td></tr>';
+ const status=x.status||'Còn nợ',cancelled=status==='Đã hủy';
+ return '<tr><td data-col="0"><b>'+esc(x.id||'')+'</b></td><td data-col="1">'+esc(x.time||new Date(x.createdAt).toLocaleString('vi-VN'))+'</td><td data-col="2">'+esc(x.customerName||x.customer||'')+'</td><td data-col="3">'+esc(x.phone||'')+'</td><td data-col="4">'+money(x.amount||x.total||0)+' ₫</td><td data-col="5">'+money(x.discount||0)+' ₫</td><td data-col="6">'+money(x.total||0)+' ₫</td><td data-col="7">'+money(x.tax||0)+' ₫</td><td data-col="8">'+money(x.total||0)+' ₫</td><td data-col="9">'+money(x.paid||0)+' ₫</td><td data-col="10">'+esc(status)+'</td><td data-col="11">'+esc(x.note||'')+'</td><td><button class="btn btn-secondary" onclick="viewInvoice(\''+esc(x.id)+'\')">Xem</button> <button class="btn btn-secondary" onclick="printInvoice(\''+esc(x.id)+'\')">In lại</button> '+(!cancelled&&status==='Còn nợ'?'<button class="btn btn-secondary" onclick="openCollectDebt(\''+esc(x.id)+'\')">Thu nợ</button> ':'')+(!cancelled&&hasPermission('Hủy hóa đơn')?'<button class="btn btn-danger" onclick="openCancelInvoice(\''+esc(x.id)+'\')">Hủy</button>':'')+'</td></tr>';
+}
+function viewInvoice(id){
+ const inv=state.invoices.find(x=>x.id===id);if(!inv)return;
+ const items=Array.isArray(inv.items)&&inv.items.length?inv.items:[{code:inv.productCode,name:inv.productName,qty:1,price:inv.amount,discount:inv.discount||0,vat:10}];
+ const paid=Number(inv.paid)||0,total=Number(inv.total)||0,debt=Math.max(0,total-paid);
+ const itemRows=items.map(x=>'<tr><td>'+esc(x.code||'')+'</td><td>'+esc(x.name||'')+'</td><td>'+x.qty+'</td><td>'+money(x.price||0)+' ₫</td><td>'+money(x.discount||0)+' ₫</td><td>'+Number(x.vat||10)+'%</td><td>'+money((Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0)+' ₫')+'</td></tr>').join('');
+ openModal('Chi tiết hóa đơn '+esc(inv.id),'<div class="form-grid"><div><label>Khách hàng</label><input class="field" readonly value="'+esc(inv.customerName||inv.customer||'')+'"></div><div><label>Nhân viên</label><input class="field" readonly value="'+esc(inv.employeeName||'')+'"></div><div><label>Thời gian</label><input class="field" readonly value="'+esc(inv.time||'')+'"></div><div><label>Trạng thái</label><input class="field" readonly value="'+esc(inv.status||'')+'"></div></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Mã SP</th><th>Sản phẩm</th><th>SL</th><th>Đơn giá</th><th>Giảm</th><th>VAT</th><th>Thành tiền</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><div class="summary" style="margin-top:12px"><div class="summary-box"><div class="summary-row"><span>Tổng</span><b>'+money(total)+' ₫</b></div><div class="summary-row"><span>Đã trả</span><b>'+money(paid)+' ₫</b></div><div class="summary-row"><span>Còn nợ</span><b>'+money(debt)+' ₫</b></div></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Đóng</button><button class="btn btn-primary" onclick="printInvoice(\''+esc(inv.id)+'\');closeModal()">In hóa đơn</button>');
+}
+function openCancelInvoice(id){
+ if(!hasPermission('Hủy hóa đơn'))return alert('Bạn không có quyền hủy hóa đơn.');
+ const inv=state.invoices.find(x=>x.id===id);if(!inv||inv.status==='Đã hủy')return;
+ openModal('Hủy hóa đơn '+esc(inv.id),'<div><label>Lý do hủy *</label><textarea id="cancelReason" class="field" rows="4" placeholder="Nhập lý do hủy..."></textarea></div>','<button class="btn btn-secondary" onclick="closeModal()">Không</button><button class="btn btn-danger" onclick="cancelInvoice(\''+esc(inv.id)+'\')">Xác nhận hủy</button>');
+}
+function cancelInvoice(id){
+ if(!hasPermission('Hủy hóa đơn'))return alert('Bạn không có quyền hủy hóa đơn.');
+ const inv=state.invoices.find(x=>x.id===id),reason=document.getElementById('cancelReason')?.value.trim();
+ if(!inv||!reason)return alert('Vui lòng nhập lý do hủy.');
+ inv.status='Đã hủy';inv.cancelReason=reason;inv.cancelledAt=new Date().toISOString();inv.cancelledBy=state.currentUser?.username||'';
+ saveState();closeModal();applyInvoiceFilters();alert('Đã hủy hóa đơn.');
+}
+function openCollectDebt(id){
+ if(!hasPermission('Xem thanh toán'))return alert('Bạn không có quyền thu nợ.');
+ const inv=state.invoices.find(x=>x.id===id);if(!inv)return;
+ const debt=Math.max(0,Number(inv.total||0)-Number(inv.paid||0));
+ if(debt<=0)return alert('Hóa đơn không còn nợ.');
+ openModal('Thu nợ '+esc(inv.id),'<div class="form-grid"><div><label>Còn nợ</label><input class="field" readonly value="'+money(debt)+' ₫"></div><div><label>Phương thức</label><select id="debtMethod" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div class="full"><label>Số tiền thu *</label><input id="debtAmount" class="field" type="number" min="0.01" max="'+debt+'" step="0.01" value="'+debt+'"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="collectDebt(\''+esc(id)+'\')">Thu nợ</button>');
+}
+function collectDebt(id){
+ if(!hasPermission('Xem thanh toán'))return alert('Bạn không có quyền thu nợ.');
+ const inv=state.invoices.find(x=>x.id===id),amount=Number(document.getElementById('debtAmount')?.value)||0,method=normalizePaymentMethod(document.getElementById('debtMethod')?.value||'Tiền mặt');
+ if(!inv)return;
+ const debt=Math.max(0,Number(inv.total||0)-Number(inv.paid||0));
+ if(amount<=0||amount>debt)return alert('Số tiền thu không hợp lệ.');
+ inv.paid=Number(inv.paid||0)+amount;inv.paymentMethod=method;inv.payment=method;
+ inv.paymentBreakdown=Array.isArray(inv.paymentBreakdown)?inv.paymentBreakdown:[];inv.paymentBreakdown.push({method,amount});
+ inv.status=inv.paid>=inv.total?'Đã thanh toán':'Còn nợ';
+ inv.debtHistory=Array.isArray(inv.debtHistory)?inv.debtHistory:[];inv.debtHistory.push({amount,method,createdAt:new Date().toISOString(),employee:state.currentUser?.name||''});
+ saveState();closeModal();applyInvoiceFilters();alert('Đã thu nợ '+money(amount)+' ₫.');
+}
+function exportInvoicesExcel(){
+ if(!hasPermission('Xuất Excel'))return alert('Bạn không có quyền xuất Excel.');
+ const rows=dashboardInvoices(document.querySelector('.invoice-filter')?.value||'today');
+ const head=['Mã hóa đơn','Thời gian','Khách hàng','SĐT','Tổng tiền hàng','Giảm giá','Tổng','VAT','Đã trả','Còn nợ','Trạng thái','Phương thức'];
+ const csv=[head,...rows.map(x=>[x.id,x.time,x.customerName||x.customer,x.phone,x.amount,x.discount,x.total,x.tax,x.paid,Math.max(0,(x.total||0)-(x.paid||0)),x.status,x.paymentMethod])];
+ const blob=new Blob(['\ufeff'+csv.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n')],{type:'text/csv;charset=utf-8;'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hoa-don-'+localDateKey(new Date())+'.csv';a.click();URL.revokeObjectURL(a.href);
 }
 function applyColumnVisibility(){
  document.querySelectorAll('.column-toggle').forEach(ch=>{
@@ -704,7 +752,7 @@ function applyColumnVisibility(){
  });
 }
 function invoicePage(c){
- c.innerHTML=header('Danh sách hóa đơn','Tạo hóa đơn','openInvoice')+`
+ c.innerHTML=header('Danh sách hóa đơn','Tạo hóa đơn nhiều dòng','openMultiLineInvoice')+`
  <div style="display:flex;gap:14px">
   <div class="card" style="width:245px;padding:16px;flex-shrink:0">
    <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option><option value="7days">7 ngày qua</option><option value="month">Tháng này</option><option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option><option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option></select></div>
@@ -718,7 +766,7 @@ function invoicePage(c){
   </div>
   <div class="card" style="flex:1;min-width:0">
    ${header('Danh sách hóa đơn','Tạo hóa đơn','openInvoice')}
-   <div class="table-wrap"><table><thead><tr><th data-col="0">Mã</th><th data-col="1">Thời gian</th><th data-col="2">Khách hàng</th><th data-col="3">Số điện thoại</th><th data-col="4">Tổng tiền hàng</th><th data-col="5">Giảm giá</th><th data-col="6">Tổng sau giảm giá</th><th data-col="7">VAT</th><th data-col="8">Khách cần trả</th><th data-col="9">Khách đã trả</th><th data-col="10">Trạng thái</th><th data-col="11">Ghi chú</th></tr></thead><tbody id="invoiceTableBody"></tbody></table></div>
+   <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn btn-secondary" onclick="exportInvoicesExcel()">⬇ Xuất Excel</button></div><div class="table-wrap"><table><thead><tr><th data-col="0">Mã</th><th data-col="1">Thời gian</th><th data-col="2">Khách hàng</th><th data-col="3">Số điện thoại</th><th data-col="4">Tổng tiền hàng</th><th data-col="5">Giảm giá</th><th data-col="6">Tổng sau giảm giá</th><th data-col="7">VAT</th><th data-col="8">Khách cần trả</th><th data-col="9">Khách đã trả</th><th data-col="10">Trạng thái</th><th data-col="11">Ghi chú</th></tr></thead><tbody id="invoiceTableBody"></tbody></table></div><div id="invoicePagination" style="display:flex;justify-content:center;padding:12px"></div>
   </div>
  </div>`;
  // The inner header creates its own controls; keep only the table's column controls.
@@ -1288,31 +1336,29 @@ function createInvoice(data){
  saveState();
  return invoice;
 }
-function saveInvoice(){
-  if(!hasPermission('Tạo hóa đơn')) return alert('Bạn không có quyền tạo hóa đơn.');
- const q=Number(document.getElementById('qty').value),r=Number(document.getElementById('rate').value),d=Number(document.getElementById('discount').value);
- if(!Number.isInteger(q)||q<1||q>9999)return alert('Số lượng phải là số nguyên từ 1 đến 9999.');
- if(r<=0)return alert('Đơn giá phải lớn hơn 0.');
- const amount=q*r,total=Math.max(0,amount-d),tax=total-(total/1.1),pay=document.getElementById('pay').value;
- const selectedProduct=state.products[Number(document.getElementById('productSelect').value)||0]||state.products[0];
- const employee=state.accounts.find(a=>a.id===document.getElementById('invoiceEmployee')?.value); const consultant=state.accounts.find(a=>a.id===document.getElementById('invoiceConsultant')?.value);
- const customerSelect=document.getElementById('customerSelect');
- const selectedCustomer=state.customers[Number(customerSelect?.value)||0]||state.customers[0];
- createInvoice({
-   type:'Thu',
-   customer:selectedCustomer.name,
-   customerCode:selectedCustomer.code,
-   customerName:selectedCustomer.name,
-   customerType:selectedCustomer.code==='KH000001'?'Mới':'Cũ',
-   phone:selectedCustomer.phone||'',
-   productCode:selectedProduct.code,
-   productName:selectedProduct.name,
-   amount,discount:d,total,tax,
-   paid:total,
-   paymentMethod:pay,
-   employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',
-   status:'Đã thanh toán'
- });
+function addInvoiceLineRow(){
+ const wrap=document.getElementById('invoiceLines');if(!wrap)return;
+ const idx=wrap.children.length;
+ const opts=state.products.map((p,i)=>'<option value="'+i+'">'+esc(p.code)+' - '+esc(p.name)+' - '+money(p.price)+' ₫</option>').join('');
+ const row=document.createElement('div');row.className='invoice-line-row';row.style='display:grid';row.style.gridTemplateColumns='2fr .7fr 1fr .8fr auto';row.style.gap='7px';row.style.marginBottom='7px';
+ row.innerHTML='<select class="field line-product">'+opts+'</select><input class="field line-qty" type="number" min="1" value="1"><input class="field line-rate" type="number" min="0" step="0.01" value="'+(state.products[0]?.price||0)+'"><input class="field line-discount" type="number" min="0" value="0"><button class="btn btn-secondary line-remove">×</button>';
+ row.querySelector('.line-product').addEventListener('change',e=>{const p=state.products[Number(e.target.value)];row.querySelector('.line-rate').value=p?.price||0;});
+ row.querySelector('.line-remove').addEventListener('click',()=>{if(wrap.children.length>1)row.remove();});
+ wrap.appendChild(row);
+}
+function openMultiLineInvoice(){
+ if(!hasPermission('Tạo hóa đơn'))return alert('Bạn không có quyền tạo hóa đơn.');
+ const customers=state.customers.map((x,i)=>'<option value="'+i+'">'+esc(x.name)+' - '+esc(x.code)+'</option>').join('');
+ openModal('Tạo hóa đơn','<div class="form-grid"><div><label>Khách hàng</label><select id="multiCustomer" class="field">'+customers+'</select></div><div><label>Phương thức</label><select id="multiPay" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div class="full"><label>Sản phẩm</label><div id="invoiceLines"></div><button class="btn btn-secondary" onclick="addInvoiceLineRow()">＋ Thêm sản phẩm</button></div></div><div class="summary"><div class="summary-box"><div class="summary-row"><span>Tổng</span><b id="multiTotal">0 ₫</b></div><div class="summary-row"><span>VAT</span><b id="multiTax">0 ₫</b></div></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveMultiLineInvoice()">Lưu hóa đơn</button>');
+ addInvoiceLineRow();
+}
+function saveMultiLineInvoice(){
+ const rows=[...document.querySelectorAll('.invoice-line-row')];if(!rows.length)return;
+ const items=rows.map(r=>{const p=state.products[Number(r.querySelector('.line-product').value)];const qty=Number(r.querySelector('.line-qty').value)||0,price=Number(r.querySelector('.line-rate').value)||0,discount=Number(r.querySelector('.line-discount').value)||0;return {code:p?.code||'',name:p?.name||'',qty,price,discount,vat:10};});
+ if(items.some(x=>!x.code||x.qty<1||x.price<=0||x.discount>x.qty*x.price))return alert('Dữ liệu sản phẩm không hợp lệ.');
+ const amount=items.reduce((a,x)=>a+x.qty*x.price,0),discount=items.reduce((a,x)=>a+x.discount,0),total=amount-discount,tax=total-total/1.1;
+ const c=state.customers[Number(document.getElementById('multiCustomer').value)||0]||state.customers[0];
+ createInvoice({type:'Thu',customer:c.name,customerCode:c.code,customerName:c.name,phone:c.phone||'',productCode:items[0].code,productName:items.map(x=>x.name).join(', '),amount,discount,total,tax,paid:total,paymentMethod:document.getElementById('multiPay').value,items,status:'Đã thanh toán'});
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn thành công.');
 }
 function openProduct(code){
