@@ -297,7 +297,7 @@ const menus={
 
 const permissionCatalog={
   'Tổng quan':['Xem Dashboard','Xem doanh thu'],
-  'Bán hàng':['Xem hóa đơn','Tạo hóa đơn','Hủy hóa đơn','Xem thanh toán','Sử dụng thu ngân'],
+  'Bán hàng':['Xem hóa đơn','Tạo hóa đơn','Hủy hóa đơn','Xem thanh toán','Sử dụng thu ngân','Tạo trả hàng'],
   'Khách hàng':['Xem khách hàng','Thêm khách hàng','Sửa khách hàng','Xóa khách hàng','Xem lịch sử khách hàng'],
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Thêm bảng giá','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
@@ -459,7 +459,7 @@ function renderSidebar(){
   if(state.currentUser && state.currentUser.role!=='Admin'){
     list=list.filter(x=>{
       if(x==='Quản lý tài khoản'||x==='Phân quyền User') return false;
-      const map={'Tổng quan':'Xem Dashboard','Danh sách hàng hóa':'Xem sản phẩm','Thiết lập giá':'Cập nhật giá','Hóa đơn':'Xem hóa đơn','Trả hàng':'Hủy hóa đơn','Khách hàng':'Xem khách hàng','Phiếu thu':'Xem phiếu thu','Phiếu chi':'Xem phiếu chi'};
+      const map={'Tổng quan':'Xem Dashboard','Danh sách hàng hóa':'Xem sản phẩm','Thiết lập giá':'Cập nhật giá','Hóa đơn':'Xem hóa đơn','Trả hàng':'Tạo trả hàng','Khách hàng':'Xem khách hàng','Phiếu thu':'Xem phiếu thu','Phiếu chi':'Xem phiếu chi'};
       return !map[x] || hasPermission(map[x]);
     });
   }
@@ -483,7 +483,7 @@ function renderPage(){
   if(state.page==='Xuất hủy') return genericPage(c,'Xuất hủy','Mã xuất hủy','Chi nhánh');
   if(state.page==='Chuyển hàng') return genericPage(c,'Chuyển hàng','Mã chuyển hàng','Chi nhánh chuyển');
   if(state.page==='Kiểm kho') return genericPage(c,'Phiếu kiểm kho','Mã kiểm kho','Ngày cân bằng');
-  if(state.page==='Trả hàng') return genericPage(c,'Trả hàng','Mã trả hàng','Khách hàng');
+  if(state.page==='Trả hàng') return returnPage(c);
   if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
   if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
@@ -1178,7 +1178,7 @@ function dashboard(c){
 function refreshDashboard(){
   const period=document.getElementById('dashboardPeriod')?.value||'today';
   const rows=dashboardInvoices(period);
-  const revenue=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.total||0),0);
+  const revenue=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.total||0),0)-rows.filter(x=>(x.type||'')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
   const income=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.paid||0),0);
   const expense=rows.filter(x=>(x.type||'Thu')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
   const debt=Math.max(0,revenue-income);
@@ -1258,7 +1258,7 @@ function refreshDashboardCharts(){
   const data=getChartBuckets(period,granularity);
   drawChart('barChart','barEmpty','bar',data);drawChart('lineChart','lineEmpty','line',{labels:data.labels,values:data.customers});
   const rows=dashboardInvoices(period);
-  const revenue=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.total||0),0);
+  const revenue=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.total||0),0)-rows.filter(x=>(x.type||'')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
   const returnCount=rows.filter(x=>(x.type||'Thu')==='Chi' || x.status==='Trả hàng' || x.type==='Return').length;
   if(document.getElementById('chartRevenue'))document.getElementById('chartRevenue').innerText=money(revenue)+' ₫';
   if(document.getElementById('chartInvoiceCount'))document.getElementById('chartInvoiceCount').innerText=rows.length;
@@ -1270,6 +1270,47 @@ function changeDashboardPeriod(period){
   refreshDashboard();
 }
 
+
+function getInvoiceItems(inv){
+ return Array.isArray(inv.items)&&inv.items.length?inv.items:[{code:inv.productCode||'',name:inv.productName||'',qty:1,price:Number(inv.amount||inv.total||0),discount:Number(inv.discount||0),vat:Number(inv.tax||10)}];
+}
+function returnableQty(invoice,code){
+ const sold=getInvoiceItems(invoice).filter(x=>x.code===code).reduce((a,x)=>a+Number(x.qty||0),0);
+ const returned=(state.returns||[]).filter(r=>r.invoiceId===invoice.id).reduce((a,r)=>a+(r.items||[]).filter(x=>x.code===code).reduce((b,x)=>b+Number(x.qty||0),0),0);
+ return Math.max(0,sold-returned);
+}
+function openReturn(){
+ if(!hasPermission('Tạo trả hàng'))return alert('Bạn không có quyền tạo trả hàng.');
+ const opts=state.invoices.filter(i=>i.status!=='Đã hủy').map(i=>'<option value="'+esc(i.id)+'">'+esc(i.id)+' - '+esc(i.customerName||i.customer||'')+' - '+money(i.total||0)+' ₫</option>').join('');
+ openModal('Tạo phiếu trả hàng','<div class="form-grid"><div class="full"><label>Hóa đơn gốc *</label><select id="returnInvoice" class="field" onchange="loadReturnItems()"><option value="">Chọn hóa đơn</option>'+opts+'</select></div><div class="full" id="returnItems"><div class="empty">Chọn hóa đơn để xem sản phẩm có thể trả.</div></div><div><label>Phương thức hoàn tiền</label><select id="returnMethod" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div><label>Ghi chú</label><input id="returnNote" class="field"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveReturn()">Xác nhận trả hàng</button>');
+}
+function loadReturnItems(){
+ const inv=state.invoices.find(x=>x.id===document.getElementById('returnInvoice')?.value),box=document.getElementById('returnItems');if(!box)return;
+ if(!inv){box.innerHTML='<div class="empty">Chọn hóa đơn để xem sản phẩm có thể trả.</div>';return;}
+ box.innerHTML='<div class="table-wrap"><table><thead><tr><th>Sản phẩm</th><th>SL đã mua</th><th>SL có thể trả</th><th>SL trả</th><th>Đơn giá</th><th>Hoàn tiền</th></tr></thead><tbody>'+getInvoiceItems(inv).map((x,i)=>{const max=returnableQty(inv,x.code);return '<tr><td>'+esc(x.name)+'<br><small>'+esc(x.code)+'</small></td><td>'+x.qty+'</td><td>'+max+'</td><td><input class="field return-qty" data-code="'+esc(x.code)+'" data-max="'+max+'" data-price="'+Number(x.price||0)+'" data-discount="'+Number(x.discount||0)+'" type="number" min="0" max="'+max+'" value="0" step="1"></td><td>'+money(x.price||0)+' ₫</td><td class="return-line-total">0 ₫</td></tr>';}).join('')+'</tbody></table></div>';
+ box.querySelectorAll('.return-qty').forEach(el=>el.addEventListener('input',updateReturnTotals));
+}
+function updateReturnTotals(){
+ let total=0;
+ document.querySelectorAll('.return-qty').forEach(el=>{const q=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);el.value=q;const line=q*Number(el.dataset.price||0);total+=line;const cell=el.closest('tr')?.querySelector('.return-line-total');if(cell)cell.textContent=money(line)+' ₫';});
+}
+function saveReturn(){
+ if(!hasPermission('Tạo trả hàng'))return alert('Bạn không có quyền tạo trả hàng.');
+ const inv=state.invoices.find(x=>x.id===document.getElementById('returnInvoice')?.value);if(!inv)return alert('Vui lòng chọn hóa đơn gốc.');
+ const items=[...document.querySelectorAll('.return-qty')].map(el=>{const q=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);return {code:el.dataset.code,qty:q,price:Number(el.dataset.price)||0,discount:Number(el.dataset.discount)||0};}).filter(x=>x.qty>0);
+ if(!items.length)return alert('Vui lòng chọn ít nhất một sản phẩm để trả.');
+ const amount=items.reduce((a,x)=>a+x.qty*x.price,0),method=normalizePaymentMethod(document.getElementById('returnMethod').value);
+ const ret={id:nextAutoCode('TH',6,'spa_next_return_id',state.returns||[],'id'),invoiceId:inv.id,customerCode:inv.customerCode||'',customerName:inv.customerName||inv.customer||'',items,amount,type:'Chi',status:'Đã hoàn tiền',refundAmount:amount,paymentMethod:method,note:document.getElementById('returnNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
+ state.returns=Array.isArray(state.returns)?state.returns:[];state.returns.push(ret);
+ items.forEach(x=>{const p=state.products.find(p=>p.code===x.code);if(p&&typeof p.stock==='number')p.stock+=x.qty;});
+ const sold=getInvoiceItems(inv), full=sold.length&&sold.every(x=>returnableQty(inv,x.code)===0);
+ if(full)inv.status='Đã trả hàng';
+ saveState();closeModal();returnPage(document.getElementById('content'));alert('Đã tạo phiếu trả hàng '+ret.id+' và hoàn tiền '+money(amount)+' ₫.');
+}
+function returnPage(c){
+ const rows=(state.returns||[]).slice().reverse().map(r=>'<tr><td><b>'+esc(r.id)+'</b></td><td>'+esc(r.invoiceId)+'</td><td>'+esc(r.createdAt?new Date(r.createdAt).toLocaleString('vi-VN'):'')+'</td><td>'+esc(r.customerName||'')+'</td><td>'+money(r.amount||0)+' ₫</td><td>'+esc(r.paymentMethod||'')+'</td><td>'+esc(r.status||'')+'</td></tr>').join('');
+ c.innerHTML=header('Trả hàng','Tạo trả hàng','openReturn')+'<div class="card table-wrap"><table><thead><tr><th>Mã trả hàng</th><th>Hóa đơn gốc</th><th>Thời gian</th><th>Khách hàng</th><th>Hoàn tiền</th><th>Phương thức</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có phiếu trả hàng</div></td></tr>')+'</tbody></table></div>';
+}
 function openModal(title,body,actions=''){
  document.getElementById('modal').innerHTML=`<div class="modal-head"><h2>${title}</h2><button class="btn btn-secondary" onclick="closeModal()">✕</button></div>${body}<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">${actions}</div>`;
  document.getElementById('modalBg').style.display='flex';
