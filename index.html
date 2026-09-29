@@ -415,6 +415,26 @@ function invoiceReturnedAmount(inv){
  return (state.returns||[]).filter(r=>r.invoiceId===inv.id&&r.status!=='Đã hủy').reduce((s,r)=>s+Number(r.refundAmount||r.amount||0),0);
 }
 function hasPermission(permission){
+function requirePermission(permission, action='thực hiện thao tác này'){
+ if(!hasPermission(permission)){ alert('Bạn không có quyền '+action+'.'); return false; }
+ return true;
+}
+function requiresApproval(action, details=''){
+ const threshold=Number(state.settings?.approvalThreshold||500000);
+ const amount=Number(details.amount||0);
+ const sensitive=['Giảm giá lớn','Sửa đơn giá','Hủy hóa đơn','Hoàn tiền'].includes(action);
+ if(!sensitive)return true;
+ if(action==='Giảm giá lớn' && amount<threshold)return true;
+ if(state.currentUser?.role==='Admin')return true;
+ const approver=state.currentUser;
+ if(approver?.permissions?.includes('Phê duyệt giao dịch nhạy cảm'))return true;
+ const note=prompt('Cần phê duyệt cho: '+action+(amount?' - '+money(amount)+' ₫':'')+'. Nhập mã phê duyệt hoặc ghi chú xác nhận:');
+ if(!note||!note.trim())return false;
+ state.approvalLogs=Array.isArray(state.approvalLogs)?state.approvalLogs:[];
+ state.approvalLogs.push({id:'APR'+Date.now(),action,amount,details,approvedBy:approver.id||approver.username,approvedAt:new Date().toISOString(),note:note.trim()});
+ return true;
+}
+
   const u=state.currentUser;
   if(!u) return false;
   if(u.role==='Admin') return true;
@@ -859,6 +879,7 @@ function saveInvoice(){
  const discount=Number(document.getElementById('discount')?.value)||0;
  if(qty<=0)return alert('Số lượng phải lớn hơn 0.');
  if(rate<0||discount<0||discount>qty*rate)return alert('Đơn giá và giảm giá không hợp lệ.');
+ if(discount>0 && !requiresApproval('Giảm giá lớn',{amount:discount,details:'Hóa đơn mới'}))return alert('Giảm giá cần được phê duyệt.');
  const amount=qty*rate,total=Math.max(0,amount-discount);
  const vat=Number(product.vat)||0,tax=vat>0?total-(total/(1+vat/100)):0;
  const paid=Math.max(0,Number(document.getElementById('invoicePaid')?.value)||0);
@@ -1163,6 +1184,7 @@ function cancelInvoice(id){
  const inv=state.invoices.find(x=>x.id===id),reason=document.getElementById('cancelReason')?.value.trim();
  if(!inv||!reason)return alert('Vui lòng nhập lý do hủy.');
  if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy.');
+ if(!requiresApproval('Hủy hóa đơn',{amount:Number(inv.total||0),details:reason}))return alert('Hủy hóa đơn cần được phê duyệt.');
  if(isTransactionClosed(inv))return alert('Hóa đơn thuộc ca đã chốt, không thể hủy.');
  const shift=requireOpenShift('hủy hóa đơn');if(!shift)return;
  const refund=Math.max(0,Number(inv.paid||0));
@@ -1651,6 +1673,7 @@ function genericPage(c,title,col1,col2){
  </div><div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>${col1}</th><th>Thời gian</th><th>${col2}</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead><tbody><tr><td colspan="6"><div class="empty"><div class="circle">▣</div>Chưa có dữ liệu</div></td></tr></tbody></table></div></div>`;
 }
 function reportPage(c){
+ if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo doanh thu.</div>';return;}
  const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
  const revenue=invoices.reduce((sum,x)=>sum+Number(x.total||0),0);
  const count=invoices.length;
@@ -2195,6 +2218,7 @@ function saveProduct(code,editing){
  productPage(document.getElementById('content'));
 }
 function openPrice(){
+ if(!requirePermission('Thêm bảng giá','tạo bảng giá'))return;
  openModal('Tạo bảng giá',`
   <div class="form-grid">
    <div><label>Mã bảng giá</label><input id="priceListCode" class="field" value="${nextAutoCode('BG',6,'spa_next_price_list_id',state.priceLists||[],'code')}" readonly></div>
@@ -2215,6 +2239,7 @@ function savePriceList(){
  saveState(); closeModal(); alert('Đã lưu bảng giá thành công.'); pricePage(document.getElementById('content'));
 }
 function openSupplier(){
+ if(!requirePermission('Tạo nhà cung cấp','tạo nhà cung cấp'))return;
  const code=nextAutoCode('NCC',5,'spa_next_supplier_id',state.suppliers,'code');
  openModal('Thêm nhà cung cấp',`
   <div class="form-grid">
