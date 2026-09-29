@@ -772,34 +772,50 @@ function invoicePage(c){
  // The inner header creates its own controls; keep only the table's column controls.
  applyInvoiceFilters();
 }
+
 function customerPage(c){
- c.innerHTML=header('Khách hàng','Thêm khách hàng','openCustomer')+`
- <div class="card table-wrap">
-  <table><thead><tr><th>☐</th><th>Mã khách hàng</th><th>Tên khách hàng</th><th>Số điện thoại</th><th>Loại khách hàng</th><th>Công nợ</th></tr></thead>
-  <tbody>${state.customers.map(x=>`<tr><td>☐</td><td><b>${esc(x.code)}</b></td><td>${esc(x.name)}</td><td>${esc(x.phone||'')}</td><td>${esc(x.type||'Khách hàng')}</td><td>${money(x.debt||0)}</td></tr>`).join('')||'<tr><td colspan="6"><div class="empty"><div class="circle">👤</div>Chưa có khách hàng</div></td></tr>'}</tbody>
-  </table>
- </div>`;
+ const purchases=state.invoices.filter(i=>i.status!=='Đã hủy');
+ const rows=state.customers.map(x=>{
+   const hist=purchases.filter(i=>i.customerCode===x.code||i.customerName===x.name);
+   const spent=hist.reduce((a,i)=>a+Number(i.total||0),0);
+   const debt=hist.reduce((a,i)=>a+Math.max(0,Number(i.total||0)-Number(i.paid||0)),0);
+   const type=hist.length?'Khách hàng cũ':'Khách hàng mới';
+   x.type=type;x.debt=debt;x.purchaseCount=hist.length;x.totalSpent=spent;
+   return '<tr><td>☐</td><td><b>'+esc(x.code)+'</b></td><td>'+esc(x.name)+'</td><td>'+esc(x.phone||'')+'</td><td>'+esc(x.dob||'')+'</td><td>'+type+'</td><td>'+money(debt)+' ₫</td><td><button class="btn btn-secondary" onclick="viewCustomer(\''+esc(x.code)+'\')">Xem</button> <button class="btn btn-secondary" onclick="openCustomer(\''+esc(x.code)+'\')">Sửa</button> <button class="btn btn-danger" onclick="deleteCustomer(\''+esc(x.code)+'\')">Xóa</button></td></tr>';
+ }).join('');
+ c.innerHTML=header('Khách hàng','Thêm khách hàng','openCustomer()')+'<div class="card table-wrap"><table><thead><tr><th>☐</th><th>Mã khách hàng</th><th>Tên khách hàng</th><th>Số điện thoại</th><th>Ngày sinh</th><th>Phân loại</th><th>Công nợ</th><th>Thao tác</th></tr></thead><tbody>'+ (rows||'<tr><td colspan="8"><div class="empty">Chưa có khách hàng</div></td></tr>') +'</tbody></table></div>';
+ saveState();
 }
-function openCustomer(){
- const code=nextAutoCode('KH',6,'spa_next_customer_id',state.customers,'code');
- openModal('Thêm khách hàng',`
-  <div class="form-grid">
-   <div><label>Mã khách hàng</label><input id="customerCode" class="field" value="${code}" readonly></div>
-   <div><label>Tên khách hàng *</label><input id="customerName" class="field"></div>
-   <div><label>Số điện thoại</label><input id="customerPhone" class="field"></div>
-   <div><label>Loại khách hàng</label><select id="customerType" class="field"><option>Khách hàng mới</option><option>Khách hàng cũ</option></select></div>
-  </div>`,
-  `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCustomer()">Lưu</button>`
- );
+function openCustomer(code){
+ const old=code?state.customers.find(x=>x.code===code):null;
+ if(old&&!hasPermission('Sửa khách hàng'))return alert('Bạn không có quyền sửa khách hàng.');
+ if(!old&&!hasPermission('Thêm khách hàng'))return alert('Bạn không có quyền thêm khách hàng.');
+ const c=old||{code:nextAutoCode('KH',6,'spa_next_customer_id',state.customers,'code'),name:'',phone:'',dob:'',note:'',allergyNote:''};
+ openModal(old?'Sửa khách hàng':'Thêm khách hàng','<div class="form-grid"><div><label>Mã khách hàng</label><input id="customerCode" class="field" value="'+esc(c.code)+'" readonly></div><div><label>Tên khách hàng *</label><input id="customerName" class="field" value="'+esc(c.name||'')+'"></div><div><label>Số điện thoại</label><input id="customerPhone" class="field" value="'+esc(c.phone||'')+'"></div><div><label>Ngày sinh</label><input id="customerDob" class="field" type="date" value="'+esc(c.dob||'')+'"></div><div class="full"><label>Ghi chú da / dị ứng</label><textarea id="customerAllergy" class="field" rows="3">'+esc(c.allergyNote||'')+'</textarea></div><div class="full"><label>Ghi chú khác</label><textarea id="customerNote" class="field" rows="3">'+esc(c.note||'')+'</textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCustomer(\''+esc(c.code)+'\')">Lưu</button>');
 }
-function saveCustomer(){
-  if(!hasPermission('Thêm khách hàng')) return alert('Bạn không có quyền thêm khách hàng.');
- const code=document.getElementById('customerCode').value.trim();
- const name=document.getElementById('customerName').value.trim();
+function saveCustomer(code){
+ const existing=state.customers.find(x=>x.code===code);
+ if(existing&&!hasPermission('Sửa khách hàng'))return alert('Bạn không có quyền sửa khách hàng.');
+ if(!existing&&!hasPermission('Thêm khách hàng'))return alert('Bạn không có quyền thêm khách hàng.');
+ const name=document.getElementById('customerName').value.trim(),phone=document.getElementById('customerPhone').value.trim();
  if(!name)return alert('Vui lòng nhập Tên khách hàng.');
- if(state.customers.some(x=>x.code===code))return alert('Mã khách hàng đã tồn tại.');
- state.customers.push({code,name,phone:document.getElementById('customerPhone').value.trim(),type:document.getElementById('customerType').value,debt:0,createdAt:new Date().toISOString()});
- saveState();closeModal();alert('Đã lưu khách hàng thành công.');customerPage(document.getElementById('content'));
+ if(phone&&state.customers.some(x=>x.phone===phone&&x.code!==code))return alert('Số điện thoại đã tồn tại.');
+ const data={code,name,phone,dob:document.getElementById('customerDob').value,note:document.getElementById('customerNote').value.trim(),allergyNote:document.getElementById('customerAllergy').value.trim(),createdAt:existing?.createdAt||new Date().toISOString()};
+ if(existing)Object.assign(existing,data);else state.customers.push({...data,debt:0});
+ saveState();closeModal();customerPage(document.getElementById('content'));alert(existing?'Đã cập nhật khách hàng.':'Đã thêm khách hàng.');
+}
+function deleteCustomer(code){
+ if(!hasPermission('Xóa khách hàng'))return alert('Bạn không có quyền xóa khách hàng.');
+ const c=state.customers.find(x=>x.code===code);if(!c)return;
+ if(state.invoices.some(i=>i.customerCode===code||i.customerName===c.name))return alert('Không thể xóa khách hàng đã có lịch sử mua. Hãy giữ lại để bảo toàn lịch sử.');
+ if(confirm('Xóa khách hàng '+c.name+'?')){state.customers=state.customers.filter(x=>x.code!==code);saveState();customerPage(document.getElementById('content'));alert('Đã xóa khách hàng.');}
+}
+function viewCustomer(code){
+ const c=state.customers.find(x=>x.code===code);if(!c)return;
+ const hist=state.invoices.filter(i=>(i.customerCode===code||i.customerName===c.name)&&i.status!=='Đã hủy');
+ const debt=hist.reduce((a,i)=>a+Math.max(0,Number(i.total||0)-Number(i.paid||0)),0),total=hist.reduce((a,i)=>a+Number(i.total||0),0);
+ const rows=hist.map(i=>'<tr><td>'+esc(i.id)+'</td><td>'+esc(i.time||'')+'</td><td>'+money(i.total||0)+' ₫</td><td>'+money(i.paid||0)+' ₫</td><td>'+esc(i.status||'')+'</td></tr>').join('');
+ openModal('Thông tin khách hàng '+esc(c.code),'<div class="form-grid"><div><label>Ngày sinh</label><input class="field" readonly value="'+esc(c.dob||'')+'"></div><div><label>Điện thoại</label><input class="field" readonly value="'+esc(c.phone||'')+'"></div><div class="full"><label>Da / dị ứng</label><textarea class="field" readonly rows="2">'+esc(c.allergyNote||'')+'</textarea></div><div class="full"><label>Ghi chú</label><textarea class="field" readonly rows="2">'+esc(c.note||'')+'</textarea></div></div><h4>Lịch sử mua</h4><div class="table-wrap"><table><thead><tr><th>Mã HĐ</th><th>Thời gian</th><th>Tổng</th><th>Đã trả</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5">Chưa có giao dịch</td></tr>')+'</tbody></table></div><div style="margin-top:12px"><b>Tổng mua: '+money(total)+' ₫</b> · <b>Công nợ: '+money(debt)+' ₫</b></div>','<button class="btn btn-secondary" onclick="closeModal()">Đóng</button>');
 }
 function supplierPage(c){
  c.innerHTML=header('Nhà cung cấp','Nhà cung cấp','openSupplier')+`
