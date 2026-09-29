@@ -263,6 +263,9 @@ function loadState(){
   }catch(e){console.warn('Không thể đọc dữ liệu',e);}
 }
 loadState();
+state.priceLists=Array.isArray(state.priceLists)?state.priceLists:[];
+state.documents=Array.isArray(state.documents)?state.documents:[];
+state.suppliers=Array.isArray(state.suppliers)?state.suppliers:[];
 
 const menus={
   'Quản trị':['Quản lý tài khoản','Phân quyền User'],
@@ -1333,9 +1336,69 @@ function saveProduct(code,editing){
  closeModal();
  productPage(document.getElementById('content'));
 }
-function openPrice(){openModal('Tạo bảng giá',`<div class="form-grid"><div><label>Tên bảng giá</label><input class="field" value="Bảng giá mới"></div><div><label>Trạng thái</label><select class="field"><option>Đang áp dụng</option></select></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
-function openSupplier(){openModal('Thêm nhà cung cấp',`<div class="form-grid"><div><label>Mã nhà cung cấp</label><input class="field" value="NCC00001"></div><div><label>Tên nhà cung cấp</label><input class="field"></div><div><label>Điện thoại</label><input class="field"></div><div><label>Email</label><input class="field"></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu</button>`)}
-function openGeneric(){openModal('Tạo chứng từ',`<div class="form-grid"><div><label>Mã chứng từ</label><input class="field" value="CT00001"></div><div><label>Ngày chứng từ</label><input class="field" type="date"></div><div class="full"><label>Đối tượng</label><select class="field"><option>Chọn đối tượng</option></select></div><div class="full"><label>Ghi chú</label><textarea class="field" rows="3"></textarea></div></div>`,`<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="closeModal()">Lưu nháp</button>`)}
+function openPrice(){
+ openModal('Tạo bảng giá',`
+  <div class="form-grid">
+   <div><label>Mã bảng giá</label><input id="priceListCode" class="field" value="${nextAutoCode('BG',6,'spa_next_price_list_id',state.priceLists||[],'code')}" readonly></div>
+   <div><label>Tên bảng giá *</label><input id="priceListName" class="field" value="Bảng giá mới"></div>
+   <div><label>Trạng thái</label><select id="priceListStatus" class="field"><option>Đang áp dụng</option><option>Ngừng áp dụng</option></select></div>
+  </div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="savePriceList()">Lưu</button>`
+ )
+}
+function savePriceList(){
+ const code=document.getElementById('priceListCode').value.trim();
+ const name=document.getElementById('priceListName').value.trim();
+ if(!name)return alert('Vui lòng nhập Tên bảng giá.');
+ if((state.priceLists||[]).some(x=>x.code===code))return alert('Mã bảng giá đã tồn tại.');
+ state.priceLists=state.priceLists||[];
+ state.priceLists.push({code,name,status:document.getElementById('priceListStatus').value,createdAt:new Date().toISOString()});
+ saveState(); closeModal(); alert('Đã lưu bảng giá thành công.'); pricePage(document.getElementById('content'));
+}
+function openSupplier(){
+ const code=nextAutoCode('NCC',5,'spa_next_supplier_id',state.suppliers,'code');
+ openModal('Thêm nhà cung cấp',`
+  <div class="form-grid">
+   <div><label>Mã nhà cung cấp</label><input id="supplierCode" class="field" value="${code}" readonly></div>
+   <div><label>Tên nhà cung cấp *</label><input id="supplierName" class="field"></div>
+   <div><label>Điện thoại</label><input id="supplierPhone" class="field"></div>
+   <div><label>Email</label><input id="supplierEmail" class="field"></div>
+   <div class="full"><label>Ghi chú</label><textarea id="supplierNote" class="field" rows="3"></textarea></div>
+  </div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveSupplier()">Lưu</button>`
+ )
+}
+function saveSupplier(){
+ const code=document.getElementById('supplierCode').value.trim();
+ const name=document.getElementById('supplierName').value.trim();
+ if(!name)return alert('Vui lòng nhập Tên nhà cung cấp.');
+ if(state.suppliers.some(x=>x.code===code))return alert('Mã nhà cung cấp đã tồn tại.');
+ state.suppliers.push({code,name,phone:document.getElementById('supplierPhone').value.trim(),email:document.getElementById('supplierEmail').value.trim(),note:document.getElementById('supplierNote').value.trim(),debt:0,buy:0,createdAt:new Date().toISOString()});
+ saveState(); closeModal(); alert('Đã lưu nhà cung cấp thành công.'); supplierPage(document.getElementById('content'));
+}
+function openGeneric(){
+ const code=nextAutoCode('CT',6,'spa_next_document_id',state.documents||[],'code');
+ openModal('Tạo chứng từ',`
+  <div class="form-grid">
+   <div><label>Mã chứng từ</label><input id="documentCode" class="field" value="${code}" readonly></div>
+   <div><label>Ngày chứng từ *</label><input id="documentDate" class="field" type="date" value="${localDateKey(new Date())}"></div>
+   <div class="full"><label>Đối tượng *</label><input id="documentSubject" class="field" placeholder="Nhập đối tượng"></div>
+   <div class="full"><label>Ghi chú</label><textarea id="documentNote" class="field" rows="3"></textarea></div>
+  </div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveGeneric()">Lưu nháp</button>`
+ )
+}
+function saveGeneric(){
+ const code=document.getElementById('documentCode').value.trim();
+ const date=document.getElementById('documentDate').value;
+ const subject=document.getElementById('documentSubject').value.trim();
+ if(!date)return alert('Vui lòng chọn Ngày chứng từ.');
+ if(!subject)return alert('Vui lòng nhập Đối tượng.');
+ state.documents=state.documents||[];
+ if(state.documents.some(x=>x.code===code))return alert('Mã chứng từ đã tồn tại.');
+ state.documents.push({code,date,subject,note:document.getElementById('documentNote').value.trim(),status:'Nháp',createdAt:new Date().toISOString()});
+ saveState(); closeModal(); alert('Đã lưu chứng từ thành công.');
+}
 document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
 loadTheme();
 state.section='Tổng quan';
