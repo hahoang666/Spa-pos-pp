@@ -213,6 +213,39 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
   <div class="modal" id="modal"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://cmkxpuamkcegsyndaevd.supabase.co';
+
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_qhrRyLluPG7iWGOMCuA7ag_G_6dBy8u';
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+</script>
+
+async function testSupabaseConnection() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('payment_methods')
+      .select('code, name, is_active')
+      .order('id');
+
+    if (error) {
+      console.error('Supabase connection error:', error);
+      return false;
+    }
+
+    console.log('Supabase connected:', data);
+    return true;
+
+  } catch (error) {
+    console.error('Supabase connection failed:', error);
+    return false;
+  }
+}
+  
 <script>
 const PAYMENT_METHODS=['Tiền mặt','Chuyển khoản','Ví điện tử','Thẻ'];
 function localDateKey(date){
@@ -1763,6 +1796,7 @@ function saveGeneric(){
  saveState(); closeModal(); alert('Đã lưu chứng từ thành công.');
 }
 document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+testSupabaseConnection();
 loadTheme();
 state.section='Tổng quan';
 state.page='Tổng quan';
