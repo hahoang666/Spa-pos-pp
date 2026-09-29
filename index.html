@@ -342,21 +342,27 @@ function initLogin(){
     const account=state.accounts.find(a=>a.username.toLowerCase()===rememberedUsername.toLowerCase() && a.status==='Hoạt động');
     if(account){
       state.currentUser=account;
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('loginUsername').value=account.username;
-      document.getElementById('rememberLogin').checked=true;
+      const screen=document.getElementById('loginScreen');
+      if(screen) screen.style.display='none';
+      const usernameInput=document.getElementById('loginUsername');
+      const remember=document.getElementById('rememberLogin');
+      if(usernameInput) usernameInput.value=account.username;
+      if(remember) remember.checked=true;
       state.section='Tổng quan';
       state.page='Tổng quan';
-      renderAll();
-      return;
+      return true;
     }
     localStorage.removeItem('spa_pos_remember_username');
+    localStorage.removeItem('spa_pos_username');
   }
   const remembered=localStorage.getItem('spa_pos_username');
   if(remembered){
-    document.getElementById('loginUsername').value=remembered;
-    document.getElementById('rememberLogin').checked=true;
+    const input=document.getElementById('loginUsername');
+    const check=document.getElementById('rememberLogin');
+    if(input) input.value=remembered;
+    if(check) check.checked=true;
   }
+  return false;
 }
 function money(n){return new Intl.NumberFormat('vi-VN').format(n||0)}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
@@ -1043,9 +1049,7 @@ document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==
 state.section='Tổng quan';
 state.page='Tổng quan';
 initLogin();
-if(!state.currentUser){
-  renderAll();
-}
+renderAll();
 </script>
 </body>
 </html>
