@@ -332,11 +332,8 @@ function login(){
   localStorage.setItem('spa_pos_user_name',account.name);
   document.getElementById('loginScreen').style.display='none';
   state.currentUser=account;
-  if(account.role==='Admin'){
-    state.section='Quản trị';state.page='Quản lý tài khoản';
-  }else{
-    state.section='Tổng quan';state.page='Tổng quan';
-  }
+  state.section='Tổng quan';
+  state.page='Tổng quan';
   renderAll();
 }
 function initLogin(){
@@ -348,11 +345,8 @@ function initLogin(){
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('loginUsername').value=account.username;
       document.getElementById('rememberLogin').checked=true;
-      if(account.role==='Admin'){
-        state.section='Quản trị';state.page='Quản lý tài khoản';
-      }else{
-        state.section='Tổng quan';state.page='Tổng quan';
-      }
+      state.section='Tổng quan';
+      state.page='Tổng quan';
       renderAll();
       return;
     }
