@@ -230,18 +230,6 @@ function loadState(){
   }catch(e){console.warn('Không thể đọc dữ liệu',e);}
 }
 loadState();
-const adminAccount=state.accounts.find(a=>a.id==='ADMIN001' || a.username==='admin');
-if(adminAccount){
-  adminAccount.id='ADMIN001';
-  adminAccount.name='Quản trị viên';
-  adminAccount.username='admin';
-  adminAccount.password='1111';
-  adminAccount.role='Admin';
-  adminAccount.status='Hoạt động';
-  adminAccount.permissions=defaultPermissions('Admin');
-}
-state.accounts.forEach(a=>accountPermissions(a));
-saveState();
 
 const menus={
   'Quản trị':['Quản lý tài khoản','Phân quyền User'],
@@ -265,6 +253,18 @@ const permissionCatalog={
   'Quản trị':['Quản lý tài khoản','Phân quyền User']
 };
 const allPermissions=Object.values(permissionCatalog).flat();
+const adminAccount=state.accounts.find(a=>a.id==='ADMIN001' || a.username==='admin');
+if(adminAccount){
+  adminAccount.id='ADMIN001';
+  adminAccount.name='Quản trị viên';
+  adminAccount.username='admin';
+  adminAccount.password='1111';
+  adminAccount.role='Admin';
+  adminAccount.status='Hoạt động';
+  adminAccount.permissions=defaultPermissions('Admin');
+}
+state.accounts.forEach(a=>accountPermissions(a));
+saveState();
 function defaultPermissions(role){
   if(role==='Admin') return [...allPermissions];
   if(role==='Quản lý') return allPermissions.filter(p=>!['Quản lý tài khoản','Phân quyền User'].includes(p));
