@@ -527,11 +527,26 @@ function completeCashierSale(){
   if(!cart.length){alert('Vui lòng thêm sản phẩm vào đơn hàng.');return;}
   const total=cart.reduce((sum,x)=>sum+x.price*x.qty,0);
   const payment=document.getElementById('cashierPayment').value;
-  const id=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
-  state.invoices.push({id,time:new Date().toLocaleString('vi-VN'),customer:'Khách lẻ',phone:'',amount:total,total,paid:total,status:'Đã thanh toán',payment});
-  saveState();
+  const first=cart[0];
+  const tax=total-(total/1.1);
+  createInvoice({
+    type:'Thu',
+    customer:'Khách lẻ',
+    customerCode:'',
+    customerName:'Khách lẻ',
+    customerType:'Mới',
+    phone:'',
+    productCode:first.code,
+    productName:cart.length===1?first.name:cart.map(x=>x.name).join(', '),
+    amount:total,
+    total,
+    tax,
+    paid:total,
+    paymentMethod:payment,
+    status:'Đã thanh toán'
+  });
   state.cashierCart=[];
-  alert('Thanh toán thành công. Mã hóa đơn: '+id);
+  alert('Thanh toán thành công.');
   renderCashierCart();
 }
 function header(title,buttonText,action){
@@ -1174,6 +1189,39 @@ function calcInvoice(){
  const amount=q*r;const grand=Math.max(0,amount-d);const tax=grand-(grand/1.1);
  document.getElementById('sum').innerText=money(amount)+' ₫';document.getElementById('tax').innerText=money(tax)+' ₫';document.getElementById('grand').innerText=money(grand)+' ₫';
 }
+function createInvoice(data){
+ const now=new Date();
+ const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
+ const total=Number(data.total)||0;
+ const tax=Number.isFinite(Number(data.tax))?Number(data.tax):total-(total/1.1);
+ const paymentMethod=data.paymentMethod||'Khác';
+ const invoice={
+   id:invoiceId,
+   createdAt:now.toISOString(),
+   time:now.toLocaleString('vi-VN'),
+   branch:data.branch||'Chi nhánh chính',
+   type:data.type||'Thu',
+   customer:data.customer||'Khách lẻ',
+   customerCode:data.customerCode||'',
+   customerName:data.customerName||data.customer||'Khách lẻ',
+   customerType:data.customerType||'',
+   phone:data.phone||'',
+   productCode:data.productCode||'',
+   productName:data.productName||'',
+   amount:Number(data.amount)||total,
+   discount:Number(data.discount)||0,
+   total,
+   tax,
+   vat:10,
+   paid:Number(data.paid ?? total),
+   paymentMethod,
+   payment:paymentMethod,
+   status:data.status||'Đã thanh toán'
+ };
+ state.invoices.unshift(invoice);
+ saveState();
+ return invoice;
+}
 function saveInvoice(){
  const q=Number(document.getElementById('qty').value),r=Number(document.getElementById('rate').value),d=Number(document.getElementById('discount').value);
  if(!Number.isInteger(q)||q<1||q>9999)return alert('BUG LAB: Quantity phải là số nguyên từ 1 đến 9999.');
@@ -1182,12 +1230,7 @@ function saveInvoice(){
  const selectedProduct=state.products[Number(document.getElementById('productSelect').value)||0]||state.products[0];
  const customerSelect=document.getElementById('customerSelect');
  const selectedCustomer=state.customers[Number(customerSelect?.value)||0]||state.customers[0];
- const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
- state.invoices.unshift({
-   id:invoiceId,
-   time:new Date().toLocaleString('vi-VN'),
-   createdAt:new Date().toISOString(),
-   branch:'Chi nhánh chính',
+ createInvoice({
    type:'Thu',
    customer:selectedCustomer.name,
    customerCode:selectedCustomer.code,
@@ -1196,7 +1239,10 @@ function saveInvoice(){
    phone:selectedCustomer.phone||'',
    productCode:selectedProduct.code,
    productName:selectedProduct.name,
-   amount,discount:d,total,tax,vat:10,paid:pay==='Chưa thanh toán'?0:total,status:'Hoàn thành'
+   amount,discount:d,total,tax,
+   paid:pay==='Chưa thanh toán'?0:total,
+   paymentMethod:pay,
+   status:'Hoàn thành'
  });
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn demo. Hãy dùng chức năng này để thực hành test.');
 }
