@@ -530,7 +530,7 @@ function useTherapySession(id){
  if(!hasPermission('Sử dụng liệu trình'))return alert('Bạn không có quyền sử dụng liệu trình.');
  const x=(state.therapyCards||[]).find(x=>x.id===id);if(!x)return;
  if(x.remainingSessions<=0)return alert('Thẻ đã hết buổi.');
- if(x.expiresAt&&x.expiresAt<new Date().toISOString().slice(0,10))return alert('Thẻ đã hết hạn.');
+ if(x.expiresAt&&x.expiresAt<localDateKey(new Date()))return alert('Thẻ đã hết hạn.');
  x.remainingSessions--;if(x.remainingSessions===0)x.status='Đã hết buổi';
  x.lastUsedAt=new Date().toISOString();x.usageHistory=Array.isArray(x.usageHistory)?x.usageHistory:[];x.usageHistory.push({at:x.lastUsedAt,employeeId:state.currentUser?.id||''});
  saveState();therapyCardsPage(document.getElementById('content'));alert('Đã trừ 1 buổi. Còn '+x.remainingSessions+' buổi.');
@@ -541,7 +541,7 @@ function employeeSpaPage(c){
  const att=Array.isArray(state.attendance)?state.attendance:[];
  const comm=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
  const rows=emps.map(a=>{
-   const days=att.filter(x=>x.employeeId===a.id&&x.date===new Date().toISOString().slice(0,10));
+   const days=att.filter(x=>x.employeeId===a.id&&x.date===localDateKey(new Date()));
    const today=days.length?days[0]:null;
    const totalComm=comm.filter(x=>x.employeeId===a.id).reduce((n,x)=>n+Number(x.amount||0),0);
    return '<tr><td>'+esc(a.id)+'</td><td>'+esc(a.name||'')+'</td><td>'+esc(a.username||'')+'</td><td>'+esc(a.role||'')+'</td><td>'+esc(a.status||'')+'</td><td>'+esc(today?.checkIn||'—')+'</td><td>'+esc(today?.checkOut||'—')+'</td><td>'+money(totalComm)+' ₫</td></tr>';
@@ -553,7 +553,7 @@ function employeeSpaPage(c){
 function openAttendance(){
  if(!hasPermission('Chấm công nhân viên'))return alert('Bạn không có quyền chấm công.');
  const emps=state.accounts.filter(a=>a.role!=='Admin'&&a.status==='Hoạt động').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.id)+'</option>').join('');
- openModal('Chấm công','<div class="form-grid"><div><label>Nhân viên *</label><select id="attEmployee" class="field">'+emps+'</select></div><div><label>Ngày</label><input id="attDate" class="field" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div><div><label>Giờ vào</label><input id="attIn" class="field" type="time"></div><div><label>Giờ ra</label><input id="attOut" class="field" type="time"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveAttendance()">Lưu</button>');
+ openModal('Chấm công','<div class="form-grid"><div><label>Nhân viên *</label><select id="attEmployee" class="field">'+emps+'</select></div><div><label>Ngày</label><input id="attDate" class="field" type="date" value="'+localDateKey(new Date())+'"></div><div><label>Giờ vào</label><input id="attIn" class="field" type="time"></div><div><label>Giờ ra</label><input id="attOut" class="field" type="time"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveAttendance()">Lưu</button>');
 }
 function saveAttendance(){
  if(!hasPermission('Chấm công nhân viên'))return alert('Bạn không có quyền chấm công.');
@@ -595,27 +595,27 @@ function saveCommissionRules(){
 
 function shiftClosePage(c){
  const shifts=Array.isArray(state.shifts)?state.shifts:[];
- const today=new Date().toISOString().slice(0,10);
+ const today=localDateKey(new Date());
  const open=shifts.find(x=>x.date===today&&x.status==='Đang mở');
  const rows=shifts.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.date)+'</td><td>'+esc(x.openedByName||x.openedBy||'')+'</td><td>'+money(x.openingCash||0)+' ₫</td><td>'+money(x.totalIncome||0)+' ₫</td><td>'+money(x.totalExpense||0)+' ₫</td><td>'+money(x.expectedCash||0)+' ₫</td><td>'+money(x.actualCash||0)+' ₫</td><td>'+money(x.difference||0)+' ₫</td><td>'+esc(x.status)+'</td></tr>').join('');
  c.innerHTML=header('Đóng ca / Chốt quỹ',open?'Chốt ca':'Mở ca',open?'openCloseShift()':'openShift()')+'<div class="card" style="margin-bottom:12px;padding:16px"><b>'+ (open?'Ca hiện tại đang mở':'Hôm nay chưa có ca đang mở') +'</b>'+(open?'<div style="margin-top:8px">Tiền đầu ca: <b>'+money(open.openingCash||0)+' ₫</b> · Thu: <b>'+money(open.totalIncome||0)+' ₫</b> · Chi: <b>'+money(open.totalExpense||0)+' ₫</b></div>':'')+'</div><div class="card table-wrap"><table><thead><tr><th>Mã ca</th><th>Ngày</th><th>Người mở</th><th>Đầu ca</th><th>Tổng thu</th><th>Tổng chi</th><th>Tiền mặt dự kiến</th><th>Tiền mặt thực tế</th><th>Chênh lệch</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="10"><div class="empty">Chưa có ca</div></td></tr>')+'</tbody></table></div>';
 }
 function openShift(){
  if(!hasPermission('Mở ca'))return alert('Bạn không có quyền mở ca.');
- state.shifts=Array.isArray(state.shifts)?state.shifts:[];const today=new Date().toISOString().slice(0,10);
+ state.shifts=Array.isArray(state.shifts)?state.shifts:[];const today=localDateKey(new Date());
  if(state.shifts.some(x=>x.date===today&&x.status==='Đang mở'))return alert('Đã có ca đang mở hôm nay.');
  openModal('Mở ca','<div class="form-grid"><div><label>Tiền đầu ca *</label><input id="openingCash" class="field" type="number" min="0"></div><div class="full"><label>Ghi chú</label><textarea id="shiftNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveOpenShift()">Mở ca</button>');
 }
 function saveOpenShift(){
  if(!hasPermission('Mở ca'))return alert('Bạn không có quyền mở ca.');
  const amount=Number(document.getElementById('openingCash').value);if(!Number.isFinite(amount)||amount<0)return alert('Tiền đầu ca không hợp lệ.');
- state.shifts=Array.isArray(state.shifts)?state.shifts:[];const today=new Date().toISOString().slice(0,10);
+ state.shifts=Array.isArray(state.shifts)?state.shifts:[];const today=localDateKey(new Date());
  state.shifts.push({id:nextAutoCode('CA',6,'spa_next_shift_id',state.shifts,'id'),date:today,openedAt:new Date().toISOString(),openedBy:state.currentUser?.id||'',openedByName:state.currentUser?.name||state.currentUser?.username||'',openingCash:amount,status:'Đang mở',note:document.getElementById('shiftNote').value.trim(),totalIncome:0,totalExpense:0});
  saveState();closeModal();shiftClosePage(document.getElementById('content'));alert('Đã mở ca.');
 }
 function openCloseShift(){
  if(!hasPermission('Chốt quỹ'))return alert('Bạn không có quyền chốt quỹ.');
- const sh=(state.shifts||[]).find(x=>x.date===new Date().toISOString().slice(0,10)&&x.status==='Đang mở');if(!sh)return alert('Không có ca đang mở.');
+ const sh=(state.shifts||[]).find(x=>x.date===localDateKey(new Date())&&x.status==='Đang mở');if(!sh)return alert('Không có ca đang mở.');
  const start=new Date(sh.openedAt),cash=state.cashbook||[],inv=state.invoices||[];
  const income=inv.filter(x=>new Date(x.createdAt||0)>=start&&(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.paid||0),0)+cash.filter(x=>new Date(x.createdAt||0)>=start&&x.type==='thu').reduce((a,x)=>a+Number(x.amount||0),0);
  const expense=inv.filter(x=>new Date(x.createdAt||0)>=start&&(x.type||'')==='Chi').reduce((a,x)=>a+Number(x.total||0),0)+cash.filter(x=>new Date(x.createdAt||0)>=start&&x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0);
