@@ -1155,6 +1155,12 @@ function logout(){
  if(screen)screen.style.display='flex';
  const form=document.getElementById('loginForm');
  if(form)form.reset();
+ const loginUsername=document.getElementById('loginUsername');
+ const loginPassword=document.getElementById('loginPassword');
+ const rememberLogin=document.getElementById('rememberLogin');
+ if(loginUsername)loginUsername.value='';
+ if(loginPassword)loginPassword.value='';
+ if(rememberLogin)rememberLogin.checked=false;
  const error=document.getElementById('loginError');
  if(error)error.classList.remove('show');
  const session=document.getElementById('userSession');
