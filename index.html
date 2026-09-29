@@ -717,7 +717,8 @@ function saveInvoice(){
  if(rate<0||discount<0)return alert('Đơn giá và giảm giá không được âm.');
  const amount=qty*rate;
  const total=Math.max(0,amount-discount);
- const tax=total-(total/1.1);
+ const vat=Number(product.vat)||0;
+ const tax=vat>0?total-(total/(1+vat/100)):0;
  const paid=0;
  createInvoice({type:'SALES',customer:customer.name||'Khách lẻ',customerCode:customer.code||'',customerName:customer.name||'Khách lẻ',phone:customer.phone||'',productCode:product.code,productName:product.name,amount,discount,total,tax,paid,paymentMethod:document.getElementById('pay')?.value||'Tiền mặt',employeeId:employee.id||'',employeeName:employee.name||'',consultantId:consultant.id||'',consultantName:consultant.name||'',items:[{code:product.code,name:product.name,qty,price:rate,discount,vat:product.vat??10}]});
  closeModal();
@@ -832,8 +833,16 @@ function cashierTotals(){
  const subtotal=cart.reduce((sum,x)=>sum+(Number(x.price)||0)*(Number(x.qty)||0),0);
  const lineDiscount=cart.reduce((sum,x)=>sum+Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0)),0);
  const orderDiscount=Math.min(Math.max(0,Number(state.cashierOrderDiscount)||0),Math.max(0,subtotal-lineDiscount));
- const total=Math.max(0,subtotal-lineDiscount-orderDiscount);
- return {subtotal,lineDiscount,orderDiscount,total,vat:total-(total/1.1)};
+ const netBeforeOrder=cart.reduce((sum,x)=>sum+Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0)),0);
+ const total=Math.max(0,netBeforeOrder-orderDiscount);
+ const vat=cart.reduce((sum,x)=>{
+   const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0));
+   const rate=Math.max(0,Number(x.vat)||0);
+   const allocatedDiscount=netBeforeOrder>0?orderDiscount*(gross/netBeforeOrder):0;
+   const taxable=Math.max(0,gross-allocatedDiscount);
+   return sum+(rate>0?taxable-(taxable/(1+rate/100)):0);
+ },0);
+ return {subtotal,lineDiscount,orderDiscount,total,vat};
 }
 function refreshCashierCartSummary(){
  const t=cashierTotals();
@@ -1687,14 +1696,14 @@ function openInvoice(){
 }
 function calcInvoice(){
  const q=Number(document.getElementById('qty').value)||0,r=Number(document.getElementById('rate').value)||0,d=Number(document.getElementById('discount').value)||0;
- const amount=q*r;const grand=Math.max(0,amount-d);const tax=grand-(grand/1.1);
+ const amount=q*r;const grand=Math.max(0,amount-d);const product=state.products[Number(document.getElementById('productSelect').value)||0];const vat=Number(product?.vat)||0;const tax=vat>0?grand-(grand/(1+vat/100)):0;
  document.getElementById('sum').innerText=money(amount)+' ₫';document.getElementById('tax').innerText=money(tax)+' ₫';document.getElementById('grand').innerText=money(grand)+' ₫';
 }
 function createInvoice(data){
  const now=new Date();
  const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
  const total=Number(data.total)||0;
- const tax=Number.isFinite(Number(data.tax))?Number(data.tax):total-(total/1.1);
+ const tax=Number.isFinite(Number(data.tax))?Number(data.tax):0;
  const paymentMethod=normalizePaymentMethod(data.paymentMethod);
  const paid=Number(data.paid ?? total);
  const status=data.status|| (data.cancelled ? 'Đã hủy' : paid>=total ? 'Đã thanh toán' : paid>0 ? 'Còn nợ' : 'Còn nợ');
@@ -1803,29 +1812,32 @@ function openProduct(code){
  const editing=!!code;
  const p=editing?state.products.find(x=>x.code===code):null;
  if(editing&&!p)return;
- const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Dịch vụ',group:'Mỹ phẩm',unit:'Cái',pre:0,vat:Number(document.getElementById('productVat').value)||0,price:0,cost:0,stock:'---',status:'Đang kinh doanh'};
+ const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Dịch vụ',group:'Mỹ phẩm',unit:'Cái',pre:0,vat:10,price:0,cost:0,stock:'---',status:'Đang kinh doanh'};
  document.getElementById('productGroup')&&(document.getElementById('productGroup').value=product.group||'Mỹ phẩm');
  openModal(editing?'Sửa hàng hóa':'Thêm hàng hóa',`
    <div class="form-grid">
     <div><label>Mã hàng hóa</label><input id="productCode" class="field" value="${escJs(product.code)}" readonly></div>
     <div><label>Nhóm hàng</label><select id="productGroup" class="field"><option value="Mỹ phẩm">Mỹ phẩm</option><option value="Dịch vụ">Dịch vụ</option><option value="Gói dịch vụ">Gói dịch vụ</option><option value="Khác">Khác</option></select></div><div><label>Đơn vị tính</label><select id="productUnit" class="field"><option>Chai</option><option>Hộp</option><option>Cái</option><option>Lần</option><option>Gói</option><option>Kg</option></select></div><div><label>Loại hàng</label><select id="productType" class="field"><option>Dịch vụ</option><option>Hàng hóa</option><option>Gói dịch vụ, liệu trình</option></select></div>
     <div class="full"><label>Tên hàng hóa</label><input id="productName" class="field" value="${esc(product.name)}"></div><div><label>Barcode</label><input id="productBarcode" class="field" value="${esc(product.barcode||"")}"></div>
-    <div><label>VAT (%)</label><select id="productVat" class="field"><option>0</option><option>5</option><option>8</option><option selected>10</option></select></div>
+    <div><label>VAT (%)</label><select id="productVat" class="field" onchange="calculateProductPreTax()"><option value="0">0</option><option value="5">5</option><option value="8">8</option><option value="10">10</option></select></div>
     <div><label>Giá bán sau thuế</label><input id="productPrice" class="field" type="number" min="0" step="0.001" value="${Number(product.price)||0}" oninput="calculateProductPreTax()"></div>
     <div><label>Giá bán trước thuế</label><input id="productPre" class="field" type="text" value="${formatProductPreTax(Number(product.price)||0)}" readonly></div>
     <div><label>Trạng thái</label><select id="productStatus" class="field"><option>Đang kinh doanh</option><option>Ngừng kinh doanh</option></select></div><div><label>Giá vốn</label><input id="productCost" class="field" type="number" min="0" step="0.001" value="${Number(product.cost)||0}"></div>
    </div>`,
    `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProduct('${escJs(product.code)}',${editing})">Lưu</button>`
  );
+ const vatEl=document.getElementById('productVat'); if(vatEl) vatEl.value=String(Number(product.vat)||0);
+ calculateProductPreTax();
 }
-function formatProductPreTax(price){
- const value=Number(price)||0;
- return (value/1.1).toFixed(3);
+function formatProductPreTax(price,vat){
+ const value=Number(price)||0, rate=Number(vat)||0;
+ return (value/(1+rate/100)).toFixed(3);
 }
 function calculateProductPreTax(){
  const price=Number(document.getElementById('productPrice')?.value)||0;
+ const vat=Number(document.getElementById('productVat')?.value)||0;
  const pre=document.getElementById('productPre');
- if(pre) pre.value=formatProductPreTax(price);
+ if(pre) pre.value=formatProductPreTax(price,vat);
 }
 function saveProduct(code,editing){
   if(!hasPermission(editing?'Sửa sản phẩm':'Thêm sản phẩm')) return alert('Bạn không có quyền thực hiện thao tác này.');
@@ -1840,8 +1852,8 @@ function saveProduct(code,editing){
   name,
   barcode:(document.getElementById('productBarcode')?.value||'').trim(),
   type:document.getElementById('productType').value,
-  pre:Number((price/1.1).toFixed(3)),
-  vat:10,
+  pre:Number((price/(1+(Number(document.getElementById('productVat')?.value)||0)/100)).toFixed(3)),
+  vat:Number(document.getElementById('productVat')?.value)||0,
   price,
   cost:Number(document.getElementById('productCost').value)||0,
   group:document.getElementById('productGroup').value,
