@@ -571,128 +571,60 @@ function completeCashierSale(){
 function header(title,buttonText,action){
  return `<div class="page-title">${title}</div>
  <div class="toolbar">
-  <input class="search" placeholder="🔍  Tìm theo mã, tên, điện thoại..." oninput="filterRows(this.value)">
+  <input id="commonSearch" class="search" placeholder="🔍 Tìm theo mã, tên, điện thoại..." oninput="applyInvoiceFilters()">
   <div style="margin-left:auto"></div>
   ${buttonText?`<button class="btn btn-primary" onclick="${action}">＋ ${buttonText}</button>`:''}
   <button class="btn btn-secondary" onclick="toggleColumns()">☷</button>
  </div>
  <div class="columns-panel" id="columnsPanel">
    <div style="font-weight:700;margin-bottom:12px">Tùy chọn cột hiển thị</div>
-   <div class="columns-grid">${['Mã','Thời gian','Khách hàng','Số điện thoại','Tổng tiền hàng','Giảm giá','Tổng sau giảm giá','VAT','Khách cần trả','Khách đã trả','Trạng thái','Ghi chú'].map((x,i)=>`<label class="check"><input type="checkbox" ${[0,1,2,3,4,6,8,9,10].includes(i)?'checked':''}>${x}</label>`).join('')}</div>
+   <div class="columns-grid">${['Mã','Thời gian','Khách hàng','Số điện thoại','Tổng tiền hàng','Giảm giá','Tổng sau giảm giá','VAT','Khách cần trả','Khách đã trả','Trạng thái','Ghi chú'].map((x,i)=>`<label class="check"><input class="column-toggle" type="checkbox" data-col="${i}" ${[0,1,2,3,4,6,8,9,10].includes(i)?'checked':''} onchange="applyInvoiceFilters()">${x}</label>`).join('')}</div>
  </div>`;
 }
 function toggleColumns(){document.getElementById('columnsPanel')?.classList.toggle('show')}
-function filterRows(v){
- document.querySelectorAll('tbody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(v.toLowerCase())?'':'none')
+function filterRows(v){if(document.getElementById('commonSearch')){document.getElementById('commonSearch').value=v;applyInvoiceFilters();}}
+function applyInvoiceFilters(){
+ const f=document.querySelectorAll('.invoice-filter');
+ const period=f[0]?.value||'today', status=f[1]?.value||'all', employee=f[4]?.value||'all', payment=f[7]?.value||'all';
+ const q=(document.getElementById('commonSearch')?.value||'').toLowerCase().trim();
+ let rows=dashboardInvoices(period);
+ if(status!=='all') rows=rows.filter(x=>(x.status||'')===status);
+ if(employee!=='all') rows=rows.filter(x=>(x.employeeName||x.employee||'')===employee);
+ if(payment!=='all') rows=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)===payment);
+ if(q) rows=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
+ const body=document.getElementById('invoiceTableBody');
+ if(body) body.innerHTML=rows.length?rows.map(invoiceTableRow).join(''):'<tr><td colspan="12"><div class="empty">Không có dữ liệu phù hợp</div></td></tr>';
+ applyColumnVisibility();
 }
-
-function invoicePage(c){
- c.innerHTML=header('Hóa đơn','Hóa đơn','openInvoice')+`
- <div style="display:flex;gap:14px">
-  <div class="card" style="width:245px;padding:16px;flex-shrink:0">
-   <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field"><option>Hôm nay</option><option>Tháng này</option><option>Toàn thời gian</option></select></div>
-   <div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field"><option>Hoàn thành</option><option>Đang xử lý</option><option>Đã hủy</option></select></div>
-   <div class="filter-group"><div class="filter-title">Trạng thái HĐĐT</div><select class="field"><option>Chọn trạng thái phát hành</option></select></div>
-   <div class="filter-group"><div class="filter-title">Còn nợ</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div>
-   <div class="filter-group"><div class="filter-title">Nhân viên thực hiện</div><select class="field"><option>Chọn nhân viên thực hiện</option><option>Lan</option><option>Hà</option></select></div>
-   <div class="filter-group"><div class="filter-title">Nhân viên tư vấn</div><select class="field"><option>Chọn nhân viên tư vấn</option></select></div>
-   <div class="filter-group"><div class="filter-title">Kênh bán</div><select class="field"><option>Chọn kênh bán</option></select></div>
-   <div class="filter-group"><div class="filter-title">Phương thức</div><select class="field"><option>Chọn phương thức</option>${paymentOptions('')}</select></div>
-  </div>
-  <div class="card table-wrap" style="flex:1">
-   <table><thead><tr><th>☐</th><th>Mã hóa đơn</th><th>Thời gian</th><th>Khách hàng</th><th>Số điện thoại</th><th>Tổng tiền hàng</th><th>Tổng sau giảm giá</th><th>Khách cần trả</th><th>Khách đã trả</th><th>Trạng thái</th></tr></thead>
-   <tbody>${state.invoices.map(x=>`<tr><td>☐</td><td><b>${x.id}</b></td><td>${x.time}</td><td>${esc(x.customer)}</td><td>${x.phone}</td><td>${money(x.amount)}</td><td>${money(x.total)}</td><td>${money(x.total)}</td><td>${money(x.paid)}</td><td><span class="chip">${x.status}</span></td></tr>`).join('')}</tbody></table>
-  </div>
- </div>`;
+function invoiceTableRow(x,i){
+ return '<tr><td data-col="0"><b>'+esc(x.id||'')+'</b></td><td data-col="1">'+esc(x.time||new Date(x.createdAt).toLocaleString('vi-VN'))+'</td><td data-col="2">'+esc(x.customerName||x.customer||'')+'</td><td data-col="3">'+esc(x.phone||'')+'</td><td data-col="4">'+money(x.amount||x.total||0)+' ₫</td><td data-col="5">'+money(x.discount||0)+' ₫</td><td data-col="6">'+money(x.total||0)+' ₫</td><td data-col="7">'+money(x.tax||0)+' ₫</td><td data-col="8">'+money(x.total||0)+' ₫</td><td data-col="9">'+money(x.paid||0)+' ₫</td><td data-col="10">'+esc(x.status||'')+'</td><td data-col="11">'+esc(x.note||'')+'</td></tr>';
 }
-
-function productPage(c){
- c.innerHTML=`
- <div class="page-title">Hàng hóa</div>
- <div class="toolbar">
-   <input class="search" placeholder="🔍  Tìm theo mã, tên..." oninput="filterRows(this.value)">
-   <div style="margin-left:auto"></div>
-   <div id="productActions" class="product-actions"></div>
-   <button class="btn btn-primary" onclick="openProduct()">＋ Thêm mới</button>
-   <button class="btn btn-secondary" onclick="toggleColumns()">☷</button>
- </div>
- <div class="card" style="margin-bottom:12px;padding:10px 14px;display:flex;align-items:center;gap:10px">
-   <span class="product-selected" id="productSelectedInfo">Chưa chọn mặt hàng</span>
- </div>
- <div style="display:flex;gap:14px">
-  <div class="card" style="width:245px;padding:16px;flex-shrink:0">
-   ${['Loại hàng','Nhóm hàng','VAT (%)','Tồn kho','Thương hiệu','Thuộc tính','Trạng thái'].map((x,i)=>`<div class="filter-group"><div class="filter-title">${x}</div><select class="field"><option>${i===1?'Tất cả':i===6?'Đang kinh doanh':'Chọn '+x.toLowerCase()}</option></select></div>`).join('')}
-  </div>
-  <div class="card table-wrap" style="flex:1">
-   <table><thead><tr><th><input type="checkbox" id="productSelectAll" onchange="toggleAllProducts(this.checked)"></th><th>Mã hàng hóa</th><th>Tên hàng</th><th>Loại hàng</th><th>Giá bán trước thuế</th><th>VAT (%)</th><th>Giá bán sau thuế</th><th>Giá vốn</th><th>Tồn kho</th></tr></thead>
-   <tbody>${state.products.map(x=>`<tr><td><input type="checkbox" class="product-check" data-code="${esc(x.code)}" onchange="updateProductSelection()"></td><td>${x.code}</td><td style="min-width:300px">${esc(x.name)}</td><td><span class="chip">${x.type}</span></td><td>${money(x.pre)}</td><td>${x.vat}%</td><td>${money(x.price)}</td><td>${money(x.cost)}</td><td>${x.stock}</td></tr>`).join('')}</tbody></table>
-  </div>
- </div>`;
- updateProductSelection();
-}
-function getSelectedProductCodes(){
- return [...document.querySelectorAll('.product-check:checked')].map(x=>x.dataset.code);
-}
-function toggleAllProducts(checked){
- document.querySelectorAll('.product-check').forEach(x=>x.checked=checked);
- updateProductSelection();
-}
-function updateProductSelection(){
- const codes=getSelectedProductCodes();
- const box=document.getElementById('productActions');
- const info=document.getElementById('productSelectedInfo');
- if(!box||!info) return;
- info.textContent=codes.length?`Đã chọn ${codes.length} mặt hàng`:'Chưa chọn mặt hàng';
- box.innerHTML=codes.length===1
-   ?`<button class="btn btn-secondary" onclick="editSelectedProduct()">✎ Sửa</button><button class="btn btn-danger" onclick="deleteSelectedProducts()">🗑 Xóa</button>`
-   :codes.length>1
-     ?`<button class="btn btn-danger" onclick="deleteSelectedProducts()">🗑 Xóa ${codes.length} mặt hàng</button>`
-     :'';
- const all=document.getElementById('productSelectAll');
- if(all){
-   const checks=[...document.querySelectorAll('.product-check')];
-   all.checked=checks.length>0&&checks.every(x=>x.checked);
-   all.indeterminate=checks.some(x=>x.checked)&&!all.checked;
- }
-}
-function editSelectedProduct(){
- const codes=getSelectedProductCodes();
- if(codes.length!==1)return;
- openProduct(codes[0]);
-}
-function deleteSelectedProducts(){
- const codes=getSelectedProductCodes();
- if(!codes.length)return;
- const names=codes.map(code=>state.products.find(p=>p.code===code)?.name||code);
- if(!confirm(`Bạn có chắc muốn xóa ${codes.length} mặt hàng đã chọn?\\n\\n${names.join('\\n')}`))return;
- state.products=state.products.filter(p=>!codes.includes(p.code));
- saveState();
- productPage(document.getElementById('content'));
-}
-function pricePage(c){
- c.innerHTML=header('Thiết lập giá','Bảng giá','openPrice')+`
- <div class="card" style="padding:14px;margin-bottom:12px"><div style="display:flex;gap:10px"><select class="field" style="max-width:220px"><option>Bảng giá chung</option></select><select class="field" style="max-width:220px"><option>Tất cả</option></select></div></div>
- <div class="card table-wrap"><table><thead><tr><th>Mã hàng hóa</th><th>Tên hàng</th><th>Giá vốn</th><th>Giá nhập cuối</th><th>Bảng giá chung</th></tr></thead><tbody>${state.products.map(x=>`<tr><td>${x.code}</td><td>${esc(x.name)}</td><td>${money(x.cost)}</td><td>0</td><td><input class="field price-setting-input" data-product-code="${esc(x.code)}" value="${Number(x.price)||0}" style="width:150px;text-align:right" type="number" min="0" step="0.001"></td></tr>`).join('')}</tbody>
- <tfoot><tr><td colspan="5" style="padding:12px;text-align:right"><button class="btn btn-primary" onclick="saveProductPrices()">Lưu thay đổi</button></td></tr></tfoot></table></div>`;
-}
-function saveProductPrices(){
- const inputs=[...document.querySelectorAll('.price-setting-input')];
- let changed=0;
- inputs.forEach(input=>{
-  const product=state.products.find(p=>p.code===input.dataset.productCode);
-  if(!product)return;
-  const newPrice=Number(input.value);
-  if(!Number.isFinite(newPrice)||newPrice<0)return;
-  if(Number(product.price)!==newPrice){
-   product.price=newPrice;
-   product.pre=Number((newPrice/1.1).toFixed(3));
-   product.vat=10;
-   changed++;
-  }
+function applyColumnVisibility(){
+ document.querySelectorAll('.column-toggle').forEach(ch=>{
+   const col=ch.dataset.col;
+   document.querySelectorAll('[data-col="'+col+'"]').forEach(el=>el.style.display=ch.checked?'':'none');
  });
- saveState();
- alert(changed?'Đã lưu thành công '+changed+' thay đổi giá.':'Không có thay đổi giá.');
- pricePage(document.getElementById('content'));
+}
+function invoicePage(c){
+ c.innerHTML=header('Danh sách hóa đơn','Tạo hóa đơn','openInvoice')+`
+ <div style="display:flex;gap:14px">
+  <div class="card" style="width:245px;padding:16px;flex-shrink:0">
+   <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option><option value="7days">7 ngày qua</option><option value="month">Tháng này</option><option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option><option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option></select></div>
+   <div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option><option>Đã thanh toán</option><option>Còn nợ</option><option>Đã hủy</option></select></div>
+   <div class="filter-group"><div class="filter-title">Trạng thái HĐĐT</div><select class="field"><option>Tất cả</option></select></div>
+   <div class="filter-group"><div class="filter-title">Còn nợ</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div>
+   <div class="filter-group"><div class="filter-title">Nhân viên thực hiện</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option><option>Lan</option><option>Hà</option></select></div>
+   <div class="filter-group"><div class="filter-title">Nhân viên tư vấn</div><select class="field"><option>Tất cả</option></select></div>
+   <div class="filter-group"><div class="filter-title">Kênh bán</div><select class="field"><option>Tất cả</option></select></div>
+   <div class="filter-group"><div class="filter-title">Phương thức</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option>${paymentOptions('')}</select></div>
+  </div>
+  <div class="card" style="flex:1;min-width:0">
+   ${header('Danh sách hóa đơn','Tạo hóa đơn','openInvoice')}
+   <div class="table-wrap"><table><thead><tr><th data-col="0">Mã</th><th data-col="1">Thời gian</th><th data-col="2">Khách hàng</th><th data-col="3">Số điện thoại</th><th data-col="4">Tổng tiền hàng</th><th data-col="5">Giảm giá</th><th data-col="6">Tổng sau giảm giá</th><th data-col="7">VAT</th><th data-col="8">Khách cần trả</th><th data-col="9">Khách đã trả</th><th data-col="10">Trạng thái</th><th data-col="11">Ghi chú</th></tr></thead><tbody id="invoiceTableBody"></tbody></table></div>
+  </div>
+ </div>`;
+ // The inner header creates its own controls; keep only the table's column controls.
+ applyInvoiceFilters();
 }
 function customerPage(c){
  c.innerHTML=header('Khách hàng','Thêm khách hàng','openCustomer')+`
