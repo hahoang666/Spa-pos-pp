@@ -755,29 +755,7 @@ function dashboard(c){
       </div>
     </div>
 
-    <div class="card report dashboard-section">
-      <div class="dashboard-section-head">
-        <div><h3 style="margin:0">Pivot Dashboard</h3>
-          <div class="dashboard-note">Dữ liệu chi tiết theo giao dịch, cập nhật từ dữ liệu hóa đơn.</div>
-        </div>
-        <div class="dashboard-controls">
-          <select id="pivotPeriod" class="field" onchange="refreshPivotDashboard()">
-            <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
-            <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
-            <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
-            <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
-          </select>
-          <button class="btn btn-secondary" onclick="exportPivotExcel()">⬇ Xuất file</button>
 
-        </div>
-      </div>
-      <div class="table-wrap pivot-wrap">
-        <table class="pivot-table"><thead><tr>
-          <th>STT</th><th>Chi Nhánh</th><th>Thời gian</th><th>Mã Hoá đơn</th><th>Hoá đơn Thu/Chi</th>
-          <th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Mã Khách hàng</th><th>Tên Khách hàng</th><th>Tổng tiền</th>
-        </tr></thead><tbody id="pivotBody"></tbody></table>
-      </div>
-    </div>
 
   `;
   refreshDashboard();
