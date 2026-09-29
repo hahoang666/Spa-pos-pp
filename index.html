@@ -744,7 +744,7 @@ function filterPriceTable(value){
  document.querySelectorAll('#priceTableBody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
 }
 function saveInvoice(){
- const shift=requireOpenShift('tạo hóa đơn');if(!shift);
+ const shift=requireOpenShift('tạo hóa đơn');if(!shift)return;
  if(!shift)return;
  if(!hasPermission('Tạo hóa đơn'))return alert('Bạn không có quyền tạo hóa đơn.');
  const customerIndex=Number(document.getElementById('customerSelect')?.value);
@@ -766,7 +766,7 @@ function saveInvoice(){
  if(typeof product.stock==='number'&&product.stock<qty)return alert('Không đủ tồn kho cho '+product.name+'.');
  if(typeof product.stock==='number')product.stock-=qty;
  const hasPriorPurchase=(state.invoices||[]).some(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===customer.code);
- const invoice=createInvoice({type:'Thu',customer:customer.name||'Khách lẻ',customerCode:customer.code||'',customerName:customer.name||'Khách lẻ',customerType:hasPriorPurchase?'Cũ':'Mới',phone:customer.phone||'',productCode:product.code,productName:product.name,amount,discount,total,tax,paid,paymentMethod:normalizePaymentMethod(document.getElementById('pay')?.value||'Tiền mặt'),paymentBreakdown:paid>0?[{method:normalizePaymentMethod(document.getElementById('pay')?.value||'Tiền mặt'),amount:paid}]:[],employeeId:employee.id||'',employeeName:employee.name||employee.username||'',consultantId:consultant.id||'',consultantName:consultant.name||'',shiftId:shift.id,status:paid>=total?'Đã thanh toán':'Còn nợ',items:[{code:product.code,name:product.name,qty,price:rate,discount,vat}]});
+ const invoice=createInvoice({type:'Thu',customer:customer.name||'Khách lẻ',customerCode:customer.code||'',customerName:customer.name||'Khách lẻ',customerType:hasPriorPurchase?'Cũ':'Mới',phone:customer.phone||'',productCode:product.code,productName:product.name,amount,discount,total,tax,paid,paymentMethod:normalizePaymentMethod(document.getElementById('pay')?.value||'Tiền mặt'),paymentBreakdown:paid>0?[{method:normalizePaymentMethod(document.getElementById('pay')?.value||'Tiền mặt'),amount:paid,source:'sale'}]:[],employeeId:employee.id||'',employeeName:employee.name||employee.username||'',consultantId:consultant.id||'',consultantName:consultant.name||'',shiftId:shift.id,status:paid>=total?'Đã thanh toán':'Còn nợ',items:[{code:product.code,name:product.name,qty,price:rate,discount,vat}]});
  if(paid>0)addCashMovement({type:'thu',amount:paid,paymentMethod:invoice.paymentMethod,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id});
  const rule=(state.commissionRules||[]).find(x=>x.productCode===product.code),commissionRate=Number(rule?.rate)||0;
  if(commissionRate>0&&employee.id){state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:product.code,productName:product.name,revenue:total,rate:commissionRate,amount:total*commissionRate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}
@@ -990,7 +990,7 @@ function completeCashierSale(){
  const first=payments[0]||{method:'Tiền mặt'};
  const hasPriorPurchase=(state.invoices||[]).some(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===customer.code);
  const customerType=hasPriorPurchase?'Cũ':'Mới';
- const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType,phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:t.lineDiscount+t.orderDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',shiftId:shift.id,status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:cart.map(x=>({code:x.code,name:x.name,qty:x.qty,price:x.price,discount:x.discount||0,vat:x.vat||0}))});
+ const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType,phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:t.lineDiscount+t.orderDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0,source:'sale'})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',shiftId:shift.id,status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:cart.map(x=>({code:x.code,name:x.name,qty:x.qty,price:x.price,discount:x.discount||0,vat:x.vat||0}))});
  payments.forEach(p=>addCashMovement({type:'thu',amount:p.amount,paymentMethod:p.method,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id}));
  const commissionRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
  cart.forEach(x=>{const rule=commissionRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0));state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
@@ -1067,7 +1067,11 @@ function cancelInvoice(id){
  items.forEach(x=>{const p=state.products.find(z=>z.code===x.code);if(p&&typeof p.stock==='number')p.stock+=Number(x.qty||0);});
  (state.therapyCards||[]).filter(x=>x.invoiceId===inv.id).forEach(x=>{x.status='Đã hủy';x.cancelledAt=new Date().toISOString();x.remainingSessions=0;});
  (state.serviceCommissions||[]).filter(x=>x.invoiceId===inv.id).forEach(x=>{x.status='Đã hủy';x.cancelledAt=new Date().toISOString();x.amount=0;});
- if(refund>0)addCashMovement({type:'chi',amount:refund,paymentMethod:inv.paymentMethod||'Tiền mặt',subject:inv.customerName||inv.customer||'',referenceId:inv.id,note:'Hoàn tiền do hủy hóa đơn '+inv.id});
+ if(refund>0){
+  const parts=Array.isArray(inv.paymentBreakdown)&&inv.paymentBreakdown.length?inv.paymentBreakdown.filter(p=>(p.source||'sale')==='sale'&&Number(p.amount)>0):[{method:inv.paymentMethod||'Tiền mặt',amount:refund}];
+  const partTotal=parts.reduce((s,p)=>s+Number(p.amount||0),0);
+  parts.forEach(p=>addCashMovement({type:'chi',amount:partTotal>0?refund*(Number(p.amount||0)/partTotal):refund,paymentMethod:p.method,subject:inv.customerName||inv.customer||'',referenceId:inv.id,note:'Hoàn tiền do hủy hóa đơn '+inv.id}));
+}
  inv.paid=0;inv.status='Đã hủy';inv.cancelReason=reason;inv.cancelledAt=new Date().toISOString();inv.cancelledBy=state.currentUser?.username||'';inv.cancelRefundAmount=refund;inv.cancelledShiftId=shift.id;
  saveState();closeModal();applyInvoiceFilters();alert(refund>0?'Đã hủy hóa đơn, hoàn kho và hoàn tiền.':'Đã hủy hóa đơn và hoàn kho.');
 }
@@ -1087,7 +1091,7 @@ function collectDebt(id){
  if(amount<=0||amount>debt)return alert('Số tiền thu không hợp lệ.');
  if(inv.customerCode==='KH000001')return alert('Khách lẻ không được ghi nợ.');
  inv.paid=Number(inv.paid||0)+amount;inv.paymentMethod=method;inv.payment=method;
- inv.paymentBreakdown=Array.isArray(inv.paymentBreakdown)?inv.paymentBreakdown:[];inv.paymentBreakdown.push({method,amount});
+ inv.paymentBreakdown=Array.isArray(inv.paymentBreakdown)?inv.paymentBreakdown:[];inv.paymentBreakdown.push({method,amount,source:'debt'});
  inv.status=inv.paid>=Math.max(0,Number(inv.total||0)-invoiceReturnedAmount(inv))?'Đã thanh toán':'Còn nợ';
  inv.debtHistory=Array.isArray(inv.debtHistory)?inv.debtHistory:[];inv.debtHistory.push({amount,method,createdAt:new Date().toISOString(),employee:state.currentUser?.name||'',shiftId:shift.id});
  addCashMovement({type:'thu',amount,paymentMethod:method,subject:inv.customerName||inv.customer||'',referenceId:inv.id,note:'Thu nợ hóa đơn '+inv.id});
@@ -1595,7 +1599,7 @@ function refreshDashboard(){
   const expense=cash.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0)+legacyExpense;
   const debt=Math.max(0,validSales.reduce((a,x)=>a+Math.max(0,Number(x.total||0)-Number(x.paid||0)-invoiceReturnedAmount(x)),0));
   document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
-  const paymentRevenue=(method)=>cash.filter(x=>x.type==='thu'&&normalizePaymentMethod(x.paymentMethod)===method).reduce((a,x)=>a+Number(x.amount||0),0)+validSales.filter(x=>!hasCashMovement(x.id,'thu')&&normalizePaymentMethod(x.paymentMethod)===method).reduce((a,x)=>a+Number(x.paid||0),0);
+  const paymentRevenue=(method)=>validSales.reduce((sum,x)=>{if(Array.isArray(x.paymentBreakdown)&&x.paymentBreakdown.length)return sum+x.paymentBreakdown.filter(p=>(p.source||'sale')==='sale'&&normalizePaymentMethod(p.method)===method).reduce((a,p)=>a+Number(p.amount||0),0);return sum+(!hasCashMovement(x.id,'thu')&&normalizePaymentMethod(x.paymentMethod)===method?Number(x.paid||0):0);},0);
   document.getElementById('cashRevenue').innerText=money(paymentRevenue('Tiền mặt'))+' ₫';
   document.getElementById('bankRevenue').innerText=money(paymentRevenue('Chuyển khoản'))+' ₫';
   document.getElementById('ewalletRevenue').innerText=money(paymentRevenue('Ví điện tử'))+' ₫';
@@ -1670,7 +1674,7 @@ function refreshDashboardCharts(){
   const revenue=rows.filter(x=>(x.type||'Thu')==='Thu'&&x.status!=='Đã hủy').reduce((a,x)=>a+Number(x.total||0),0)-(state.returns||[]).filter(r=>{const d=new Date(r.createdAt||0),range=getDashboardPeriodRange(period);return r.status!=='Đã hủy'&&d>=range.start&&d<=range.end;}).reduce((a,r)=>a+Number(r.refundAmount||r.amount||0),0);
   const range=getDashboardPeriodRange(period);const returnCount=(state.returns||[]).filter(r=>{const d=new Date(r.createdAt||0);return r.status!=='Đã hủy'&&d>=range.start&&d<=range.end;}).length;
   if(document.getElementById('chartRevenue'))document.getElementById('chartRevenue').innerText=money(revenue)+' ₫';
-  if(document.getElementById('chartInvoiceCount'))document.getElementById('chartInvoiceCount').innerText=rows.length;
+  if(document.getElementById('chartInvoiceCount'))document.getElementById('chartInvoiceCount').innerText=rows.filter(x=>x.status!=='Đã hủy').length;
   if(document.getElementById('chartReturnCount'))document.getElementById('chartReturnCount').innerText=returnCount;
 }
 
