@@ -1119,10 +1119,14 @@ function refreshDashboard(){
   const expense=rows.filter(x=>(x.type||'Thu')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
   const debt=Math.max(0,revenue-income);
   document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
-  const cashRevenue=rows.filter(x=>(x.paymentMethod||'')==='Tiền mặt').reduce((a,x)=>a+Number(x.total||0),0);
-  const bankRevenue=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)==='Chuyển khoản').reduce((a,x)=>a+Number(x.total||0),0);
-  const ewalletRevenue=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)==='Ví điện tử').reduce((a,x)=>a+Number(x.total||0),0);
-  const otherRevenue=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)==='Thẻ').reduce((a,x)=>a+Number(x.total||0),0);
+  const paymentRevenue=(method)=>rows.reduce((sum,x)=>{
+    if(Array.isArray(x.paymentBreakdown)&&x.paymentBreakdown.length)return sum+x.paymentBreakdown.filter(p=>normalizePaymentMethod(p.method)===method).reduce((a,p)=>a+Number(p.amount||0),0);
+    return sum+(normalizePaymentMethod(x.paymentMethod)===method?Number(x.paid||x.total||0):0);
+  },0);
+  const cashRevenue=paymentRevenue('Tiền mặt');
+  const bankRevenue=paymentRevenue('Chuyển khoản');
+  const ewalletRevenue=paymentRevenue('Ví điện tử');
+  const otherRevenue=paymentRevenue('Thẻ');
   document.getElementById('cashRevenue').innerText=money(cashRevenue)+' ₫';
   document.getElementById('bankRevenue').innerText=money(bankRevenue)+' ₫';
   document.getElementById('ewalletRevenue').innerText=money(ewalletRevenue)+' ₫';
@@ -1222,7 +1226,7 @@ function openInvoice(){
   <div><label>Giảm giá</label><input id="discount" class="field" type="number" value="0" min="0"></div>
   <div><label>VAT (%)</label><input id="vat" class="field" value="10%" readonly disabled></div>
  </div>
- <div class="summary"><div class="summary-box"><div class="summary-row"><span>Thành tiền</span><b id="sum">99.000 ₫</b></div><div class="summary-row"><span>VAT</span><b id="tax">9.000 ₫</b></div><div class="summary-row total"><span>Tổng thanh toán</span><b id="grand">108.000 ₫</b></div></div></div>`,
+ <div class="summary"><div class="summary-box"><div class="summary-row"><span>Thành tiền</span><b id="sum">0 ₫</b></div><div class="summary-row"><span>VAT</span><b id="tax">0 ₫</b></div><div class="summary-row total"><span>Tổng thanh toán</span><b id="grand">0 ₫</b></div></div></div>`,
  `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveInvoice()">Lưu hóa đơn</button>`);
  ['qty','rate','discount'].forEach(id=>document.getElementById(id).addEventListener('input',calcInvoice));
  document.getElementById('productSelect').addEventListener('change',function(){
