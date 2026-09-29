@@ -1043,7 +1043,9 @@ document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==
 state.section='Tổng quan';
 state.page='Tổng quan';
 initLogin();
-renderAll();
+if(!state.currentUser){
+  renderAll();
+}
 </script>
 </body>
 </html>
