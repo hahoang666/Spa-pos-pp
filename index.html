@@ -1010,7 +1010,7 @@ function applyColumnVisibility(){
  });
 }
 function invoicePage(c){
- c.innerHTML=header('Danh sách hóa đơn','Tạo hóa đơn nhiều dòng','openMultiLineInvoice')+`
+ c.innerHTML=header('Danh sách hóa đơn','Tạo hóa đơn','openInvoice')+`
  <div style="display:flex;gap:14px">
   <div class="card" style="width:245px;padding:16px;flex-shrink:0">
    <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option><option value="7days">7 ngày qua</option><option value="month">Tháng này</option><option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option><option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option></select></div>
@@ -1023,7 +1023,9 @@ function invoicePage(c){
    <div class="filter-group"><div class="filter-title">Phương thức</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option>${paymentOptions('')}</select></div>
   </div>
   <div class="card" style="flex:1;min-width:0">
-   ${header('Danh sách hóa đơn','Tạo hóa đơn','openInvoice')}
+   <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <button class="btn btn-secondary" data-action="toolbar-action" data-action-name="openMultiLineInvoice">＋ Tạo hóa đơn nhiều dòng</button>
+   </div>
    <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn btn-secondary" onclick="exportInvoicesExcel()">⬇ Xuất Excel</button></div><div class="table-wrap"><table><thead><tr><th data-col="0">Mã</th><th data-col="1">Thời gian</th><th data-col="2">Khách hàng</th><th data-col="3">Số điện thoại</th><th data-col="4">Tổng tiền hàng</th><th data-col="5">Giảm giá</th><th data-col="6">Tổng sau giảm giá</th><th data-col="7">VAT</th><th data-col="8">Khách cần trả</th><th data-col="9">Khách đã trả</th><th data-col="10">Trạng thái</th><th data-col="11">Ghi chú</th></tr></thead><tbody id="invoiceTableBody"></tbody></table></div><div id="invoicePagination" style="display:flex;justify-content:center;padding:12px"></div>
   </div>
  </div>`;
@@ -1138,6 +1140,21 @@ function toggleSettingsMenu(){
   menu.classList.toggle('show');
 }
 document.addEventListener('click',function(e){
+  const actionEl=e.target.closest('[data-action="toolbar-action"]');
+  if(actionEl){
+    e.preventDefault();
+    const actionName=actionEl.dataset.actionName;
+    const actions={
+      openInvoice: openInvoice,
+      openMultiLineInvoice: openMultiLineInvoice,
+      openProduct: openProduct,
+      openPrice: openPrice
+    };
+    const fn=actions[actionName];
+    if(typeof fn==='function') fn();
+    else console.warn('Toolbar action not found:',actionName);
+    return;
+  }
   const wrap=document.querySelector('.settings-wrap');
   if(wrap && !wrap.contains(e.target)){
     const menu=document.getElementById('settingsMenu');
