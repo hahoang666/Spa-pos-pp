@@ -1727,30 +1727,69 @@ function createInvoice(data){
  saveState();
  return invoice;
 }
+function multiLineTotals(){
+ const rows=[...document.querySelectorAll('.invoice-line-row')];
+ let amount=0,discount=0,tax=0;
+ rows.forEach(r=>{
+  const p=state.products[Number(r.querySelector('.line-product')?.value)];
+  const qty=Math.max(0,Number(r.querySelector('.line-qty')?.value)||0);
+  const price=Math.max(0,Number(r.querySelector('.line-rate')?.value)||0);
+  const lineGross=qty*price;
+  const lineDiscount=Math.min(Math.max(0,Number(r.querySelector('.line-discount')?.value)||0),lineGross);
+  const lineTotal=Math.max(0,lineGross-lineDiscount);
+  const vat=Number(p?.vat??10);
+  amount+=lineGross;discount+=lineDiscount;tax+=vat>0?lineTotal-(lineTotal/(1+vat/100)):0;
+ });
+ return {amount,discount,total:Math.max(0,amount-discount),tax};
+}
+function refreshMultiLineTotals(){
+ const t=multiLineTotals();
+ const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=money(v)+' ₫';};
+ set('multiAmount',t.amount);set('multiDiscount',t.discount);set('multiTotal',t.total);set('multiTax',t.tax);
+ const paid=Math.max(0,Number(document.getElementById('multiPaid')?.value)||0);
+ set('multiDebt',Math.max(0,t.total-paid));set('multiChange',Math.max(0,paid-t.total));
+ const status=document.getElementById('multiPaymentStatus');
+ if(status)status.textContent=paid>=t.total&&t.total>0?'Đã thanh toán':paid>0?'Còn nợ':'Chưa thanh toán';
+}
 function addInvoiceLineRow(){
  const wrap=document.getElementById('invoiceLines');if(!wrap)return;
- const idx=wrap.children.length;
- const opts=state.products.map((p,i)=>'<option value="'+i+'">'+esc(p.code)+' - '+esc(p.name)+' - '+money(p.price)+' ₫</option>').join('');
- const row=document.createElement('div');row.className='invoice-line-row';row.style='display:grid';row.style.gridTemplateColumns='2fr .7fr 1fr .8fr auto';row.style.gap='7px';row.style.marginBottom='7px';
- row.innerHTML='<select class="field line-product">'+opts+'</select><input class="field line-qty" type="number" min="1" value="1"><input class="field line-rate" type="number" min="0" step="0.01" value="'+(state.products[0]?.price||0)+'"><input class="field line-discount" type="number" min="0" value="0"><button class="btn btn-secondary line-remove">×</button>';
- row.querySelector('.line-product').addEventListener('change',e=>{const p=state.products[Number(e.target.value)];row.querySelector('.line-rate').value=p?.price||0;});
- row.querySelector('.line-remove').addEventListener('click',()=>{if(wrap.children.length>1)row.remove();});
+ const row=document.createElement('div');row.className='invoice-line-row';row.style='display:grid;grid-template-columns:2fr .7fr 1fr .8fr auto;gap:7px;margin-bottom:7px';
+ const opts=state.products.filter(p=>p.status!=='Ngừng kinh doanh').map((p,i)=>'<option value="'+state.products.indexOf(p)+'">'+esc(p.code)+' - '+esc(p.name)+' - '+money(p.price)+' ₫</option>').join('');
+ row.innerHTML='<select class="field line-product">'+opts+'</select><input class="field line-qty" type="number" min="1" value="1"><input class="field line-rate" type="number" min="0" step="0.01" value="0"><input class="field line-discount" type="number" min="0" value="0"><button type="button" class="btn btn-secondary line-remove">×</button>';
+ const product=row.querySelector('.line-product');
+ const rate=row.querySelector('.line-rate');
+ const qty=row.querySelector('.line-qty');
+ const disc=row.querySelector('.line-discount');
+ const sync=()=>{const p=state.products[Number(product.value)];if(p&&document.activeElement!==rate)rate.value=Number(p.price)||0;refreshMultiLineTotals();};
+ product.addEventListener('change',sync);
+ [qty,rate,disc].forEach(el=>el.addEventListener('input',refreshMultiLineTotals));
+ row.querySelector('.line-remove').addEventListener('click',()=>{if(wrap.children.length>1)row.remove();refreshMultiLineTotals();});
  wrap.appendChild(row);
+ sync();
 }
 function openMultiLineInvoice(){
  if(!hasPermission('Tạo hóa đơn'))return alert('Bạn không có quyền tạo hóa đơn.');
  const customers=state.customers.map((x,i)=>'<option value="'+i+'">'+esc(x.name)+' - '+esc(x.code)+'</option>').join('');
- openModal('Tạo hóa đơn','<div class="form-grid"><div><label>Khách hàng</label><select id="multiCustomer" class="field">'+customers+'</select></div><div><label>Phương thức</label><select id="multiPay" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div class="full"><label>Sản phẩm</label><div id="invoiceLines"></div><button class="btn btn-secondary" onclick="addInvoiceLineRow()">＋ Thêm sản phẩm</button></div></div><div class="summary"><div class="summary-box"><div class="summary-row"><span>Tổng</span><b id="multiTotal">0 ₫</b></div><div class="summary-row"><span>VAT</span><b id="multiTax">0 ₫</b></div></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveMultiLineInvoice()">Lưu hóa đơn</button>');
+ const employees=(state.accounts||[]).filter(a=>a.status==='Hoạt động').map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name||a.username)+'</option>').join('');
+ openModal('Tạo hóa đơn nhiều dòng','<div class="form-grid"><div><label>Khách hàng</label><select id="multiCustomer" class="field">'+customers+'</select></div><div><label>Nhân viên thực hiện *</label><select id="multiEmployee" class="field"><option value="">-- Chọn nhân viên --</option>'+employees+'</select></div><div><label>Phương thức</label><select id="multiPay" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div><label>Khách thanh toán</label><input id="multiPaid" class="field" type="number" min="0" value="0" oninput="refreshMultiLineTotals()"></div><div class="full"><label>Sản phẩm</label><div id="invoiceLines"></div><button type="button" class="btn btn-secondary" onclick="addInvoiceLineRow()">＋ Thêm sản phẩm</button></div></div><div class="summary"><div class="summary-box"><div class="summary-row"><span>Tiền hàng</span><b id="multiAmount">0 ₫</b></div><div class="summary-row"><span>Giảm giá</span><b id="multiDiscount">0 ₫</b></div><div class="summary-row"><span>VAT</span><b id="multiTax">0 ₫</b></div><div class="summary-row"><span>Tổng</span><b id="multiTotal">0 ₫</b></div><div class="summary-row"><span>Tiền thừa</span><b id="multiChange">0 ₫</b></div><div class="summary-row"><span>Còn nợ</span><b id="multiDebt">0 ₫</b></div><div class="summary-row"><span>Trạng thái</span><b id="multiPaymentStatus">Chưa thanh toán</b></div></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveMultiLineInvoice()">Lưu hóa đơn</button>');
  addInvoiceLineRow();
+ refreshMultiLineTotals();
 }
 function saveMultiLineInvoice(){
  const rows=[...document.querySelectorAll('.invoice-line-row')];if(!rows.length)return;
- const items=rows.map(r=>{const p=state.products[Number(r.querySelector('.line-product').value)];const qty=Number(r.querySelector('.line-qty').value)||0,price=Number(r.querySelector('.line-rate').value)||0,discount=Number(r.querySelector('.line-discount').value)||0;return {code:p?.code||'',name:p?.name||'',qty,price,discount,vat:10};});
- if(items.some(x=>!x.code||x.qty<1||x.price<=0||x.discount>x.qty*x.price))return alert('Dữ liệu sản phẩm không hợp lệ.');
- const amount=items.reduce((a,x)=>a+x.qty*x.price,0),discount=items.reduce((a,x)=>a+x.discount,0),total=amount-discount,tax=total-total/1.1;
+ const employeeId=document.getElementById('multiEmployee')?.value;
+ if(!employeeId)return alert('Vui lòng chọn nhân viên thực hiện.');
+ const employee=(state.accounts||[]).find(a=>a.id===employeeId);
+ const items=rows.map(r=>{const p=state.products[Number(r.querySelector('.line-product').value)];const qty=Number(r.querySelector('.line-qty').value)||0,price=Number(r.querySelector('.line-rate').value)||0,discount=Number(r.querySelector('.line-discount').value)||0;return {code:p?.code||'',name:p?.name||'',qty,price,discount,vat:Number(p?.vat??10)};});
+ if(items.some(x=>!x.code||x.qty<1||x.price<0||x.discount>x.qty*x.price))return alert('Dữ liệu sản phẩm không hợp lệ.');
+ for(const x of items){const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number'&&p.stock<x.qty)return alert('Không đủ tồn kho cho '+p.name+'.');}
+ const t=multiLineTotals(),paid=Math.max(0,Number(document.getElementById('multiPaid')?.value)||0);
+ if(paid>t.total)return alert('Tiền thanh toán không được vượt quá tổng hóa đơn.');
  const c=state.customers[Number(document.getElementById('multiCustomer').value)||0]||state.customers[0];
- createInvoice({type:'Thu',customer:c.name,customerCode:c.code,customerName:c.name,phone:c.phone||'',productCode:items[0].code,productName:items.map(x=>x.name).join(', '),amount,discount,total,tax,paid:total,paymentMethod:document.getElementById('multiPay').value,items,status:'Đã thanh toán'});
- closeModal();state.section='Đơn hàng';state.page='Hóa đơn';renderAll();alert('Đã tạo hóa đơn thành công.');
+ const hasPriorPurchase=(state.invoices||[]).some(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===c.code);
+ items.forEach(x=>{const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number')p.stock-=x.qty;});
+ createInvoice({type:'Thu',customer:c.name,customerCode:c.code,customerName:c.name,customerType:hasPriorPurchase?'Cũ':'Mới',phone:c.phone||'',productCode:items[0].code,productName:items.map(x=>x.name).join(', '),amount:t.amount,discount:t.discount,total:t.total,tax:t.tax,paid,paymentMethod:normalizePaymentMethod(document.getElementById('multiPay').value),employeeId:employee.id,employeeName:employee.name||employee.username,status:paid>=t.total?'Đã thanh toán':paid>0?'Còn nợ':'Còn nợ',items});
+ closeModal();state.section='Đơn hàng';state.page='Hóa đơn';saveState();renderAll();alert(paid>=t.total?'Đã tạo hóa đơn và thanh toán thành công.':'Đã tạo hóa đơn, phần còn lại được ghi nhận là Còn nợ.');
 }
 function deleteProduct(code){
  if(!hasPermission('Xóa sản phẩm'))return alert('Bạn không có quyền xóa sản phẩm.');
