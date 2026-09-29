@@ -1030,6 +1030,33 @@ function toggleAccountStatus(id){
   adminAccountPage(document.getElementById('content'));
 }
 
+
+function cashBookPage(c,type){
+ const isIncome=type==='thu', title=isIncome?'Phiếu thu':'Phiếu chi', perm=isIncome?'Tạo phiếu thu':'Tạo phiếu chi';
+ if(!hasPermission(isIncome?'Xem phiếu thu':'Xem phiếu chi'))return c.innerHTML='<div class="empty">Bạn không có quyền xem '+title.toLowerCase()+'.</div>';
+ const arr=(state.cashbook||[]).filter(x=>x.type===type).slice().reverse();
+ const rows=arr.map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.createdAt?new Date(x.createdAt).toLocaleString('vi-VN'):'')+'</td><td>'+esc(x.subject||'')+'</td><td>'+money(x.amount||0)+' ₫</td><td>'+esc(x.paymentMethod||'')+'</td><td>'+esc(x.note||'')+'</td></tr>').join('');
+ c.innerHTML=header(title,isIncome?'Tạo phiếu thu':'Tạo phiếu chi',isIncome?'openCashReceipt()':'openCashPayment()')+'<div class="card table-wrap"><table><thead><tr><th>Mã phiếu</th><th>Thời gian</th><th>Đối tượng</th><th>Số tiền</th><th>Phương thức</th><th>Ghi chú</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6"><div class="empty">Chưa có dữ liệu</div></td></tr>')+'</tbody></table></div>';
+}
+function openCashVoucher(type){
+ const isIncome=type==='thu', perm=isIncome?'Tạo phiếu thu':'Tạo phiếu chi';
+ if(!hasPermission(perm))return alert('Bạn không có quyền thực hiện thao tác này.');
+ openModal(isIncome?'Tạo phiếu thu':'Tạo phiếu chi','<div class="form-grid"><div><label>Đối tượng *</label><input id="cashSubject" class="field"></div><div><label>Số tiền *</label><input id="cashAmount" class="field" type="number" min="0"></div><div><label>Phương thức</label><select id="cashMethod" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div class="full"><label>Ghi chú</label><textarea id="cashNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCashVoucher(\''+type+'\')">Lưu</button>');
+}
+function openCashReceipt(){openCashVoucher('thu')}
+function openCashPayment(){openCashVoucher('chi')}
+function saveCashVoucher(type){
+ const isIncome=type==='thu', perm=isIncome?'Tạo phiếu thu':'Tạo phiếu chi';
+ if(!hasPermission(perm))return alert('Bạn không có quyền thực hiện thao tác này.');
+ const amount=Number(document.getElementById('cashAmount').value);
+ if(!Number.isFinite(amount)||amount<=0)return alert('Số tiền phải lớn hơn 0.');
+ const subject=document.getElementById('cashSubject').value.trim();
+ if(!subject)return alert('Vui lòng nhập Đối tượng.');
+ state.cashbook=Array.isArray(state.cashbook)?state.cashbook:[];
+ const id=nextAutoCode(isIncome?'PT':'PC',6,isIncome?'spa_next_receipt_id':'spa_next_payment_id',state.cashbook,'id');
+ state.cashbook.push({id,type,amount,subject,paymentMethod:normalizePaymentMethod(document.getElementById('cashMethod').value),note:document.getElementById('cashNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',status:'Hoàn thành'});
+ saveState();closeModal();cashBookPage(document.getElementById('content'),type);alert('Đã lưu '+(isIncome?'phiếu thu ':'phiếu chi ')+id+'.');
+}
 function genericPage(c,title,col1,col2){
  c.innerHTML=header(title, title==='Nhập hàng'?'Nhập hàng':title==='Xuất hủy'?'Tạo phiếu':title==='Chuyển hàng'?'Chuyển hàng':title==='Kiểm kho'?'Kiểm kho':title,'openGeneric')+`
  <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px">
@@ -1178,10 +1205,13 @@ function dashboard(c){
 function refreshDashboard(){
   const period=document.getElementById('dashboardPeriod')?.value||'today';
   const rows=dashboardInvoices(period);
+  const cash=(state.cashbook||[]).filter(x=>{const d=new Date(x.createdAt);const r=getDashboardPeriodRange(period);return d>=r.start&&d<=r.end;});
   const revenue=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.total||0),0)-rows.filter(x=>(x.type||'')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
-  const income=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.paid||0),0);
-  const expense=rows.filter(x=>(x.type||'Thu')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
-  const debt=Math.max(0,revenue-income);
+  const invoiceIncome=rows.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.paid||0),0);
+  const invoiceExpense=rows.filter(x=>(x.type||'')==='Chi').reduce((a,x)=>a+Number(x.total||0),0);
+  const income=invoiceIncome+cash.filter(x=>x.type==='thu').reduce((a,x)=>a+Number(x.amount||0),0);
+  const expense=invoiceExpense+cash.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0);
+  const debt=Math.max(0,rows.filter(x=>(x.status||'')==='Còn nợ').reduce((a,x)=>a+Math.max(0,Number(x.total||0)-Number(x.paid||0)),0);
   document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
   const paymentRevenue=(method)=>rows.reduce((sum,x)=>{
     if(Array.isArray(x.paymentBreakdown)&&x.paymentBreakdown.length)return sum+x.paymentBreakdown.filter(p=>normalizePaymentMethod(p.method)===method).reduce((a,p)=>a+Number(p.amount||0),0);
