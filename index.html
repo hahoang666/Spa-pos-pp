@@ -169,7 +169,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
       </div>
       <div class="login-error" id="loginError">Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.</div>
       <div class="login-options">
-        <label class="login-remember"><input type="checkbox" id="rememberLogin"> Ghi nhớ đăng nhập</label>
+        <label class="login-remember"><input type="checkbox" id="rememberLogin"> Ghi nhớ đăng nhập <span style="font-size:11px;color:#8a959e">(không áp dụng trong bản demo)</span></label>
         <button type="button" class="login-forgot" onclick="forgotPassword()">Quên mật khẩu?</button>
       </div>
       <button class="login-button" type="submit">↪ &nbsp; Đăng nhập</button>
@@ -364,16 +364,13 @@ function login(){
     error.classList.add('show');return;
   }
   error.classList.remove('show');
-  if(document.getElementById('rememberLogin').checked){
-    localStorage.setItem('spa_pos_username',account.username);
-    localStorage.setItem('spa_pos_remember_username',account.username);
-  }else{
-    localStorage.removeItem('spa_pos_username');
-    localStorage.removeItem('spa_pos_remember_username');
-  }
-  localStorage.setItem('spa_pos_role',account.role);
-  localStorage.setItem('spa_pos_user_id',account.id);
-  localStorage.setItem('spa_pos_user_name',account.name);
+  // Bản demo không lưu thông tin có thể dùng để tự động xác thực sau reload.
+  // Mỗi lần tải lại trang phải xác thực lại bằng username + password.
+  localStorage.removeItem('spa_pos_username');
+  localStorage.removeItem('spa_pos_remember_username');
+  localStorage.removeItem('spa_pos_role');
+  localStorage.removeItem('spa_pos_user_id');
+  localStorage.removeItem('spa_pos_user_name');
   document.getElementById('loginScreen').style.display='none';
   state.currentUser=account;
   state.section='Tổng quan';
@@ -381,31 +378,13 @@ function login(){
   renderAll();
 }
 function initLogin(){
-  const rememberedUsername=localStorage.getItem('spa_pos_remember_username');
-  if(rememberedUsername){
-    const account=state.accounts.find(a=>a.username.toLowerCase()===rememberedUsername.toLowerCase() && a.status==='Hoạt động');
-    if(account){
-      state.currentUser=account;
-      const screen=document.getElementById('loginScreen');
-      if(screen) screen.style.display='none';
-      const usernameInput=document.getElementById('loginUsername');
-      const remember=document.getElementById('rememberLogin');
-      if(usernameInput) usernameInput.value=account.username;
-      if(remember) remember.checked=true;
-      state.section='Tổng quan';
-      state.page='Tổng quan';
-      return true;
-    }
-    localStorage.removeItem('spa_pos_remember_username');
-    localStorage.removeItem('spa_pos_username');
-  }
-  const remembered=localStorage.getItem('spa_pos_username');
-  if(remembered){
-    const input=document.getElementById('loginUsername');
-    const check=document.getElementById('rememberLogin');
-    if(input) input.value=remembered;
-    if(check) check.checked=true;
-  }
+  // Không tự đăng nhập từ localStorage. Đây là bản demo client-side;
+  // bản production phải xác thực bằng session/token do server cấp.
+  ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
+  const input=document.getElementById('loginUsername');
+  const check=document.getElementById('rememberLogin');
+  if(input) input.value='';
+  if(check) check.checked=false;
   return false;
 }
 function money(n){return new Intl.NumberFormat('vi-VN').format(n||0)}
