@@ -204,6 +204,16 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 </div>
 
 <script>
+const PAYMENT_METHODS=['Tiền mặt','Chuyển khoản','Ví điện tử','Thẻ'];
+function normalizePaymentMethod(value){
+ const v=(value||'').trim();
+ if(v==='Ngân hàng') return 'Chuyển khoản';
+ if(v==='Khác') return 'Thẻ';
+ return PAYMENT_METHODS.includes(v)?v:'Tiền mặt';
+}
+function paymentOptions(selected){
+ return PAYMENT_METHODS.map(x=>`<option ${x===selected?'selected':''}>${x}</option>`).join('');
+}
 const state={
   section:'Đơn hàng',
   page:'Hóa đơn',
@@ -473,7 +483,7 @@ function cashierPage(c){
         <div style="border-top:1px solid var(--border);padding:14px">
           <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Tạm tính</span><b id="cashierSubtotal">0</b></div>
           <div style="display:flex;justify-content:space-between;font-size:18px;margin-bottom:12px"><span>Tổng thanh toán</span><b id="cashierTotal">0</b></div>
-          <select id="cashierPayment" class="field" style="margin-bottom:10px"><option>Tiền mặt</option><option>Ngân hàng</option><option>Ví điện tử</option><option>Khác</option></select>
+          <select id="cashierPayment" class="field" style="margin-bottom:10px">${paymentOptions('Tiền mặt')}</select>
           <button class="btn btn-primary" style="width:100%;height:42px" onclick="completeCashierSale()">Thanh toán</button>
         </div>
       </div>
@@ -526,7 +536,7 @@ function completeCashierSale(){
   const cart=state.cashierCart||[];
   if(!cart.length){alert('Vui lòng thêm sản phẩm vào đơn hàng.');return;}
   const total=cart.reduce((sum,x)=>sum+x.price*x.qty,0);
-  const payment=document.getElementById('cashierPayment').value;
+  const payment=normalizePaymentMethod(document.getElementById('cashierPayment').value);
   const first=cart[0];
   const tax=total-(total/1.1);
   createInvoice({
@@ -578,7 +588,7 @@ function invoicePage(c){
    <div class="filter-group"><div class="filter-title">Nhân viên thực hiện</div><select class="field"><option>Chọn nhân viên thực hiện</option><option>Lan</option><option>Hà</option></select></div>
    <div class="filter-group"><div class="filter-title">Nhân viên tư vấn</div><select class="field"><option>Chọn nhân viên tư vấn</option></select></div>
    <div class="filter-group"><div class="filter-title">Kênh bán</div><select class="field"><option>Chọn kênh bán</option></select></div>
-   <div class="filter-group"><div class="filter-title">Phương thức</div><select class="field"><option>Chọn phương thức</option><option>Tiền mặt</option><option>Chuyển khoản</option></select></div>
+   <div class="filter-group"><div class="filter-title">Phương thức</div><select class="field"><option>Chọn phương thức</option>${paymentOptions('')}</select></div>
   </div>
   <div class="card table-wrap" style="flex:1">
    <table><thead><tr><th>☐</th><th>Mã hóa đơn</th><th>Thời gian</th><th>Khách hàng</th><th>Số điện thoại</th><th>Tổng tiền hàng</th><th>Tổng sau giảm giá</th><th>Khách cần trả</th><th>Khách đã trả</th><th>Trạng thái</th></tr></thead>
@@ -890,9 +900,9 @@ function dashboard(c){
     <div class="kpis">
       <div class="kpi">Doanh thu<div class="n" id="dashboardRevenue">0 ₫</div>
         <div class="mini-stat"><span>Tiền mặt</span><b id="cashRevenue">0 ₫</b></div>
-        <div class="mini-stat"><span>Ngân hàng</span><b id="bankRevenue">0 ₫</b></div>
+        <div class="mini-stat"><span>Chuyển khoản</span><b id="bankRevenue">0 ₫</b></div>
         <div class="mini-stat"><span>Ví điện tử</span><b id="ewalletRevenue">0 ₫</b></div>
-        <div class="mini-stat"><span>Khác</span><b id="otherRevenue">0 ₫</b></div>
+        <div class="mini-stat"><span>Thẻ</span><b id="otherRevenue">0 ₫</b></div>
       </div>
       <div class="kpi">Hóa đơn<div class="n" id="dashboardInvoices">0</div></div>
       <div class="kpi">Lượng khách hàng<div class="n" id="dashboardCustomers">0 lượt</div>
@@ -952,9 +962,9 @@ function refreshDashboard(){
   const debt=Math.max(0,revenue-income);
   document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
   const cashRevenue=rows.filter(x=>(x.paymentMethod||'')==='Tiền mặt').reduce((a,x)=>a+Number(x.total||0),0);
-  const bankRevenue=rows.filter(x=>(x.paymentMethod||'')==='Ngân hàng').reduce((a,x)=>a+Number(x.total||0),0);
-  const ewalletRevenue=rows.filter(x=>(x.paymentMethod||'')==='Ví điện tử').reduce((a,x)=>a+Number(x.total||0),0);
-  const otherRevenue=rows.filter(x=>!['Tiền mặt','Ngân hàng','Ví điện tử'].includes(x.paymentMethod)).reduce((a,x)=>a+Number(x.total||0),0);
+  const bankRevenue=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)==='Chuyển khoản').reduce((a,x)=>a+Number(x.total||0),0);
+  const ewalletRevenue=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)==='Ví điện tử').reduce((a,x)=>a+Number(x.total||0),0);
+  const otherRevenue=rows.filter(x=>normalizePaymentMethod(x.paymentMethod)==='Thẻ').reduce((a,x)=>a+Number(x.total||0),0);
   document.getElementById('cashRevenue').innerText=money(cashRevenue)+' ₫';
   document.getElementById('bankRevenue').innerText=money(bankRevenue)+' ₫';
   document.getElementById('ewalletRevenue').innerText=money(ewalletRevenue)+' ₫';
@@ -1158,7 +1168,7 @@ function openInvoice(){
   <div><label>Khách hàng</label><select class="field" id="customerSelect">${state.customers.map((x,i)=>`<option value="${i}">${esc(x.name)} - ${esc(x.code)}</option>`).join('')}</select></div>
   <div><label>Nhân viên tư vấn</label><select class="field"><option>Chọn nhân viên</option><option>Lan</option></select></div>
   <div><label>Kênh bán</label><select class="field"><option>Trực tiếp</option><option>Facebook</option><option>Zalo</option></select></div>
-  <div><label>Phương thức</label><select class="field" id="pay"><option>Tiền mặt</option><option>Chuyển khoản</option><option>Chưa thanh toán</option></select></div>
+  <div><label>Phương thức</label><select class="field" id="pay">${paymentOptions('Tiền mặt')}</select></div>
   <div class="full"><label>Sản phẩm / dịch vụ</label><select class="field" id="productSelect">${state.products.map((p,i)=>`<option value="${i}">${p.code} - ${esc(p.name)} - ${money(p.price)} ₫</option>`).join('')}</select></div>
   <div><label>Số lượng</label><input id="qty" class="field" type="number" value="1" min="1" max="9999"></div>
   <div><label>Đơn giá</label><input id="rate" class="field" type="number" value="${state.products[0].price}" min="0" step="0.01"></div>
@@ -1194,7 +1204,7 @@ function createInvoice(data){
  const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
  const total=Number(data.total)||0;
  const tax=Number.isFinite(Number(data.tax))?Number(data.tax):total-(total/1.1);
- const paymentMethod=data.paymentMethod||'Khác';
+ const paymentMethod=normalizePaymentMethod(data.paymentMethod);
  const invoice={
    id:invoiceId,
    createdAt:now.toISOString(),
@@ -1240,7 +1250,7 @@ function saveInvoice(){
    productCode:selectedProduct.code,
    productName:selectedProduct.name,
    amount,discount:d,total,tax,
-   paid:pay==='Chưa thanh toán'?0:total,
+   paid:total,
    paymentMethod:pay,
    status:'Hoàn thành'
  });
