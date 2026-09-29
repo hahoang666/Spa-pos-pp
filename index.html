@@ -668,7 +668,27 @@ function deleteSelectedProducts(){
 function pricePage(c){
  c.innerHTML=header('Thiết lập giá','Bảng giá','openPrice')+`
  <div class="card" style="padding:14px;margin-bottom:12px"><div style="display:flex;gap:10px"><select class="field" style="max-width:220px"><option>Bảng giá chung</option></select><select class="field" style="max-width:220px"><option>Tất cả</option></select></div></div>
- <div class="card table-wrap"><table><thead><tr><th>Mã hàng hóa</th><th>Tên hàng</th><th>Giá vốn</th><th>Giá nhập cuối</th><th>Bảng giá chung</th></tr></thead><tbody>${state.products.map(x=>`<tr><td>${x.code}</td><td>${esc(x.name)}</td><td>${money(x.cost)}</td><td>0</td><td><input class="field" value="${money(x.price)}" style="width:150px;text-align:right" onchange="this.value=this.value.replace(/[^0-9]/g,'')"></td></tr>`).join('')}</tbody></table></div>`;
+ <div class="card table-wrap"><table><thead><tr><th>Mã hàng hóa</th><th>Tên hàng</th><th>Giá vốn</th><th>Giá nhập cuối</th><th>Bảng giá chung</th></tr></thead><tbody>${state.products.map(x=>`<tr><td>${x.code}</td><td>${esc(x.name)}</td><td>${money(x.cost)}</td><td>0</td><td><input class="field price-setting-input" data-product-code="${esc(x.code)}" value="${Number(x.price)||0}" style="width:150px;text-align:right" type="number" min="0" step="0.001"></td></tr>`).join('')}</tbody>
+ <tfoot><tr><td colspan="5" style="padding:12px;text-align:right"><button class="btn btn-primary" onclick="saveProductPrices()">Lưu thay đổi</button></td></tr></tfoot></table></div>`;
+}
+function saveProductPrices(){
+ const inputs=[...document.querySelectorAll('.price-setting-input')];
+ let changed=0;
+ inputs.forEach(input=>{
+  const product=state.products.find(p=>p.code===input.dataset.productCode);
+  if(!product)return;
+  const newPrice=Number(input.value);
+  if(!Number.isFinite(newPrice)||newPrice<0)return;
+  if(Number(product.price)!==newPrice){
+   product.price=newPrice;
+   product.pre=Number((newPrice/1.1).toFixed(3));
+   product.vat=10;
+   changed++;
+  }
+ });
+ saveState();
+ alert(changed?'Đã lưu thành công '+changed+' thay đổi giá.':'Không có thay đổi giá.');
+ pricePage(document.getElementById('content'));
 }
 function supplierPage(c){
  c.innerHTML=header('Nhà cung cấp','Nhà cung cấp','openSupplier')+`
