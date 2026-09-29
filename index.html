@@ -1118,7 +1118,6 @@ function openProduct(code){
     <div><label>Loại hàng</label><select id="productType" class="field"><option ${product.type==='Dịch vụ'?'selected':''}>Dịch vụ</option><option ${product.type==='Gói dịch vụ, liệu trình'?'selected':''}>Gói dịch vụ, liệu trình</option></select></div>
     <div class="full"><label>Tên hàng hóa</label><input id="productName" class="field" value="${esc(product.name)}"></div>
     <div><label>Giá bán trước thuế</label><input id="productPre" class="field" type="number" min="0" value="${Number(product.pre)||0}"></div>
-    <div><label>VAT (%)</label><input id="productVat" class="field" type="number" min="0" value="${Number(product.vat)||0}"></div>
     <div><label>Giá bán sau thuế</label><input id="productPrice" class="field" type="number" min="0" value="${Number(product.price)||0}"></div>
     <div><label>Giá vốn</label><input id="productCost" class="field" type="number" min="0" value="${Number(product.cost)||0}"></div>
    </div>`,
@@ -1132,7 +1131,7 @@ function saveProduct(code,editing){
   name,
   type:document.getElementById('productType').value,
   pre:Number(document.getElementById('productPre').value)||0,
-  vat:Number(document.getElementById('productVat').value)||0,
+  vat:10,
   price:Number(document.getElementById('productPrice').value)||0,
   cost:Number(document.getElementById('productCost').value)||0
  };
