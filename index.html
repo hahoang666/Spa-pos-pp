@@ -1297,7 +1297,7 @@ function saveEditAccount(id){
  const a=state.accounts.find(x=>x.id===id), name=document.getElementById('editName').value.trim(), username=document.getElementById('editUsername').value.trim(), role=document.getElementById('editRole').value;
  if(!name||!username)return alert('Vui lòng nhập đầy đủ thông tin.');
  if(state.accounts.some(x=>x.id!==id&&x.username.toLowerCase()===username.toLowerCase()))return alert('Tên đăng nhập đã tồn tại.');
- a.name=name;a.username=username;a.role=role;a.permissions=defaultPermissions(role);saveState();closeModal();adminAccountPage(document.getElementById('content'));alert('Cập nhật tài khoản thành công.');
+ a.name=name;a.username=username;a.role=role;if(!Array.isArray(a.permissions))a.permissions=defaultPermissions(role);saveState();closeModal();adminAccountPage(document.getElementById('content'));alert('Cập nhật tài khoản thành công.');
 }
 function openResetPassword(id){
  if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
