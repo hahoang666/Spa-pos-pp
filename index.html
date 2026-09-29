@@ -312,6 +312,15 @@ function loadState(){
 loadState();
 state.priceLists=Array.isArray(state.priceLists)?state.priceLists:[];
 state.documents=Array.isArray(state.documents)?state.documents:[];
+state.stockMovements=Array.isArray(state.stockMovements)?state.stockMovements:[];
+state.imports=Array.isArray(state.imports)?state.imports:[];
+state.transfers=Array.isArray(state.transfers)?state.transfers:[];
+state.damages=Array.isArray(state.damages)?state.damages:[];
+state.stocktakes=Array.isArray(state.stocktakes)?state.stocktakes:[];
+state.purchaseInvoices=Array.isArray(state.purchaseInvoices)?state.purchaseInvoices:[];
+state.products=Array.isArray(state.products)?state.products:[];
+state.products.forEach(p=>{if(p.type!=='Dịch vụ'&&p.type!=='Gói dịch vụ, liệu trình'&&(!Number.isFinite(Number(p.stock))||p.stock==='---'))p.stock=0;});
+
 state.suppliers=Array.isArray(state.suppliers)?state.suppliers:[];
 state.heldOrders=Array.isArray(state.heldOrders)?state.heldOrders:[];
 state.cashierCart=Array.isArray(state.cashierCart)?state.cashierCart:[];
@@ -789,8 +798,8 @@ function consumeMaterialsForService(serviceCode, multiplier=1, refId=''){
 function productPage(c){
   const products=Array.isArray(state.products)?state.products:[];
   const groups=[...new Set(products.map(x=>x.group||'').filter(Boolean))];
-  const rows=products.map(p=>'<tr><td><input type="checkbox" class="product-check" data-code="'+esc(p.code)+'"></td><td><b>'+esc(p.code)+'</b></td><td>'+esc(p.name||'')+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.group||'')+'</td><td>'+esc(p.unit||'')+'</td><td>'+money(Number(p.price)||0)+' ₫</td><td>'+esc(p.vat==null?10:p.vat)+'%</td><td>'+esc(p.status||'Đang kinh doanh')+'</td><td><button class="btn btn-secondary" onclick="openProduct(\''+esc(p.code)+'\')">Sửa</button> <button class="btn btn-danger" onclick="deleteProduct(\''+esc(p.code)+'\')">Xóa</button></td></tr>').join('');
-  c.innerHTML='<div class="page-title">Danh sách hàng hóa</div><div class="toolbar"><input class="search" id="productSearch" placeholder="🔍 Tìm mã, tên, barcode..." oninput="filterProductTable()"><button class="btn btn-primary" onclick="openProduct()">＋ Thêm hàng hóa</button></div><div class="card table-wrap"><table><thead><tr><th><input type="checkbox" id="productCheckAll" onchange="toggleAllProducts(this.checked)"></th><th>Mã</th><th>Tên hàng hóa</th><th>Loại</th><th>Nhóm hàng</th><th>Đơn vị</th><th>Giá bán</th><th>VAT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="productTableBody">'+(rows||'<tr><td colspan="10"><div class="empty">Chưa có hàng hóa</div></td></tr>')+'</tbody></table></div>';
+  const rows=products.map(p=>'<tr><td><input type="checkbox" class="product-check" data-code="'+esc(p.code)+'"></td><td><b>'+esc(p.code)+'</b></td><td>'+esc(p.name||'')+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.group||'')+'</td><td>'+esc(p.unit||'')+'</td><td>'+((p.type==='Dịch vụ'||p.type==='Gói dịch vụ, liệu trình')?'—':Number(p.stock||0))+'</td><td>'+money(Number(p.price)||0)+' ₫</td><td>'+esc(p.vat==null?10:p.vat)+'%</td><td>'+esc(p.status||'Đang kinh doanh')+'</td><td><button class="btn btn-secondary" onclick="openProduct(\''+esc(p.code)+'\')">Sửa</button> <button class="btn btn-danger" onclick="deleteProduct(\''+esc(p.code)+'\')">Xóa</button></td></tr>').join('');
+  c.innerHTML='<div class="page-title">Danh sách hàng hóa</div><div class="toolbar"><input class="search" id="productSearch" placeholder="🔍 Tìm mã, tên, barcode..." oninput="filterProductTable()"><button class="btn btn-primary" onclick="openProduct()">＋ Thêm hàng hóa</button></div><div class="card table-wrap"><table><thead><tr><th><input type="checkbox" id="productCheckAll" onchange="toggleAllProducts(this.checked)"></th><th>Mã</th><th>Tên hàng hóa</th><th>Loại</th><th>Nhóm hàng</th><th>Đơn vị</th><th>Tồn kho</th><th>Giá bán</th><th>VAT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="productTableBody">'+(rows||'<tr><td colspan="11"><div class="empty">Chưa có hàng hóa</div></td></tr>')+'</tbody></table></div>';
 }
 function filterProductTable(){
  const q=(document.getElementById('productSearch')?.value||'').toLowerCase().trim();
@@ -850,12 +859,14 @@ function renderPage(){
   if(state.page==='Định mức nguyên liệu') return materialUsagePage(c);
   if(state.page==='Đóng ca / Chốt quỹ') return shiftClosePage(c);
   if(state.page==='Thẻ liệu trình') return therapyCardsPage(c);
-  if(state.page==='Nhập hàng') return genericPage(c,'Nhập hàng','Mã nhập hàng','Nhà cung cấp');
-  if(state.page==='Trả hàng nhập') return genericPage(c,'Trả hàng nhập','Mã trả hàng nhập','Nhà cung cấp');
-  if(state.page==='Xuất hủy') return genericPage(c,'Xuất hủy','Mã xuất hủy','Chi nhánh');
-  if(state.page==='Chuyển hàng') return genericPage(c,'Chuyển hàng','Mã chuyển hàng','Chi nhánh chuyển');
-  if(state.page==='Kiểm kho') return genericPage(c,'Phiếu kiểm kho','Mã kiểm kho','Ngày cân bằng');
+  if(state.page==='Nhập hàng') return stockDocumentPage(c,'Nhập hàng');
+  if(state.page==='Trả hàng nhập') return stockDocumentPage(c,'Trả hàng nhập');
+  if(state.page==='Xuất hủy') return stockDocumentPage(c,'Xuất hủy');
+  if(state.page==='Chuyển hàng') return transferPage(c);
+  if(state.page==='Kiểm kho') return stocktakePage(c);
   if(state.page==='Trả hàng') return returnPage(c);
+  if(state.page==='Hóa đơn đầu vào') return purchaseInvoicePage(c);
+  if(state.page==='Kho hàng') return inventoryPage(c);
   if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
   if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
@@ -1502,6 +1513,105 @@ function saveCashVoucher(type){
  state.cashbook.push({id,type,amount,subject,paymentMethod:normalizePaymentMethod(document.getElementById('cashMethod').value),note:document.getElementById('cashNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',status:'Hoàn thành'});
  saveState();closeModal();cashBookPage(document.getElementById('content'),type);alert('Đã lưu '+(isIncome?'phiếu thu ':'phiếu chi ')+id+'.');
 }
+function inventoryPage(c){
+ const products=(state.products||[]).filter(p=>p.type!=='Dịch vụ'&&p.type!=='Gói dịch vụ, liệu trình');
+ const rows=products.map(p=>'<tr><td>'+esc(p.code)+'</td><td>'+esc(p.name)+'</td><td>'+esc(p.unit||'')+'</td><td>'+Number(p.stock||0)+'</td><td>'+money(Number(p.cost)||0)+' ₫</td><td>'+esc(p.status||'Đang kinh doanh')+'</td></tr>').join('');
+ c.innerHTML=header('Kho hàng','Nhập hàng','openStockDocument')+'<div class="toolbar"><input class="search" placeholder="🔍 Tìm mã, tên hàng..." oninput="filterInventory(this.value)"></div><div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Hàng hóa</th><th>ĐVT</th><th>Tồn kho</th><th>Giá vốn</th><th>Trạng thái</th></tr></thead><tbody id="inventoryBody">'+(rows||'<tr><td colspan="6"><div class="empty">Chưa có hàng hóa tồn kho</div></td></tr>')+'</tbody></table></div>';
+}
+function filterInventory(q){q=(q||'').toLowerCase().trim();document.querySelectorAll('#inventoryBody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none');}
+function stockDocConfig(type){
+ const cfg={
+  'Nhập hàng':{prefix:'NH',arr:'imports',title:'Nhập hàng',subject:'Nhà cung cấp',direction:1},
+  'Xuất hủy':{prefix:'XH',arr:'damages',title:'Xuất hủy',subject:'Lý do hủy',direction:-1},
+  'Trả hàng nhập':{prefix:'THN',arr:'returnsIn',title:'Trả hàng nhập',subject:'Nhà cung cấp',direction:-1}
+ };
+ return cfg[type];
+}
+function openStockDocument(type){
+ const cfg=stockDocConfig(type);if(!cfg)return;
+ if(!hasPermission('Quản lý tồn kho'))return alert('Bạn không có quyền quản lý tồn kho.');
+ const products=(state.products||[]).filter(p=>p.type!=='Dịch vụ'&&p.type!=='Gói dịch vụ, liệu trình'&&p.status!=='Ngừng kinh doanh');
+ const opts=products.map(p=>'<option value="'+esc(p.code)+'">'+esc(p.code)+' - '+esc(p.name)+' (tồn '+Number(p.stock||0)+')</option>').join('');
+ openModal(cfg.title,'<div class="form-grid"><div><label>Mã chứng từ</label><input id="stockDocCode" class="field" value="'+nextAutoCode(cfg.prefix,6,'spa_next_'+cfg.prefix+'_id',state[cfg.arr]||[],'id')+'" readonly></div><div><label>Ngày *</label><input id="stockDocDate" class="field" type="date" value="'+localDateKey(new Date())+'"></div><div><label>'+esc(cfg.subject)+' *</label><input id="stockDocSubject" class="field"></div><div><label>Hàng hóa *</label><select id="stockDocProduct" class="field">'+opts+'</select></div><div><label>Số lượng *</label><input id="stockDocQty" class="field" type="number" min="0.001" step="0.001"></div><div><label>Đơn giá</label><input id="stockDocPrice" class="field" type="number" min="0" step="0.01"></div><div class="full"><label>Ghi chú</label><textarea id="stockDocNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveStockDocument(\''+type+'\')">Hoàn thành</button>');
+}
+function saveStockDocument(type){
+ const cfg=stockDocConfig(type);if(!cfg)return;
+ if(!hasPermission('Quản lý tồn kho'))return alert('Bạn không có quyền quản lý tồn kho.');
+ const code=document.getElementById('stockDocCode').value,date=document.getElementById('stockDocDate').value,subject=document.getElementById('stockDocSubject').value.trim(),pc=document.getElementById('stockDocProduct').value,qty=Number(document.getElementById('stockDocQty').value),price=Number(document.getElementById('stockDocPrice').value)||0,p=state.products.find(x=>x.code===pc);
+ if(!date||!subject||!p||!Number.isFinite(qty)||qty<=0)return alert('Thông tin chứng từ không hợp lệ.');
+ if(cfg.direction<0&&Number(p.stock||0)<qty)return alert('Không đủ tồn kho để xuất.');
+ if((state[cfg.arr]||[]).some(x=>x.id===code))return alert('Mã chứng từ đã tồn tại.');
+ state[cfg.arr]=Array.isArray(state[cfg.arr])?state[cfg.arr]:[];
+ p.stock=Number(p.stock||0)+cfg.direction*qty;
+ const movement={id:nextAutoCode('KHO',6,'spa_next_stock_movement_id',state.stockMovements,'id'),productCode:p.code,productName:p.name,quantity:cfg.direction*qty,reason:cfg.title,referenceId:code,date,createdAt:new Date().toISOString()};
+ state.stockMovements.push(movement);
+ state[cfg.arr].push({id:code,date,subject,productCode:p.code,productName:p.name,quantity:qty,price,note:document.getElementById('stockDocNote').value.trim(),status:'Đã hoàn thành',createdAt:new Date().toISOString(),movementId:movement.id});
+ saveState();closeModal();renderPage();alert('Đã '+cfg.title.toLowerCase()+' '+code+'. Tồn '+p.name+': '+p.stock+'.');
+}
+function stockDocumentPage(c,type){
+ const cfg=stockDocConfig(type),arr=Array.isArray(state[cfg.arr])?state[cfg.arr]:[];
+ const rows=arr.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.date||'')+'</td><td>'+esc(x.subject||'')+'</td><td>'+esc(x.productName||'')+'</td><td>'+x.quantity+'</td><td>'+money((Number(x.quantity)||0)*(Number(x.price)||0))+' ₫</td><td>'+esc(x.status||'')+'</td></tr>').join('');
+ c.innerHTML=header(type,'Tạo phiếu','openStockDocument(\\''+type+'\\')')+'<div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Ngày</th><th>Đối tượng</th><th>Hàng hóa</th><th>SL</th><th>Giá trị</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có dữ liệu</div></td></tr>')+'</tbody></table></div>';
+}
+function transferPage(c){
+ const arr=Array.isArray(state.transfers)?state.transfers:[];
+ const rows=arr.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.date)+'</td><td>'+esc(x.productName)+'</td><td>'+x.quantity+'</td><td>'+esc(x.from)+'</td><td>'+esc(x.to)+'</td><td>'+esc(x.status)+'</td></tr>').join('');
+ c.innerHTML=header('Chuyển hàng','Chuyển hàng','openTransfer')+'<div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Ngày</th><th>Hàng</th><th>SL</th><th>Từ</th><th>Đến</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có dữ liệu</div></td></tr>')+'</tbody></table></div>';
+}
+function openTransfer(){
+ if(!hasPermission('Quản lý tồn kho'))return alert('Bạn không có quyền quản lý tồn kho.');
+ const products=(state.products||[]).filter(p=>p.type!=='Dịch vụ'&&p.type!=='Gói dịch vụ, liệu trình');
+ const opts=products.map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+' (tồn '+Number(p.stock||0)+')</option>').join('');
+ openModal('Chuyển hàng','<div class="form-grid"><div><label>Mã</label><input id="trCode" class="field" value="'+nextAutoCode('CH',6,'spa_next_transfer_id',state.transfers,'id')+'" readonly></div><div><label>Ngày</label><input id="trDate" class="field" type="date" value="'+localDateKey(new Date())+'"></div><div><label>Kho/chi nhánh đi *</label><input id="trFrom" class="field"></div><div><label>Kho/chi nhánh đến *</label><input id="trTo" class="field"></div><div><label>Hàng hóa *</label><select id="trProduct" class="field">'+opts+'</select></div><div><label>Số lượng *</label><input id="trQty" class="field" type="number" min="0.001" step="0.001"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveTransfer()">Hoàn thành</button>');
+}
+function saveTransfer(){
+ const code=document.getElementById('trCode').value,date=document.getElementById('trDate').value,from=document.getElementById('trFrom').value.trim(),to=document.getElementById('trTo').value.trim(),pc=document.getElementById('trProduct').value,qty=Number(document.getElementById('trQty').value),p=state.products.find(x=>x.code===pc);
+ if(!hasPermission('Quản lý tồn kho'))return alert('Bạn không có quyền.');
+ if(!from||!to||from===to||!p||qty<=0)return alert('Thông tin chuyển hàng không hợp lệ.');
+ if(Number(p.stock||0)<qty)return alert('Không đủ tồn kho.');
+ state.transfers.push({id:code,date,from,to,productCode:pc,productName:p.name,quantity:qty,status:'Đã hoàn thành',createdAt:new Date().toISOString()});
+ p.stock=Number(p.stock||0)-qty;
+ state.stockMovements.push({id:nextAutoCode('KHO',6,'spa_next_stock_movement_id',state.stockMovements,'id'),productCode:pc,productName:p.name,quantity:-qty,reason:'Chuyển hàng - xuất',referenceId:code,date,createdAt:new Date().toISOString()});
+ saveState();closeModal();renderPage();alert('Đã ghi nhận chuyển hàng.');
+}
+function stocktakePage(c){
+ const arr=Array.isArray(state.stocktakes)?state.stocktakes:[];
+ const rows=arr.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.date)+'</td><td>'+esc(x.productName)+'</td><td>'+x.systemQty+'</td><td>'+x.actualQty+'</td><td>'+x.difference+'</td><td>'+esc(x.status)+'</td></tr>').join('');
+ c.innerHTML=header('Kiểm kho','Kiểm kho','openStocktake')+'<div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Ngày</th><th>Hàng hóa</th><th>Tồn hệ thống</th><th>Tồn thực tế</th><th>Chênh lệch</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có dữ liệu</div></td></tr>')+'</tbody></table></div>';
+}
+function openStocktake(){
+ if(!hasPermission('Quản lý tồn kho'))return alert('Bạn không có quyền.');
+ const products=(state.products||[]).filter(p=>p.type!=='Dịch vụ'&&p.type!=='Gói dịch vụ, liệu trình');
+ const opts=products.map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+' (tồn '+Number(p.stock||0)+')</option>').join('');
+ openModal('Kiểm kho','<div class="form-grid"><div><label>Mã</label><input id="stCode" class="field" value="'+nextAutoCode('KK',6,'spa_next_stocktake_id',state.stocktakes,'id')+'" readonly></div><div><label>Ngày</label><input id="stDate" class="field" type="date" value="'+localDateKey(new Date())+'"></div><div><label>Hàng hóa *</label><select id="stProduct" class="field">'+opts+'</select></div><div><label>Tồn thực tế *</label><input id="stActual" class="field" type="number" min="0" step="0.001"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveStocktake()">Chốt kiểm kho</button>');
+}
+function saveStocktake(){
+ const code=document.getElementById('stCode').value,date=document.getElementById('stDate').value,pc=document.getElementById('stProduct').value,actual=Number(document.getElementById('stActual').value),p=state.products.find(x=>x.code===pc);
+ if(!hasPermission('Quản lý tồn kho'))return alert('Bạn không có quyền.');
+ if(!p||!Number.isFinite(actual)||actual<0)return alert('Số lượng thực tế không hợp lệ.');
+ const system=Number(p.stock||0),difference=actual-system;
+ p.stock=actual;
+ state.stocktakes.push({id:code,date,productCode:pc,productName:p.name,systemQty:system,actualQty:actual,difference,status:'Đã hoàn thành',createdAt:new Date().toISOString()});
+ if(difference)state.stockMovements.push({id:nextAutoCode('KHO',6,'spa_next_stock_movement_id',state.stockMovements,'id'),productCode:pc,productName:p.name,quantity:difference,reason:'Điều chỉnh kiểm kho',referenceId:code,date,createdAt:new Date().toISOString()});
+ saveState();closeModal();renderPage();alert('Đã chốt kiểm kho.');
+}
+function purchaseInvoicePage(c){
+ const arr=Array.isArray(state.purchaseInvoices)?state.purchaseInvoices:[];
+ const rows=arr.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.date)+'</td><td>'+esc(x.supplier)+'</td><td>'+money(x.total||0)+' ₫</td><td>'+esc(x.status)+'</td></tr>').join('');
+ c.innerHTML=header('Hóa đơn đầu vào','Hóa đơn đầu vào','openPurchaseInvoice')+'<div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Ngày</th><th>Nhà cung cấp</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5"><div class="empty">Chưa có dữ liệu</div></td></tr>')+'</tbody></table></div>';
+}
+function openPurchaseInvoice(){
+ if(!hasPermission('Tạo chứng từ'))return alert('Bạn không có quyền.');
+ const id=nextAutoCode('HDN',6,'spa_next_purchase_invoice_id',state.purchaseInvoices,'id');
+ openModal('Hóa đơn đầu vào','<div class="form-grid"><div><label>Mã hóa đơn</label><input id="piCode" class="field" value="'+id+'" readonly></div><div><label>Ngày</label><input id="piDate" class="field" type="date" value="'+localDateKey(new Date())+'"></div><div><label>Nhà cung cấp *</label><input id="piSupplier" class="field"></div><div><label>Tổng tiền *</label><input id="piTotal" class="field" type="number" min="0"></div><div class="full"><label>Ghi chú</label><textarea id="piNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="savePurchaseInvoice()">Ghi nhận</button>');
+}
+function savePurchaseInvoice(){
+ const id=document.getElementById('piCode').value,date=document.getElementById('piDate').value,supplier=document.getElementById('piSupplier').value.trim(),total=Number(document.getElementById('piTotal').value),note=document.getElementById('piNote').value.trim();
+ if(!hasPermission('Tạo chứng từ'))return alert('Bạn không có quyền.');
+ if(!date||!supplier||!Number.isFinite(total)||total<0)return alert('Thông tin hóa đơn đầu vào không hợp lệ.');
+ state.purchaseInvoices.push({id,date,supplier,total,note,status:'Đã ghi nhận',createdAt:new Date().toISOString()});
+ saveState();closeModal();renderPage();alert('Đã ghi nhận hóa đơn đầu vào. Hóa đơn đầu vào không tự tăng tồn kho; muốn nhập hàng phải lập phiếu Nhập hàng.');
+}
 function genericPage(c,title,col1,col2){
  c.innerHTML=header(title, title==='Nhập hàng'?'Nhập hàng':title==='Xuất hủy'?'Tạo phiếu':title==='Chuyển hàng'?'Chuyển hàng':title==='Kiểm kho'?'Kiểm kho':title,'openGeneric')+`
  <div style="display:flex;gap:14px"><div class="card" style="width:245px;padding:16px">
@@ -2048,7 +2158,7 @@ function saveProduct(code,editing){
   if(!p)return;
   Object.assign(p,data);
  }else{
-  state.products.push({code,...data,stock:'---'});
+  state.products.push({code,...data,stock:(data.type==='Dịch vụ'||data.type==='Gói dịch vụ, liệu trình')?'---':0});
  }
  saveState();
  closeModal();
