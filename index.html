@@ -1152,7 +1152,21 @@ function openInvoice(){
  </div>
  <div class="summary"><div class="summary-box"><div class="summary-row"><span>Thành tiền</span><b id="sum">99.000 ₫</b></div><div class="summary-row"><span>VAT</span><b id="tax">9.000 ₫</b></div><div class="summary-row total"><span>Tổng thanh toán</span><b id="grand">108.000 ₫</b></div></div></div>`,
  `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveInvoice()">Lưu hóa đơn</button>`);
- ['qty','rate','discount','vat','productSelect'].forEach(id=>document.getElementById(id).addEventListener('input',calcInvoice));
+ ['qty','rate','discount'].forEach(id=>document.getElementById(id).addEventListener('input',calcInvoice));
+ document.getElementById('productSelect').addEventListener('change',function(){
+   const product=state.products[Number(this.value)];
+   const rate=document.getElementById('rate');
+   if(product&&rate){
+     rate.value=Number(product.price)||0;
+     rate.dataset.productCode=product.code;
+   }
+   calcInvoice();
+ });
+ const firstProduct=state.products[Number(document.getElementById('productSelect').value)||0];
+ if(firstProduct){
+   document.getElementById('rate').value=Number(firstProduct.price)||0;
+   document.getElementById('rate').dataset.productCode=firstProduct.code;
+ }
  calcInvoice();
 }
 function calcInvoice(){
