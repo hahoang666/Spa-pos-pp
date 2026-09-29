@@ -508,7 +508,7 @@ function renderAll(){saveState();renderNav();renderSidebar();renderUserSession()
 
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const rows=cards.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.customerName||x.customerCode)+'</td><td>'+esc(x.productName||'')+'</td><td>'+x.totalSessions+'</td><td>'+x.remainingSessions+'</td><td>'+esc(x.expiresAt||'Không')+'</td><td>'+esc(x.status)+'</td><td><button class="btn btn-secondary" onclick="useTherapySession(\\''+esc(x.id)+'\\')">Sử dụng 1 buổi</button></td></tr>').join('');
+ const rows=cards.slice().reverse().map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="useTherapySession('${esc(x.id)}')">Sử dụng 1 buổi</button></td></tr>`).join('');
  c.innerHTML=header('Thẻ liệu trình','Tạo thẻ liệu trình','openTherapyCard()')+'<div class="card table-wrap"><table><thead><tr><th>Mã thẻ</th><th>Khách hàng</th><th>Liệu trình</th><th>Tổng buổi</th><th>Còn lại</th><th>Hạn dùng</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có thẻ liệu trình</div></td></tr>')+'</tbody></table></div>';
 }
 function openTherapyCard(){
@@ -1234,7 +1234,7 @@ function deleteAccount(id){
  if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
  const a=state.accounts.find(x=>x.id===id);if(!a||a.role==='Admin')return alert('Không thể xóa tài khoản Admin.');
  if(state.currentUser&&state.currentUser.id===id)return alert('Không thể tự xóa tài khoản đang đăng nhập.');
- if(!confirm('Bạn có chắc muốn xóa tài khoản '+a.username+'?\\nThao tác này không thể hoàn tác.'))return;
+ if(!confirm('Bạn có chắc muốn xóa tài khoản '+a.username+'?\nThao tác này không thể hoàn tác.'))return;
  state.accounts=state.accounts.filter(x=>x.id!==id);saveState();adminAccountPage(document.getElementById('content'));
 }
 function toggleAccountStatus(id){
