@@ -1210,6 +1210,8 @@ function createInvoice(data){
  const total=Number(data.total)||0;
  const tax=Number.isFinite(Number(data.tax))?Number(data.tax):total-(total/1.1);
  const paymentMethod=normalizePaymentMethod(data.paymentMethod);
+ const paid=Number(data.paid ?? total);
+ const status=data.status|| (data.cancelled ? 'Đã hủy' : paid>=total ? 'Đã thanh toán' : paid>0 ? 'Còn nợ' : 'Còn nợ');
  const invoice={
    id:invoiceId,
    createdAt:now.toISOString(),
@@ -1228,7 +1230,7 @@ function createInvoice(data){
    total,
    tax,
    vat:10,
-   paid:Number(data.paid ?? total),
+   paid,
    paymentMethod,
    payment:paymentMethod,
    status:data.status||'Đã thanh toán'
