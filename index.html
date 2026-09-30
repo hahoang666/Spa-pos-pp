@@ -684,15 +684,32 @@ function openTherapyCard(){
  if(!hasPermission('Tạo thẻ liệu trình'))return alert('Bạn không có quyền tạo thẻ liệu trình.');
  const cs=state.customers.map(x=>'<option value="'+esc(x.code)+'">'+esc(x.name)+' - '+esc(x.code)+'</option>').join('');
  const ps=state.products.filter(x=>x.type==='Gói dịch vụ, liệu trình'||/gói|liệu trình/i.test(x.name||'')).map(x=>'<option value="'+esc(x.code)+'">'+esc(x.name)+'</option>').join('');
- openModal('Tạo thẻ liệu trình','<div class="form-grid"><div><label>Khách hàng *</label><select id="therapyCustomer" class="field"><option value="">Chọn khách hàng</option>'+cs+'</select></div><div><label>Gói liệu trình *</label><select id="therapyProduct" class="field"><option value="">Chọn gói</option>'+ps+'</select></div><div><label>Số buổi *</label><input id="therapySessions" class="field" type="number" min="1" step="1"></div><div><label>Hạn dùng</label><input id="therapyExpiry" class="field" type="date"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveTherapyCard()">Lưu</button>');
+ const invs=(state.invoices||[]).filter(x=>x.status!=='Đã hủy').map(x=>'<option value="'+esc(x.id)+'">'+esc(x.id)+' - '+esc(x.customerName||x.customer||'')+' - '+money(x.total||0)+' ₫</option>').join('');
+ openModal('Tạo thẻ liệu trình','<div class="form-grid"><div><label>Khách hàng *</label><select id="therapyCustomer" class="field"><option value="">Chọn khách hàng</option>'+cs+'</select></div><div><label>Gói liệu trình *</label><select id="therapyProduct" class="field"><option value="">Chọn gói</option>'+ps+'</select></div><div><label>Số buổi *</label><input id="therapySessions" class="field" type="number" min="1" step="1"></div><div><label>Hạn dùng</label><input id="therapyExpiry" class="field" type="date"></div><div class="full"><label>Hóa đơn liên quan (bắt buộc nếu không phải tặng kèm)</label><select id="therapyInvoice" class="field"><option value="">-- Chọn hóa đơn --</option>'+invs+'</select></div><div class="full"><label>Lý do tặng kèm</label><input id="therapyGiftReason" class="field" placeholder="Bắt buộc nếu không gắn hóa đơn"></div><div class="full"><small>Thẻ tạo tay phải có hóa đơn nguồn hoặc lý do tặng kèm kèm phê duyệt. Không tạo buổi miễn phí không có dấu vết.</small></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveTherapyCard()">Lưu</button>');
 }
 function saveTherapyCard(){
  if(!hasPermission('Tạo thẻ liệu trình'))return alert('Bạn không có quyền tạo thẻ liệu trình.');
  const cc=document.getElementById('therapyCustomer').value,pc=document.getElementById('therapyProduct').value,pr=state.products.find(x=>x.code===pc),inputN=Number(document.getElementById('therapySessions').value),n=Number.isInteger(inputN)&&inputN>0?inputN:getPackageSessions(pr);
+ const sourceInvoiceId=(document.getElementById('therapyInvoice')?.value||'').trim();
+ const giftReason=(document.getElementById('therapyGiftReason')?.value||'').trim();
  if(!cc||!pc||!Number.isInteger(n)||n<1)return alert('Vui lòng nhập đủ thông tin và số buổi hợp lệ.');
+ if(!sourceInvoiceId&&!giftReason)return alert('Thẻ tạo tay phải gắn hóa đơn hoặc có lý do tặng kèm.');
+ if(sourceInvoiceId){
+   const source=state.invoices.find(x=>x.id===sourceInvoiceId);
+   if(!source)return alert('Hóa đơn liên quan không tồn tại.');
+   if(source.customerCode&&source.customerCode!==cc)return alert('Khách hàng của thẻ phải trùng khách hàng trên hóa đơn.');
+ }else{
+   const pin=prompt('Thẻ tặng kèm cần phê duyệt. Nhập PIN quản lý:');
+   if(!managerApprovalPinValid(pin))return alert('PIN phê duyệt không hợp lệ.');
+   state.approvalLogs=Array.isArray(state.approvalLogs)?state.approvalLogs:[];
+   state.approvalLogs.push({id:'APR'+Date.now(),action:'Tạo thẻ tặng kèm',amount:0,details:{giftReason,customerCode:cc,productCode:pc,sessions:n},approvedBy:'PIN quản lý',approvedAt:new Date().toISOString()});
+ }
  const cu=state.customers.find(x=>x.code===cc);state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- state.therapyCards.push({id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),customerCode:cc,customerName:cu?.name||'',productCode:pc,productName:pr?.name||'',totalSessions:n,remainingSessions:n,expiresAt:document.getElementById('therapyExpiry').value||'',status:'Đang sử dụng',createdAt:new Date().toISOString()});
- saveState();closeModal();therapyCardsPage(document.getElementById('content'));alert('Đã tạo thẻ liệu trình.');
+ const source=sourceInvoiceId?state.invoices.find(x=>x.id===sourceInvoiceId):null;
+ const sessionValue=source?Math.max(0,packageValueExVatFromInvoiceItem((source.items||[]).find(it=>it.code===pc)||{},pr)/Math.max(1,n)):Math.max(0,getPackageSessionValue(pr));
+ const expiry=document.getElementById('therapyExpiry').value||packageExpiryDate(pr);
+ state.therapyCards.push({id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),customerCode:cc,customerName:cu?.name||'',productCode:pc,productName:pr?.name||'',totalSessions:n,remainingSessions:n,sessionValue,vatRate:Number(pr?.vat)||0,unearnedRevenue:source?sessionValue*n:0,realizedRevenue:0,revenueLedger:[],expiresAt:expiry,status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',sourceType:sourceInvoiceId?'invoice':'gift',sourceInvoiceId:sourceInvoiceId||'',giftReason:giftReason||'',approvalRequired:!sourceInvoiceId});
+ saveState();closeModal();therapyCardsPage(document.getElementById('content'));alert('Đã tạo thẻ liệu trình có đầy đủ dấu vết nguồn.');
 }
 function openUseTherapySession(id){
  if(!hasPermission('Sử dụng liệu trình'))return alert('Bạn không có quyền sử dụng liệu trình.');
@@ -2108,61 +2125,84 @@ function saveReturn(){
  if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy không thể trả hàng.');
  if(Number(inv.paid||0)<=0)return alert('Hóa đơn chưa thanh toán nên chưa thể hoàn tiền.');
  if(isTransactionClosed(inv))return alert('Hóa đơn thuộc ca đã chốt, không thể tạo trả hàng.');
- const rows=[...document.querySelectorAll('.return-qty')];
- const items=rows.map(el=>{
-   const q=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);
-   const max=Number(el.dataset.max)||0,price=Number(el.dataset.price)||0,discount=Number(el.dataset.discount)||0;
-   const lineGross=q*price;
-   const lineDiscount=max>0?Math.min(discount,lineGross)*(q/max):0;
-   const original=sold.find(x=>x.code===el.dataset.code)||{};
-   const vatRate=Math.max(0,Number(original.vat??original.taxRate??inv.vat??0));
-   const lineNet=Math.max(0,q*price-lineDiscount);
-   const orderDisc=totalLineNet>0?orderDiscount*(lineNet/totalLineNet):0;
-   const netExVat=Math.max(0,lineNet-orderDisc);
-   const vatAmount=vatRate>0?Math.round(netExVat-(netExVat/(1+vatRate/100))):0;
-   return {code:el.dataset.code,qty:q,price,discount:lineDiscount,vat:vatRate,vatRate,amountExVat:Math.max(0,netExVat-vatAmount),vatAmount,refund:netExVat};
- }).filter(x=>x.qty>0);
- if(!items.length)return alert('Vui lòng chọn ít nhất một sản phẩm để trả.');
- const retId=nextAutoCode('TH',6,'spa_next_return_id',state.returns||[],'id');
- const returnedNet=items.reduce((sum,x)=>sum+Number(x.amountExVat||0),0);
- const returnedVat=items.reduce((sum,x)=>sum+Number(x.vatAmount||0),0);
- const originalHasEInvoice=['Đã cấp mã','Đã điều chỉnh','Đã thay thế'].includes(inv.eInvoiceStatus);
- let adjustmentInvoice=null;
- if(originalHasEInvoice){
-   const reason='Điều chỉnh giảm do trả hàng '+retId;
-   adjustmentInvoice=createInvoice({
-     type:'Điều chỉnh giảm',customer:inv.customer,customerCode:inv.customerCode,customerName:inv.customerName,customerType:inv.customerType,phone:inv.phone,
-     productCode:items[0]?.code||'',productName:items.map(x=>x.code).join(', '),
-     amount:-returnedNet,discount:0,total:-returnedNet,tax:-returnedVat,paid:0,paymentMethod:inv.paymentMethod,
-     paymentBreakdown:[],employeeId:inv.employeeId,employeeName:inv.employeeName,consultantId:inv.consultantId,consultantName:inv.consultantName,
-     status:'Đã điều chỉnh',items:items.map(x=>({...x,qty:-x.qty,amountExVat:-Number(x.amountExVat||0),vatAmount:-Number(x.vatAmount||0)})),
-     originalInvoiceId:inv.originalInvoiceId||inv.id,relatedInvoiceId:inv.id,eInvoiceStatus:'Đã điều chỉnh',
-     eInvoiceReason:reason
-   });
- }
  const sold=getInvoiceItems(inv);
  const lineBase=sold.map(x=>({code:x.code,qty:Number(x.qty)||0,price:Number(x.price)||0,discount:Number(x.discount)||0}));
  const totalLineNet=lineBase.reduce((s,x)=>s+Math.max(0,x.qty*x.price-x.discount),0);
  const orderDiscount=Math.max(0,Number(inv.discount||0)-lineBase.reduce((s,x)=>s+Number(x.discount||0),0));
+ const rows=[...document.querySelectorAll('.return-qty')];
+ const items=rows.map(el=>{
+   const q=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);
+   const max=Number(el.dataset.max)||0,price=Number(el.dataset.price)||0,discount=Number(el.dataset.discount)||0;
+   const original=sold.find(x=>x.code===el.dataset.code)||{};
+   const p=state.products.find(x=>x.code===el.dataset.code);
+   const isPackage=p?.type==='Gói dịch vụ, liệu trình';
+   const lineGross=q*price;
+   const lineDiscount=max>0?Math.min(discount,lineGross)*(q/max):0;
+   const vatRate=Math.max(0,Number(original.vat??original.taxRate??inv.vat??0));
+   const lineNet=Math.max(0,lineGross-lineDiscount);
+   const orderDisc=totalLineNet>0?orderDiscount*(lineNet/totalLineNet):0;
+   const netExVat=Math.max(0,lineNet-orderDisc);
+   const vatAmount=vatRate>0?Math.round(netExVat-(netExVat/(1+vatRate/100))):0;
+   return {code:el.dataset.code,qty:q,price,discount:lineDiscount,vat:vatRate,vatRate,amountExVat:Math.max(0,netExVat-vatAmount),vatAmount,refund:netExVat,isPackage};
+ }).filter(x=>x.qty>0);
+ if(!items.length)return alert('Vui lòng chọn ít nhất một sản phẩm để trả.');
+
+ const packagePlans=[];
+ for(const item of items.filter(x=>x.isPackage)){
+   const card=(state.therapyCards||[]).find(c=>c.invoiceId===inv.id&&c.productCode===item.code&&c.status!=='Đã hủy'&&Number(c.remainingSessions||0)>0);
+   if(!card)return alert('Không tìm thấy thẻ liệu trình còn buổi tương ứng với gói trên hóa đơn. Không thể hoàn tiền gói.');
+   const refund=Math.round(Math.max(0,Number(card.remainingSessions||0)*Number(card.sessionValue||0)));
+   if(refund<=0)return alert('Thẻ gói không còn số dư để hoàn.');
+   packagePlans.push({item,card,refund});
+   item.packageRefund=refund;
+   item.amountExVat=refund;
+   item.vatAmount=Math.round(refund*(Number(card.vatRate)||0)/100);
+   item.refund=refund+item.vatAmount;
+ }
+
  let amount=0;
- items.forEach(x=>{
-   const gross=x.qty*x.price;
-   const lineDisc=x.discount;
-   const base=Math.max(0,gross-lineDisc);
-   const orderDisc=totalLineNet>0?orderDiscount*(base/totalLineNet):0;
-   x.refund=Math.max(0,base-orderDisc);
-   amount+=x.refund;
- });
+ items.forEach(x=>{ amount+=x.isPackage?Number(x.packageRefund||0)+Number(x.vatAmount||0):Math.max(0,Number(x.refund||0)); });
  if(amount<=0)return alert('Số tiền hoàn không hợp lệ.');
+
  const alreadyReturned=invoiceReturnedAmount(inv);
- const maxRefund=Math.max(0,Number(inv.paid||0));
- if(amount>maxRefund+0.000001)return alert('Số tiền hoàn vượt quá số tiền khách đã thanh toán.');
- const priorRefund=invoiceReturnedAmount(inv);
- if(priorRefund+amount>invoicePaymentTotal(inv)+0.000001)return alert('Tổng tiền hoàn vượt quá số tiền khách thực trả.');
+ const maxRefund=invoicePaymentTotal(inv);
+ if(alreadyReturned+amount>maxRefund+0.000001)return alert('Tổng tiền hoàn vượt quá số tiền khách thực trả.');
+
  const method=normalizePaymentMethod(document.getElementById('returnMethod').value);
- const ret={id:retId,invoiceId:inv.id,customerCode:inv.customerCode||'',customerName:inv.customerName||inv.customer||'',items,amount,type:'Chi',status:'Đã hoàn tiền',refundAmount:amount,paymentMethod:method,note:document.getElementById('returnNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:shift.id};
+ const retId=nextAutoCode('TH',6,'spa_next_return_id',state.returns||[],'id');
+ const ret={id:retId,invoiceId:inv.id,customerCode:inv.customerCode||'',customerName:inv.customerName||inv.customer||'',items,amount,type:'Chi',status:'Đã hoàn tiền',refundAmount:amount,paymentMethod:method,note:document.getElementById('returnNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:shift.id,packageReturns:packagePlans.map(x=>({therapyCardId:x.card.id,refundAmount:x.refund,remainingSessions:x.card.remainingSessions}))};
+
+ packagePlans.forEach(plan=>{
+   const card=plan.card;
+   (state.serviceCommissions||[]).filter(x=>x.therapyCardId===card.id&&!x.reversed).forEach(x=>{x.status='Đã hoàn tác do trả gói';x.reversed=true;x.reversedAt=new Date().toISOString();});
+   card.remainingSessions=0;
+   card.status='Đã hủy';
+   card.canceledAt=new Date().toISOString();
+   card.cancelReason='Trả gói - hoàn giá trị các buổi chưa dùng';
+   card.unearnedRevenue=0;
+   card.returnedAt=retId;
+   card.returnedRefundAmount=plan.refund;
+   card.revenueLedger=Array.isArray(card.revenueLedger)?card.revenueLedger:[];
+   card.revenueLedger.push({id:nextAutoCode('DT',6,'spa_next_revenue_transfer_id',card.revenueLedger,'id'),type:'cancel',amount:plan.refund,reason:'Trả gói - hoàn số dư chưa thực hiện',createdAt:new Date().toISOString(),returnId:retId});
+ });
+
+ const originalHasEInvoice=['Đã cấp mã','Đã điều chỉnh','Đã thay thế'].includes(inv.eInvoiceStatus);
+ if(originalHasEInvoice){
+   const returnedExVat=items.reduce((sum,x)=>sum+Number(x.amountExVat||0),0);
+   const returnedVat=items.reduce((sum,x)=>sum+Number(x.vatAmount||0),0);
+   createInvoice({
+     type:'Điều chỉnh giảm',customer:inv.customer,customerCode:inv.customerCode,customerName:inv.customerName,customerType:inv.customerType,phone:inv.phone,
+     productCode:items[0]?.code||'',productName:items.map(x=>x.code).join(', '),
+     amount:-returnedExVat,discount:0,total:-(returnedExVat+returnedVat),tax:-returnedVat,paid:0,paymentMethod:inv.paymentMethod,
+     paymentBreakdown:[],employeeId:inv.employeeId,employeeName:inv.employeeName,consultantId:inv.consultantId,consultantName:inv.consultantName,
+     status:'Đã điều chỉnh',items:items.map(x=>({...x,qty:-x.qty,amountExVat:-Number(x.amountExVat||0),vatAmount:-Number(x.vatAmount||0),refund:-Number(x.refund||0)})),
+     originalInvoiceId:inv.originalInvoiceId||inv.id,relatedInvoiceId:inv.id,eInvoiceStatus:'Đã điều chỉnh',
+     eInvoiceReason:'Điều chỉnh giảm do trả hàng '+retId
+   });
+ }
+
  state.returns=Array.isArray(state.returns)?state.returns:[];state.returns.push(ret);
- items.forEach(x=>{const p=state.products.find(p=>p.code===x.code);if(p&&typeof p.stock==='number')p.stock+=x.qty;});
+ items.forEach(x=>{if(x.isPackage)return;const p=state.products.find(p=>p.code===x.code);if(p&&typeof p.stock==='number')p.stock+=x.qty;});
  inv.paid=Math.max(0,Number(inv.paid||0)-amount);
  const effectiveTotal=Math.max(0,Number(inv.total||0)-alreadyReturned-amount);
  inv.status=inv.paid>=effectiveTotal?'Đã thanh toán':'Còn nợ';
