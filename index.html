@@ -1377,7 +1377,7 @@ function runDataChecks(){
  const details=[];
  const validInvoices=invoices.filter(inv=>inv.status!=='Đã hủy'&&inv.status!=='Hủy');
  const returnByInvoice=new Map();
- returns.filter(r=>r.status!=='Đã hủy').forEach(r=>returnByInvoice.set(r.invoiceId,(returnByInvoice.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0));
+ returns.filter(r=>r.status!=='Đã hủy').forEach(r=>returnByInvoice.set(r.invoiceId,(returnByInvoice.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0)));
  const cashRelevant=books.filter(x=>['Thu bán hàng','Thu nợ khách','Chi hoàn tiền trả hàng','Chi hoàn tiền hủy đơn'].includes(x.category));
  const expectedTotal=validInvoices.reduce((sum,inv)=>sum+invoicePaymentTotal(inv)-Number(returnByInvoice.get(inv.id)||0),0);
  const actualTotal=cashRelevant.reduce((sum,x)=>sum+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);
