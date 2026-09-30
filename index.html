@@ -2159,11 +2159,20 @@ function invoiceRevenueFields(data){
  const netRevenue=Math.max(0,grossExVat-commercialDiscount-discountAmount-otherDeduction);
  return {merchandiseAmountExVat:Math.round(grossExVat),vatAmount:Math.round(vatAmount),commercialDiscount:Math.round(commercialDiscount),discountAmount:Math.round(discountAmount),otherDeduction:Math.round(otherDeduction),returnedAmountExVat:0,netRevenue:Math.round(netRevenue)};
 }
+function invoiceReturnedNetRevenue(inv){
+ const refundGross=invoiceReturnedAmount(inv);
+ if(refundGross<=0)return 0;
+ const items=Array.isArray(inv?.items)?inv.items:[];
+ const grossAfterDiscount=items.reduce((s,x)=>s+Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0)),0),0);
+ const tax=Number(inv?.tax)||Number(inv?.vatAmount)||0;
+ if(grossAfterDiscount>0)return Math.max(0,refundGross*(grossAfterDiscount-tax)/grossAfterDiscount);
+ const total=Number(inv?.total)||0;
+ return total>0?Math.max(0,refundGross*(total-tax)/total):refundGross;
+}
 function invoiceNetRevenue(inv){
  if(!inv||inv.status==='Đã hủy')return 0;
- if(Number.isFinite(Number(inv.netRevenue)))return Math.max(0,Number(inv.netRevenue)-Number(inv.returnedAmountExVat||0));
  const f=invoiceRevenueFields(inv);
- return Math.max(0,f.netRevenue);
+ return Math.max(0,f.netRevenue-invoiceReturnedNetRevenue(inv));
 }
 function reportNetRevenue(invoices){
  return (invoices||[]).filter(x=>(x.type||'Thu')==='Thu'&&x.status!=='Đã hủy').reduce((sum,x)=>sum+invoiceNetRevenue(x),0);
