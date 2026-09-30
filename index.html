@@ -347,13 +347,13 @@ state.funds=Array.isArray(state.funds)&&state.funds.length?state.funds:DEFAULT_F
 state.paymentFundMap=typeof state.paymentFundMap==='object'&&state.paymentFundMap?state.paymentFundMap:{'Tiền mặt':'FUND-CASH','Chuyển khoản':'FUND-BANK','Ví điện tử':'FUND-WALLET','Thẻ':'FUND-POS'};
 const fundById=id=>(state.funds||[]).find(f=>f.id===id)||null;
 function fundIdForPayment(pm){const n=normalizePaymentMethod(pm);return state.paymentFundMap[n]||'FUND-CASH';}
-(state.funds||[]).forEach(f=>{if(!Number.isFinite(Number(f.openingBalance)))f.openingBalance=0;if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(f.openingDate||'')))f.openingDate=localDateKey(new Date());});
+(state.funds||[]).forEach(f=>{if(!Number.isFinite(Number(f.openingBalance)))f.openingBalance=0;if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f.openingDate||'')))f.openingDate=localDateKey(new Date());});
 (state.cashbook||[]).forEach(x=>{if(!x.fundId)x.fundId=fundIdForPayment(x.paymentMethod);if(!x.category)x.category=cashCategoryFor(x);if(!x.txnDate)x.txnDate=String(x.createdAt||localTxnDate()).slice(0,10);if(!x.createdBy)x.createdBy=state.currentUser?.id||'legacy';if(!x.shiftId)x.shiftId=getOpenShift()?.id||x.shiftId||'legacy';if(!x.subject)x.subject=x.note||'Giao dịch cũ';if(!x.note)x.note=x.subject||'Giao dịch cũ';if(!x.referenceId)x.referenceId=x.id;});
 saveState();
 
 function fundHasTransactions(fundId){return (state.cashbook||[]).some(x=>x.fundId===fundId);}
 function fundOpening(f){return Math.max(0,Number(f?.openingBalance)||0);}
-function fundOpeningDate(f){return /^\\d{4}-\\d{2}-\\d{2}$/.test(String(f?.openingDate||''))?f.openingDate:localDateKey(new Date());}
+function fundOpeningDate(f){return /^\d{4}-\d{2}-\d{2}$/.test(String(f?.openingDate||''))?f.openingDate:localDateKey(new Date());}
 function fundMovements(fundId){const f=fundById(fundId);if(!f)return [];const start=fundOpeningDate(f);return (state.cashbook||[]).filter(x=>x.fundId===fundId&&String(x.txnDate||'')>=start);}
 function fundBalance(fundId){const f=fundById(fundId);if(!f)return 0;return fundOpening(f)+fundMovements(fundId).reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0);}
 function saveFundOpening(fundId){
@@ -362,7 +362,7 @@ function saveFundOpening(fundId){
  const balance=Number(document.getElementById('fundOpeningBalance_'+fundId)?.value);
  const date=document.getElementById('fundOpeningDate_'+fundId)?.value;
  if(!Number.isFinite(balance)||balance<0)return alert('Số dư đầu kỳ không hợp lệ.');
- if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date||''))return alert('Ngày bắt đầu sử dụng không hợp lệ.');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))return alert('Ngày bắt đầu sử dụng không hợp lệ.');
  const hasTx=fundHasTransactions(fundId);
  if(hasTx){
    const pin=prompt('Quỹ đã có giao dịch. Nhập PIN phê duyệt để thay đổi số dư đầu kỳ và ngày bắt đầu:');
@@ -481,7 +481,7 @@ function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',re
  const date=txnDate||localTxnDate();
  const shiftId=getOpenShift()?.id||'';
  const createdBy=state.currentUser?.id||'';
- if(!['thu','chi'].includes(type)||value<=0||!fundIdForPayment(normalizedPaymentMethod)||!normalizedCategory||!subject?.trim()||!note?.trim()||!referenceId?.trim()||!createdBy||!shiftId||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)){
+ if(!['thu','chi'].includes(type)||value<=0||!fundIdForPayment(normalizedPaymentMethod)||!normalizedCategory||!subject?.trim()||!note?.trim()||!referenceId?.trim()||!createdBy||!shiftId||!/^\d{4}-\d{2}-\d{2}$/.test(date)){
    alert('Không thể lưu giao dịch quỹ: thiếu trường bắt buộc hoặc số tiền không hợp lệ.'); return null;
  }
  state.cashbook=Array.isArray(state.cashbook)?state.cashbook:[];
