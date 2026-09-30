@@ -2007,4 +2007,18 @@ initLogin();
 renderAll();
 </script>
 </body>
-</html>
+</html>function findCommissionRule(productCode){
+ return (state.commissionRules||[]).find(x=>x.productCode===productCode)||null;
+}
+function findCommissionRate(productCode){
+ return Math.max(0,Number(findCommissionRule(productCode)?.rate)||0);
+}
+function getTherapyPackageValue(card){
+ const gross=Number(card?.packagePrice||card?.price||0);
+ const discount=Number(card?.packageDiscount||0);
+ return Math.max(0,gross-discount);
+}
+function getTherapySessionValue(card){
+ return getTherapyPackageValue(card)/Math.max(1,Number(card?.totalSessions)||1);
+}
+
