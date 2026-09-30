@@ -281,7 +281,7 @@ const state={
     {code:'SP000044',name:'GIFT - Chăm sóc chuyên sâu vùng mặt, cột sống, siết eo',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'},
     {code:'SP000043',name:'GIFT - Chăm sóc chuyên sâu vùng mặt, kéo dãn cột sống',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'},
     {code:'SP000042',name:'GIFT - Chăm sóc chuyên sâu vùng mặt',type:'Dịch vụ',pre:0,vat:10,price:0,cost:0,stock:'---'},
-    {code:'GDV033',name:'Gói - Thư giãn toàn thân (Buổi - 11B)',type:'Gói dịch vụ, liệu trình',pre:5909091,vat:10,price:6500000,cost:0,stock:'---'},
+    {code:'GDV033',name:'Gói - Thư giãn toàn thân (Buổi - 11B)',type:'Gói dịch vụ, liệu trình',sessions:11,validDays:90,sessionValue:5909091/11,pre:5909091,vat:10,price:6500000,cost:0,stock:'---'},
     {code:'GDV031',name:'Gói - Thư giãn toàn thân (Buổi - TC)',type:'Gói dịch vụ, liệu trình',pre:454545,vat:10,price:500000,cost:0,stock:'---'},
     {code:'GDV032',name:'Gói - Thư giãn toàn thân (Buổi - 4B)',type:'Gói dịch vụ, liệu trình',pre:1818182,vat:10,price:2000000,cost:0,stock:'---'},
     {code:'DV0020',name:'Lẻ - Thư giãn toàn thân (Buổi - TN)',type:'Dịch vụ',pre:227273,vat:10,price:250000,cost:0,stock:'---'},
@@ -645,9 +645,21 @@ function therapyCardsPage(c){
 }
 function getPackageSessions(product){
  const explicit=Number(product?.sessions||product?.totalSessions||product?.sessionCount);
- if(Number.isInteger(explicit)&&explicit>0)return explicit;
- const m=String(product?.name||'').match(/(?:-|\(|\s)(\d+)\s*B(?:\)|\b)/i);
- return m?Number(m[1]):1;
+ return Number.isInteger(explicit)&&explicit>0?explicit:1;
+}
+function getPackageValidDays(product){
+ const n=Number(product?.validDays);
+ return Number.isFinite(n)&&n>0?n:0;
+}
+function getPackageSessionValue(product){
+ const v=Number(product?.sessionValue);
+ if(Number.isFinite(v)&&v>=0)return v;
+ const sessions=getPackageSessions(product);
+ return sessions>0?Number(product?.pre||product?.price||0)/sessions:0;
+}
+function packageExpiryDate(product,fromDate=new Date()){
+ const days=getPackageValidDays(product);if(!days)return '';
+ const d=new Date(fromDate);d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);
 }
 function findCommissionRate(productCode){
  const r=(state.commissionRules||[]).find(x=>x.productCode===productCode);
@@ -2213,7 +2225,7 @@ function createTherapyCardFromInvoice(invoice){
  const created=[];
  packageItems.forEach(it=>{
    const p=state.products.find(x=>x.code===it.code),sessions=getPackageSessions(p)*Math.max(1,Number(it.qty)||1);
-   const card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,totalSessions:sessions,remainingSessions:sessions,expiresAt:'',status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
+   const card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,totalSessions:sessions,remainingSessions:sessions,sessionValue:getPackageSessionValue(p),expiresAt:packageExpiryDate(p),status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
    state.therapyCards.push(card);created.push(card);
  });
  return created;
