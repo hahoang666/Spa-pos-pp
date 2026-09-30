@@ -373,7 +373,7 @@ function saveFundOpening(fundId){
  saveState();fundsPage(document.getElementById('content'));cashbookPage(document.getElementById('content'));
 }
 function fundsPage(c){
- if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
+ if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem sổ quỹ.</div>';return;}
  const opts=(state.funds||[]).filter(f=>f.active!==false).map(f=>'<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>').join('');
  const mapRows=PAYMENT_METHODS.map(pm=>`<tr><td>${esc(pm)}</td><td><select class="field" onchange="state.paymentFundMap[${JSON.stringify(pm)}]=this.value;saveState();cashbookPage(document.getElementById('content'))">${opts}</select></td></tr>`).join('');
  const fundRows=(state.funds||[]).map(f=>{
@@ -415,7 +415,7 @@ const menus={
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
   'Khách hàng':['Thẻ liệu trình','Khách hàng','Nhân viên'],
-  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ','Khóa kỳ sổ quỹ'],
+  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ','Khóa kỳ sổ quỹ','Nhật ký sổ quỹ'],
   'Kho & Nguyên liệu':['Kho nguyên liệu','Định mức nguyên liệu'],
   'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
@@ -427,9 +427,9 @@ const permissionCatalog={
   'Bán hàng':['Xem hóa đơn','Tạo hóa đơn','Hủy hóa đơn','Xem thanh toán','Sử dụng thu ngân','Tạo trả hàng','Tạo thẻ liệu trình','Sử dụng liệu trình'],
   'Khách hàng':['Xem khách hàng','Thêm khách hàng','Sửa khách hàng','Xóa khách hàng','Xem lịch sử khách hàng'],
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Thêm bảng giá','Cập nhật giá','Quản lý tồn kho'],
-  'Thu / Chi':['Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
+  'Thu / Chi':['Xem sổ quỹ','Lập phiếu thu','Lập phiếu chi','Đảo phiếu','Chuyển quỹ','Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
   'Báo cáo':['Xem biểu đồ','Xuất Excel'],
-  'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ','Quản lý kho nguyên liệu','Khóa kỳ sổ quỹ'],
+  'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ','Khóa kỳ sổ quỹ','Sửa số dư đầu kỳ','Phê duyệt'],
   'Quản trị':['Quản lý tài khoản','Phân quyền User']
 };
 const allPermissions=Object.values(permissionCatalog).flat();
@@ -447,7 +447,7 @@ saveState();
 function defaultPermissions(role){
   if(role==='Admin') return [...allPermissions];
   if(role==='Quản lý') return allPermissions.filter(p=>!['Quản lý tài khoản','Phân quyền User'].includes(p));
-  return ['Xem Dashboard','Xem hóa đơn','Tạo hóa đơn','Xem thanh toán','Sử dụng thu ngân','Xem khách hàng','Thêm khách hàng','Xem sản phẩm'];
+  return ['Xem Dashboard','Xem hóa đơn','Tạo hóa đơn','Xem thanh toán','Sử dụng thu ngân','Xem khách hàng','Thêm khách hàng','Xem sản phẩm','Xem sổ quỹ'];
 }
 function getOpenShift(){
  const today=localDateKey(new Date());
@@ -493,6 +493,18 @@ function reopenCashbookLock(){
  const pin=prompt('Nhập PIN phê duyệt:');if(!managerApprovalPinValid(pin))return alert('PIN phê duyệt không hợp lệ.');
  state.settings=state.settings||{};const old=cashbookLockedUntil();state.settings.cashbookLockedUntil='';logCashbookLock('Mở lại kỳ sổ quỹ','oldLockedUntil='+old+'; reason='+reason.trim());saveState();cashbookLockPage(document.getElementById('content'));alert('Đã mở lại kỳ.');
 }
+function auditCashbook(action,before=null,after=null,details=''){
+ state.cashbookAuditLogs=Array.isArray(state.cashbookAuditLogs)?state.cashbookAuditLogs:[];
+ state.cashbookAuditLogs.push({id:'CBL'+Date.now()+Math.random().toString(36).slice(2,6),action,at:new Date().toISOString(),by:state.currentUser?.id||'',byName:state.currentUser?.name||state.currentUser?.username||'',before:before?JSON.parse(JSON.stringify(before)):null,after:after?JSON.parse(JSON.stringify(after)):null,details});
+}
+function cashbookAuditPage(c){
+ if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem nhật ký sổ quỹ.</div>';return;}
+ const logs=Array.isArray(state.cashbookAuditLogs)?state.cashbookAuditLogs:[], users=[...new Set(logs.map(x=>x.by))];
+ const who=document.getElementById('auditWho')?.value||'', act=document.getElementById('auditAction')?.value||'';
+ const rows=logs.slice().reverse().filter(x=>(!who||x.by===who)&&(!act||x.action===act)).map(x=>'<tr><td>'+esc(x.at)+'</td><td>'+esc(x.byName||x.by)+'</td><td>'+esc(x.action)+'</td><td><pre style="white-space:pre-wrap;margin:0">'+esc(JSON.stringify({before:x.before,after:x.after,details:x.details},null,2))+'</pre></td></tr>').join('');
+ const acts=[...new Set(logs.map(x=>x.action))];
+ c.innerHTML='<div class="page-title">Nhật ký sổ quỹ</div><div class="card"><div style="display:flex;gap:10px;flex-wrap:wrap"><select id="auditWho" class="field" onchange="cashbookAuditPage(document.getElementById(\'content\'))"><option value="">Tất cả người dùng</option>'+users.map(u=>'<option value="'+esc(u)+'" '+(who===u?'selected':'')+'>'+esc((state.accounts||[]).find(a=>a.id===u)?.name||u)+'</option>').join('')+'</select><select id="auditAction" class="field" onchange="cashbookAuditPage(document.getElementById(\'content\'))"><option value="">Tất cả thao tác</option>'+acts.map(a=>'<option value="'+esc(a)+'" '+(act===a?'selected':'')+'>'+esc(a)+'</option>').join('')+'</select></div></div><div class="card table-wrap" style="margin-top:12px"><table><thead><tr><th>Thời điểm</th><th>Người thực hiện</th><th>Thao tác</th><th>Trước / Sau / Chi tiết</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
 function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',referenceId='',note='',category='',txnDate=''}) {
  const value=Number(amount)||0;
  const normalizedPaymentMethod=normalizePaymentMethod(paymentMethod);
@@ -508,14 +520,14 @@ function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',re
  const key=type==='thu'?'spa_next_receipt_id':'spa_next_payment_id';
  const id=nextAutoCode(prefix,6,key,state.cashbook,'id');
  const row={id,type,amount:value,subject:subject.trim(),category:normalizedCategory,paymentMethod:normalizedPaymentMethod,fundId:fundIdForPayment(normalizedPaymentMethod),referenceId:referenceId.trim(),note:note.trim(),txnDate:date,createdAt:new Date().toISOString(),createdBy,shiftId,status:'Hoàn thành'};
- state.cashbook.push(row);return row;
+ state.cashbook.push(row);auditCashbook(type==='thu'?'Lập phiếu thu':'Lập phiếu chi',null,row,'Tạo chứng từ');return row;
 }
 function fundBalanceAsOf(fundId,date){
  const f=fundById(fundId);if(!f)return 0;const start=fundOpeningDate(f);
  return fundOpening(f)+(state.cashbook||[]).filter(x=>x.fundId===fundId&&String(x.txnDate||'')>=start&&String(x.txnDate||'')<=date).reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0);
 }
 function createInternalFundTransfer(){
- if(!hasPermission('Xem quỹ'))return alert('Bạn không có quyền thực hiện chuyển quỹ.');
+ if(!hasPermission('Chuyển quỹ'))return alert('Bạn không có quyền chuyển quỹ.');
  const from=document.getElementById('transferFrom')?.value,to=document.getElementById('transferTo')?.value,date=document.getElementById('transferDate')?.value,amount=Number(document.getElementById('transferAmount')?.value),note=document.getElementById('transferNote')?.value?.trim();
  if(!from||!to||from===to)return alert('Quỹ nguồn và quỹ đích phải khác nhau.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))return alert('Ngày chuyển quỹ không hợp lệ.');
@@ -540,6 +552,7 @@ function internalFundTransferPage(c){
  c.innerHTML='<div class="page-title">Chuyển quỹ nội bộ</div><div class="card report"><p class="dashboard-note">Tạo đồng thời một phiếu chi tại quỹ nguồn và một phiếu thu tại quỹ đích. Cả hai dùng category "Chuyển quỹ" và cùng mã chuyển.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px"><label>Quỹ nguồn<select id="transferFrom" class="field">'+opts+'</select></label><label>Quỹ đích<select id="transferTo" class="field">'+opts+'</select></label><label>Ngày chuyển<input id="transferDate" class="field" type="date" value="'+today+'"></label><label>Số tiền<input id="transferAmount" class="field" type="number" min="1" step="1"></label><label style="grid-column:1/-1">Diễn giải<input id="transferNote" class="field" placeholder="Ví dụ: Nộp tiền mặt vào ngân hàng"></label></div><div style="margin-top:15px"><button class="btn btn-primary" onclick="createInternalFundTransfer()">Thực hiện chuyển quỹ</button></div></div>';
 }
 function reverseCashMovement(id){
+ if(!hasPermission('Đảo phiếu'))return alert('Bạn không có quyền đảo phiếu.');
  const original=(state.cashbook||[]).find(x=>x.id===id);
  if(!original)return alert('Không tìm thấy phiếu.');
  if(original.reverseOf)return alert('Đây là phiếu đảo, không thể đảo tiếp.');
@@ -553,6 +566,7 @@ function reverseCashMovement(id){
  row.reverseOf=original.id;
  row.reversalReason=reason.trim();
  row.reversalApproval=true;
+ auditCashbook('Đảo phiếu',original,row,reason.trim());
  saveState();
  alert('Đã tạo phiếu đảo '+row.id+'.');
  cashbookPage(document.getElementById('content'));
@@ -986,7 +1000,7 @@ function saveOpenShift(){
  if(manual&&!hasPermission('Phê duyệt'))return alert('Sửa tiền đầu ca phải được phê duyệt.');
  const today=localDateKey(new Date());
  state.shifts.push({id:nextAutoCode('CA',6,'spa_next_shift_id',state.shifts,'id'),date:today,openedAt:new Date().toISOString(),openedBy:state.currentUser?.id||'',openedByName:state.currentUser?.name||state.currentUser?.username||'',openingCash:amount,inheritedOpeningCash:inherited,openingCashOverride:manual,openingCashReason:manual?note:'',openingCashApprovedBy:manual?(state.currentUser?.id||''):'',status:'Đang mở',note,totalIncome:0,totalExpense:0});
- saveState();closeModal();shiftClosePage(document.getElementById('content'));alert('Đã mở ca. Tiền đầu ca: '+money(amount)+' ₫.');
+ auditCashbook('Mở ca',null,{openingCash:amount,inheritedOpeningCash:inherited,openingCashOverride:manual},manual?note:'Kế thừa cuối ca trước'); saveState();closeModal();shiftClosePage(document.getElementById('content'));alert('Đã mở ca. Tiền đầu ca: '+money(amount)+' ₫.');
 }
 function cashbookPeriodRange(mode,from,to){
  const now=new Date(), today=localDateKey(now);
@@ -1046,7 +1060,7 @@ function cashbookDetailPage(c){
 }
 function cashbookPage(c){
  if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
- const books=[...(state.cashbook||[])].sort((a,b)=>String(b.txnDate||'').localeCompare(String(a.txnDate||''))||String(b.createdAt||'').localeCompare(String(a.createdAt||''))), cats=CASH_CATEGORIES;
+ const ownOnly=state.currentUser?.role==='Nhân viên'; const myShift=getOpenShift(); const sourceBooks=(ownOnly&&myShift)?(state.cashbook||[]).filter(x=>x.shiftId===myShift.id):((state.cashbook||[])); const books=[...sourceBooks].sort((a,b)=>String(b.txnDate||'').localeCompare(String(a.txnDate||''))||String(b.createdAt||'').localeCompare(String(a.createdAt||''))), cats=CASH_CATEGORIES;
  const rows=books.map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.txnDate||'')}</td><td>${esc(x.type==='thu'?'Thu':'Chi')}</td><td>${esc(x.category||cashCategoryFor(x))}</td><td>${esc(fundById(x.fundId)?.name||'—')}</td><td>${esc(x.subject||'')}</td><td style="text-align:right">${money(x.amount||0)} ₫</td><td>${esc(x.shiftId||'—')}</td><td>${esc(x.note||'')}</td><td>${x.reverseOf?('Đảo '+esc(x.reverseOf)):(books.some(r=>r.reverseOf===x.id)?'Đã đảo':'—')}</td><td>${(!x.reverseOf&&!books.some(r=>r.reverseOf===x.id))?'<button class="btn btn-secondary" onclick="reverseCashMovement('+JSON.stringify(x.id)+')">Đảo</button>':'—'}</td></tr>`).join('');
  const fundRows=(state.funds||[]).filter(f=>f.active!==false).map(f=>{const a=fundMovements(f.id),thu=a.filter(x=>x.type==='thu').reduce((s,x)=>s+Number(x.amount||0),0),chi=a.filter(x=>x.type==='chi').reduce((s,x)=>s+Number(x.amount||0),0);return `<tr><td>${esc(f.name)}</td><td style="text-align:right">${money(fundOpening(f))} ₫</td><td style="text-align:right">${money(thu-chi)} ₫</td><td style="text-align:right">${money(fundBalance(f.id))} ₫</td></tr>`}).join('');
  const catRows=cats.map(cat=>{const a=books.filter(x=>(x.category||cashCategoryFor(x))===cat),v=a.reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0);return `<tr><td>${esc(cat)}</td><td style="text-align:right">${money(v)} ₫</td></tr>`}).join('');
@@ -1084,7 +1098,7 @@ function saveCloseShift(){
    if(!row)return;
  }
  Object.assign(x.sh,{closedAt:new Date().toISOString(),closedBy:state.currentUser?.id||'',totalIncome:x.income,totalExpense:x.expense,expectedCash:x.expected,actualCash:d,difference:d-x.expected,denominationCounts:Object.fromEntries([500000,200000,100000,50000,20000,10000,5000,2000,1000].map(v=>[v,Number(document.getElementById('denom_'+v)?.value)||0])),status:'Đã chốt',closeNote:note});
- saveState();window._closingShift=null;closeModal();shiftClosePage(document.getElementById('content'));alert('Đã chốt quỹ.');
+ auditCashbook('Chốt quỹ',x.sh,{...x.sh,actualCash:d,difference:d-x.expected},'Chốt ca'); saveState();window._closingShift=null;closeModal();shiftClosePage(document.getElementById('content'));alert('Đã chốt quỹ.');
 }
 
 function materialStockPage(c){
@@ -1211,6 +1225,7 @@ function hasSellerProfile(){
 }
   if(state.page==='Chuyển quỹ nội bộ') return internalFundTransferPage(c);
   if(state.page==='Khóa kỳ sổ quỹ') return cashbookLockPage(c);
+  if(state.page==='Nhật ký sổ quỹ') return cashbookAuditPage(c);
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
