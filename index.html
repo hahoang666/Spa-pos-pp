@@ -929,6 +929,26 @@ function saveOpenShift(){
  state.shifts.push({id:nextAutoCode('CA',6,'spa_next_shift_id',state.shifts,'id'),date:today,openedAt:new Date().toISOString(),openedBy:state.currentUser?.id||'',openedByName:state.currentUser?.name||state.currentUser?.username||'',openingCash:amount,status:'Đang mở',note:document.getElementById('shiftNote').value.trim(),totalIncome:0,totalExpense:0});
  saveState();closeModal();shiftClosePage(document.getElementById('content'));alert('Đã mở ca.');
 }
+function cashbookPeriodRange(mode,from,to){
+ const now=new Date(), today=localDateKey(now);
+ if(mode==='day'){const d=from||today;return [d,d];}
+ if(mode==='month'){const d=from||today;const p=d.slice(0,7);return [p+'-01',new Date(Number(p.slice(0,4)),Number(p.slice(5,7)),0).toISOString().slice(0,10)];}
+ if(mode==='quarter'){const d=from||today,y=Number(d.slice(0,4)),m=Number(d.slice(5,7)),q=Math.floor((m-1)/3)*3+1;return [`${y}-${String(q).padStart(2,'0')}-01`,new Date(y,q+2,0).toISOString().slice(0,10)];}
+ return [from||'0000-01-01',to||today];
+}
+function cashbookDetailPage(c){
+ if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
+ const fundId=state.cashbookDetailFundId||state.funds?.find(f=>f.active!==false)?.id||'';
+ const mode=state.cashbookDetailMode||'month', today=localDateKey(new Date()), from=state.cashbookDetailFrom||today,to=state.cashbookDetailTo||today;
+ const [rangeStart,rangeEnd]=cashbookPeriodRange(mode,from,to), f=fundById(fundId);
+ if(!f){c.innerHTML='<div class="empty">Chưa có quỹ để lập sổ chi tiết.</div>';return;}
+ const opening=fundOpening(f)+((state.cashbook||[]).filter(x=>x.fundId===fundId&&String(x.txnDate||'')>=fundOpeningDate(f)&&String(x.txnDate||'')<rangeStart).reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0));
+ const rows=[...(state.cashbook||[])].filter(x=>x.fundId===fundId&&String(x.txnDate||'')>=rangeStart&&String(x.txnDate||'')<=rangeEnd).sort((a,b)=>String(a.txnDate||'').localeCompare(String(b.txnDate||''))||String(a.id).localeCompare(String(b.id)));
+ let running=opening,totalThu=0,totalChi=0;
+ const trs=rows.map(x=>{const thu=x.type==='thu'?Number(x.amount||0):0,chi=x.type==='chi'?Number(x.amount||0):0;totalThu+=thu;totalChi+=chi;running+=thu-chi;return `<tr><td>${esc(x.txnDate||'')}</td><td>${esc(x.id)}</td><td>${esc(x.note||x.subject||'')}</td><td style="text-align:right">${money(thu)} ₫</td><td style="text-align:right">${money(chi)} ₫</td><td style="text-align:right">${money(running)} ₫</td></tr>`}).join('');
+ const endBalance=opening+totalThu-totalChi;
+ c.innerHTML=`<div class="page-title">Sổ chi tiết theo quỹ</div><div class="card report"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label>Quỹ<select class="field" onchange="state.cashbookDetailFundId=this.value;cashbookDetailPage(document.getElementById('content'))">${(state.funds||[]).filter(x=>x.active!==false).map(x=>`<option value="${esc(x.id)}" ${x.id===fundId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label><label>Kỳ<select class="field" onchange="state.cashbookDetailMode=this.value;cashbookDetailPage(document.getElementById('content'))"><option value="day" ${mode==='day'?'selected':''}>Ngày</option><option value="month" ${mode==='month'?'selected':''}>Tháng</option><option value="quarter" ${mode==='quarter'?'selected':''}>Quý</option><option value="custom" ${mode==='custom'?'selected':''}>Tùy chọn</option></select></label><label>Từ ngày<input class="field" type="date" value="${esc(from)}" onchange="state.cashbookDetailFrom=this.value;cashbookDetailPage(document.getElementById('content'))"></label><label>Đến ngày<input class="field" type="date" value="${esc(to)}" onchange="state.cashbookDetailTo=this.value;cashbookDetailPage(document.getElementById('content'))"></label></div><p class="dashboard-note">Kỳ: ${rangeStart} → ${rangeEnd} · Ngày bắt đầu sử dụng quỹ: ${fundOpeningDate(f)}</p><table><thead><tr><th>Số dư đầu kỳ</th><th>Tổng thu</th><th>Tổng chi</th><th>Số dư cuối kỳ</th></tr></thead><tbody><tr><td>${money(opening)} ₫</td><td>${money(totalThu)} ₫</td><td>${money(totalChi)} ₫</td><td>${money(endBalance)} ₫</td></tr></tbody></table></div><div class="card report" style="margin-top:15px"><table><thead><tr><th>Ngày</th><th>Số chứng từ</th><th>Diễn giải</th><th>Thu</th><th>Chi</th><th>Số dư lũy kế</th></tr></thead><tbody>${trs||'<tr><td colspan="6">Không có giao dịch trong kỳ.</td></tr>'}</tbody></table></div>`;
+}
 function cashbookPage(c){
  if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
  const books=[...(state.cashbook||[])].sort((a,b)=>String(b.txnDate||'').localeCompare(String(a.txnDate||''))||String(b.createdAt||'').localeCompare(String(a.createdAt||''))), cats=CASH_CATEGORIES;
