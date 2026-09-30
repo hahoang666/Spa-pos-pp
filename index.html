@@ -1035,7 +1035,7 @@ function cashierTotals(){
  },0);
  const total=Math.max(0,netBeforeOrder-orderDiscount);
  const vat=cart.reduce((sum,x)=>{
-   const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0));
+   const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0)));
    const rate=Math.max(0,Number(x.vat)||0);
    const allocatedDiscount=netBeforeOrder>0?orderDiscount*(gross/netBeforeOrder):0;
    const taxable=Math.max(0,gross-allocatedDiscount);
