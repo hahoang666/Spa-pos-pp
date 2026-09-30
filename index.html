@@ -584,11 +584,11 @@ function cancelInvoice(id){
  const inv=state.invoices.find(x=>x.id===id),reason=document.getElementById('cancelReason')?.value.trim();
  if(!inv||!reason)return alert('Vui lòng nhập lý do hủy.');
  if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy.');
- if((state.returns||[]).some(r=>r.invoiceId===inv.id&&r.status!=='Đã hủy'))return alert('Hóa đơn đã có phiếu trả hàng. Vui lòng xử lý phiếu trả trước khi hủy hóa đơn.');
+ const activeReturns=(state.returns||[]).filter(r=>r.invoiceId===inv.id&&r.status!=='Đã hủy');\n if(activeReturns.length)return alert('Hóa đơn đã có phiếu trả hàng. Vui lòng xử lý phiếu trả trước khi hủy hóa đơn.');
  if(!requiresApproval('Hủy hóa đơn',{amount:Number(inv.total||0),details:reason}))return alert('Hủy hóa đơn cần được phê duyệt.');
  if(isTransactionClosed(inv))return alert('Hóa đơn thuộc ca đã chốt, không thể hủy.');
  const shift=requireOpenShift('hủy hóa đơn');if(!shift)return;
- const refund=Math.max(0,Number(inv.paid||0));
+ const refundedBefore=(state.returns||[]).filter(r=>r.invoiceId===inv.id&&r.status!=='Đã hủy').reduce((sum,r)=>sum+Number(r.refundAmount||r.amount||0),0);\n const collected=Math.max(0,Number(inv.paid||0));\n const refund=Math.max(0,collected-refundedBefore);
  const items=getInvoiceItems(inv);
  items.forEach(x=>{
    const p=state.products.find(z=>z.code===x.code);
