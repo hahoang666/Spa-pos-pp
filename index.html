@@ -1331,7 +1331,7 @@ function hasSellerProfile(){
 function runFR20Reconciliation(){
  const invoices=Array.isArray(state.invoices)?state.invoices:[], returns=Array.isArray(state.returns)?state.returns:[], books=Array.isArray(state.cashbook)?state.cashbook:[];
  const valid=invoices.filter(x=>x.status!=='Đã hủy'&&x.status!=='Hủy'&&x.isEInvoiceRelated!==true);
- const retByInv=new Map(); returns.filter(x=>x.status!=='Đã hủy').forEach(r=>retByInv.set(r.invoiceId,(retByInv.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0));
+ const retByInv=new Map(); returns.filter(x=>x.status!=='Đã hủy'&&valid.some(inv=>inv.id===x.invoiceId)).forEach(r=>retByInv.set(r.invoiceId,(retByInv.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0));
  const paidExpected=valid.reduce((a,x)=>a+invoicePaymentTotal(x),0)-Array.from(retByInv.values()).reduce((a,v)=>a+v,0);
  const validIds=new Set(valid.map(x=>x.id)); const paidActual=books.filter(x=>validIds.has(x.referenceId)&&['Thu bán hàng','Thu nợ khách'].includes(x.category)).reduce((a,x)=>a+Number(x.amount||0),0);
  const details1=[];
