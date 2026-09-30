@@ -1257,7 +1257,8 @@ function runDataChecks(){
  if(Math.abs(expectedTotal-actualTotal)>0.001){
    validInvoices.forEach(inv=>{
      const expected=invoicePaymentTotal(inv)-Number(returnByInvoice.get(inv.id)||0);
-     const actual=cashRelevant.filter(x=>x.referenceId===inv.id).reduce((sum,x)=>sum+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);
+     const returnIds=returns.filter(r=>r.invoiceId===inv.id&&r.status!=='Đã hủy').map(r=>r.id);
+     const actual=cashRelevant.filter(x=>x.referenceId===inv.id||returnIds.includes(x.referenceId)).reduce((sum,x)=>sum+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);
      if(Math.abs(expected-actual)>0.001)details.push({id:inv.id,ref:inv.id,message:'Hóa đơn '+money(expected)+' ₫ nhưng cashbook theo referenceId là '+money(actual)+' ₫.'});
    });
    cashRelevant.filter(x=>!validInvoices.some(inv=>inv.id===x.referenceId)&&!returns.some(r=>r.id===x.referenceId)).forEach(x=>details.push({id:x.id,ref:x.referenceId,message:'Dòng cashbook không truy được hóa đơn/phiếu trả hợp lệ.'}));
