@@ -2110,6 +2110,23 @@ function saveReturn(){
    return {code:el.dataset.code,qty:q,price,discount:lineDiscount,vat:vatRate,vatRate,amountExVat:Math.max(0,netExVat-vatAmount),vatAmount,refund:netExVat};
  }).filter(x=>x.qty>0);
  if(!items.length)return alert('Vui lòng chọn ít nhất một sản phẩm để trả.');
+ const retId=nextAutoCode('TH',6,'spa_next_return_id',state.returns||[],'id');
+ const returnedNet=items.reduce((sum,x)=>sum+Number(x.amountExVat||0),0);
+ const returnedVat=items.reduce((sum,x)=>sum+Number(x.vatAmount||0),0);
+ const originalHasEInvoice=['Đã cấp mã','Đã điều chỉnh','Đã thay thế'].includes(inv.eInvoiceStatus);
+ let adjustmentInvoice=null;
+ if(originalHasEInvoice){
+   const reason='Điều chỉnh giảm do trả hàng '+retId;
+   adjustmentInvoice=createInvoice({
+     type:'Điều chỉnh giảm',customer:inv.customer,customerCode:inv.customerCode,customerName:inv.customerName,customerType:inv.customerType,phone:inv.phone,
+     productCode:items[0]?.code||'',productName:items.map(x=>x.code).join(', '),
+     amount:-returnedNet,discount:0,total:-returnedNet,tax:-returnedVat,paid:0,paymentMethod:inv.paymentMethod,
+     paymentBreakdown:[],employeeId:inv.employeeId,employeeName:inv.employeeName,consultantId:inv.consultantId,consultantName:inv.consultantName,
+     status:'Đã điều chỉnh',items:items.map(x=>({...x,qty:-x.qty,amountExVat:-Number(x.amountExVat||0),vatAmount:-Number(x.vatAmount||0)})),
+     originalInvoiceId:inv.originalInvoiceId||inv.id,relatedInvoiceId:inv.id,eInvoiceStatus:'Đã điều chỉnh',
+     eInvoiceReason:reason
+   });
+ }
  const sold=getInvoiceItems(inv);
  const lineBase=sold.map(x=>({code:x.code,qty:Number(x.qty)||0,price:Number(x.price)||0,discount:Number(x.discount)||0}));
  const totalLineNet=lineBase.reduce((s,x)=>s+Math.max(0,x.qty*x.price-x.discount),0);
@@ -2129,24 +2146,7 @@ function saveReturn(){
  if(amount>maxRefund+0.000001)return alert('Số tiền hoàn vượt quá số tiền khách đã thanh toán.');
  const priorRefund=invoiceReturnedAmount(inv);
  if(priorRefund+amount>invoicePaymentTotal(inv)+0.000001)return alert('Tổng tiền hoàn vượt quá số tiền khách thực trả.');
- const returnedNet=items.reduce((sum,x)=>sum+Number(x.amountExVat||0),0);
- const returnedVat=items.reduce((sum,x)=>sum+Number(x.vatAmount||0),0);
- const originalHasEInvoice=['Đã cấp mã','Đã điều chỉnh','Đã thay thế'].includes(inv.eInvoiceStatus);
- let adjustmentInvoice=null;
- if(originalHasEInvoice){
-   const reason='Điều chỉnh giảm do trả hàng '+retId;
-   adjustmentInvoice=createInvoice({
-     type:'Điều chỉnh giảm',customer:inv.customer,customerCode:inv.customerCode,customerName:inv.customerName,customerType:inv.customerType,phone:inv.phone,
-     productCode:items[0]?.code||'',productName:items.map(x=>x.code).join(', '),
-     amount:-returnedNet,discount:0,total:-returnedNet,tax:-returnedVat,paid:0,paymentMethod:inv.paymentMethod,
-     paymentBreakdown:[],employeeId:inv.employeeId,employeeName:inv.employeeName,consultantId:inv.consultantId,consultantName:inv.consultantName,
-     status:'Đã điều chỉnh',items:items.map(x=>({...x,qty:-x.qty,amountExVat:-Number(x.amountExVat||0),vatAmount:-Number(x.vatAmount||0)})),
-     originalInvoiceId:inv.originalInvoiceId||inv.id,relatedInvoiceId:inv.id,eInvoiceStatus:'Đã điều chỉnh',
-     eInvoiceReason:reason
-   });
- }
  const method=normalizePaymentMethod(document.getElementById('returnMethod').value);
- const retId=nextAutoCode('TH',6,'spa_next_return_id',state.returns||[],'id');
  const ret={id:retId,invoiceId:inv.id,customerCode:inv.customerCode||'',customerName:inv.customerName||inv.customer||'',items,amount,type:'Chi',status:'Đã hoàn tiền',refundAmount:amount,paymentMethod:method,note:document.getElementById('returnNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:shift.id};
  state.returns=Array.isArray(state.returns)?state.returns:[];state.returns.push(ret);
  items.forEach(x=>{const p=state.products.find(p=>p.code===x.code);if(p&&typeof p.stock==='number')p.stock+=x.qty;});
