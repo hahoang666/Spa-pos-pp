@@ -1446,12 +1446,14 @@ function renderPage(){
   if(state.page==='Chuyển hàng') return transferPage(c);
   if(state.page==='Kiểm kho') return stocktakePage(c);
   if(state.page==='Trả hàng') return returnPage(c);
-  if(state.page==='Hóa đơn đầu vào') return purchaseInvoicePage(c);\n  if(state.page==='Kiểm tra dữ liệu') return dataCheckPage(c);
+  if(state.page==='Hóa đơn đầu vào') return purchaseInvoicePage(c);
+  if(state.page==='Kiểm tra dữ liệu') return dataCheckPage(c);
   if(state.page==='Kho hàng') return inventoryPage(c);
   if(state.page==='Bộ báo cáo chuẩn') return standardReportsPage(c);
   if(state.page==='Dữ liệu mẫu') return demoDataPage(c);
   if(state.page==='Khóa kỳ giao dịch') return transactionLockPage(c);
-  if(state.page==='Nhật ký thao tác') return auditLogPage(c);\n  if(state.page.startsWith('Báo cáo')) return reportPage(c);
+  if(state.page==='Nhật ký thao tác') return auditLogPage(c);
+  if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
   if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
   if(state.page==='Phân quyền User') return adminPermissionsPage(c);
