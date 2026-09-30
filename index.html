@@ -1242,6 +1242,17 @@ function completeCashierSale(){
  state.lastCashierInvoiceId=invoice.id;state.cashierCart=[];state.cashierOrderDiscount=0;state.cashierDebtDueDate='';state.cashierPayments=[{method:'Tiền mặt',amount:0,tendered:0}];
  saveState();alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận là Còn nợ.':''));renderAll();
 }
+function exportEInvoice(id){
+ const inv=state.invoices.find(x=>x.id===id);
+ if(!inv)return alert('Không tìm thấy hóa đơn.');
+ if(!hasSellerProfile() && !inv.sellerSnapshot)return alert('Chưa cấu hình hồ sơ đơn vị bán. Không thể xuất hóa đơn điện tử.');
+ if(!inv.sellerSnapshot)inv.sellerSnapshot={...state.sellerProfile};
+ inv.eInvoiceStatus='Đã xuất (mô phỏng)';
+ inv.eInvoiceExportedAt=new Date().toISOString();
+ saveState();
+ alert('Đã xuất hóa đơn điện tử mô phỏng '+inv.id+'.');
+ renderPage();
+}
 function printLastCashierInvoice(){
  const id=state.lastCashierInvoiceId;
  if(!id)return alert('Chưa có hóa đơn vừa thanh toán.');
@@ -1286,7 +1297,7 @@ function applyInvoiceFilters(){
 function changeInvoicePage(d){state.invoicePage=Math.max(1,state.invoicePage+d);applyInvoiceFilters();}
 function invoiceTableRow(x,i){
  const status=x.status||'Còn nợ',cancelled=status==='Đã hủy';
- return '<tr><td data-col="0"><b>'+esc(x.id||'')+'</b></td><td data-col="1">'+esc(x.time||new Date(x.createdAt).toLocaleString('vi-VN'))+'</td><td data-col="2">'+esc(x.customerName||x.customer||'')+'</td><td data-col="3">'+esc(x.phone||'')+'</td><td data-col="4">'+money(x.amount||x.total||0)+' ₫</td><td data-col="5">'+money(x.discount||0)+' ₫</td><td data-col="6">'+money(x.total||0)+' ₫</td><td data-col="7">'+money(x.tax||0)+' ₫</td><td data-col="8">'+money(x.total||0)+' ₫</td><td data-col="9">'+money(x.paid||0)+' ₫</td><td data-col="10">'+esc(status)+'</td><td data-col="11">'+esc(x.note||'')+'</td><td><button class="btn btn-secondary" onclick="viewInvoice(\''+esc(x.id)+'\')">Xem</button> <button class="btn btn-secondary" onclick="printInvoice(\''+esc(x.id)+'\')">In lại</button> '+(!cancelled&&status==='Còn nợ'?'<button class="btn btn-secondary" onclick="openCollectDebt(\''+esc(x.id)+'\')">Thu nợ</button> ':'')+(!cancelled&&hasPermission('Hủy hóa đơn')?'<button class="btn btn-danger" onclick="openCancelInvoice(\''+esc(x.id)+'\')">Hủy</button>':'')+'</td></tr>';
+ return '<tr><td data-col="0"><b>'+esc(x.id||'')+'</b></td><td data-col="1">'+esc(x.time||new Date(x.createdAt).toLocaleString('vi-VN'))+'</td><td data-col="2">'+esc(x.customerName||x.customer||'')+'</td><td data-col="3">'+esc(x.phone||'')+'</td><td data-col="4">'+money(x.amount||x.total||0)+' ₫</td><td data-col="5">'+money(x.discount||0)+' ₫</td><td data-col="6">'+money(x.total||0)+' ₫</td><td data-col="7">'+money(x.tax||0)+' ₫</td><td data-col="8">'+money(x.total||0)+' ₫</td><td data-col="9">'+money(x.paid||0)+' ₫</td><td data-col="10">'+esc(status)+'</td><td data-col="11">'+esc(x.note||'')+'</td><td><button class="btn btn-secondary" onclick="viewInvoice(\''+esc(x.id)+'\')">Xem</button> <button class="btn btn-secondary" onclick="printInvoice(\''+esc(x.id)+'\')">In lại</button> <button class="btn btn-secondary" onclick="exportEInvoice(\''+esc(x.id)+'\')">Xuất HĐĐT</button> '+(!cancelled&&status==='Còn nợ'?'<button class="btn btn-secondary" onclick="openCollectDebt(\''+esc(x.id)+'\')">Thu nợ</button> ':'')+(!cancelled&&hasPermission('Hủy hóa đơn')?'<button class="btn btn-danger" onclick="openCancelInvoice(\''+esc(x.id)+'\')">Hủy</button>':'')+'</td></tr>';
 }
 function viewInvoice(id){
  const inv=state.invoices.find(x=>x.id===id);if(!inv)return;
@@ -2233,7 +2244,7 @@ function createInvoice(data){
    returnedAmountExVat:revenueFields.returnedAmountExVat,
    netRevenue:revenueFields.netRevenue,
    status:data.status||status,
-   sellerSnapshot:data.sellerSnapshot||null,
+   sellerSnapshot:data.sellerSnapshot||(hasSellerProfile()?{...state.sellerProfile}:null),
    eInvoiceStatus:data.eInvoiceStatus||'Chưa xuất',
  };
  state.invoices.unshift(invoice);
