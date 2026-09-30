@@ -347,8 +347,9 @@ state.funds=Array.isArray(state.funds)&&state.funds.length?state.funds:DEFAULT_F
 state.paymentFundMap=typeof state.paymentFundMap==='object'&&state.paymentFundMap?state.paymentFundMap:{'Tiền mặt':'FUND-CASH','Chuyển khoản':'FUND-BANK','Ví điện tử':'FUND-WALLET','Thẻ':'FUND-POS'};
 const fundById=id=>(state.funds||[]).find(f=>f.id===id)||null;
 function fundIdForPayment(pm){const n=normalizePaymentMethod(pm);return state.paymentFundMap[n]||'FUND-CASH';}
-(state.cashbook||[]).forEach(x=>{if(!x.fundId)x.fundId=fundIdForPayment(x.paymentMethod);});
+(state.cashbook||[]).forEach(x=>{if(!x.fundId)x.fundId=fundIdForPayment(x.paymentMethod);if(!x.category)x.category=cashCategoryFor(x);});
 saveState();
+
 function fundsPage(c){
  if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
  const opts=(state.funds||[]).filter(f=>f.active!==false).map(f=>'<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>').join('');
@@ -443,13 +444,15 @@ function isTransactionClosed(inv){
  const sh=shiftForTransaction(inv);
  return !!sh&&sh.status==='Đã chốt';
 }
-function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',referenceId='',note=''}) {
+const CASH_CATEGORIES=['Thu bán hàng','Thu nợ khách','Thu khác','Chi hoàn tiền trả hàng','Chi hoàn tiền hủy đơn','Chi nhập hàng','Chi vận hành','Chi lương/hoa hồng','Thừa quỹ','Thiếu quỹ','Chuyển quỹ','Phí ngân hàng/cà thẻ'];
+function cashCategoryFor({type,subject='',referenceId='',category=''}){if(CASH_CATEGORIES.includes(category))return category;const sub=String(subject||'').toLowerCase();if(sub.includes('thừa quỹ'))return 'Thừa quỹ';if(sub.includes('thiếu quỹ'))return 'Thiếu quỹ';if(sub.includes('trả hàng'))return 'Chi hoàn tiền trả hàng';if(sub.includes('hủy đơn'))return 'Chi hoàn tiền hủy đơn';if(sub.includes('nhập hàng'))return 'Chi nhập hàng';if(sub.includes('lương')||sub.includes('hoa hồng'))return 'Chi lương/hoa hồng';if(sub.includes('ngân hàng')||sub.includes('cà thẻ'))return 'Phí ngân hàng/cà thẻ';if(type==='thu'&&referenceId)return 'Thu bán hàng';return type==='thu'?'Thu khác':'Chi vận hành';}
+function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',referenceId='',note='',category=''}) {
  const value=Number(amount)||0;if(value<=0)return null;
  state.cashbook=Array.isArray(state.cashbook)?state.cashbook:[];
  const prefix=type==='thu'?'PT':'PC';
  const key=type==='thu'?'spa_next_receipt_id':'spa_next_payment_id';
  const id=nextAutoCode(prefix,6,key,state.cashbook,'id');
- const normalizedPaymentMethod=normalizePaymentMethod(paymentMethod);const row={id,type,amount:value,subject,paymentMethod:normalizedPaymentMethod,fundId:fundIdForPayment(normalizedPaymentMethod),referenceId,note,createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:getOpenShift()?.id||'',status:'Hoàn thành'};
+ const normalizedPaymentMethod=normalizePaymentMethod(paymentMethod);const normalizedCategory=cashCategoryFor({type,subject,referenceId,category});const row={id,type,amount:value,subject,category:normalizedCategory,paymentMethod:normalizedPaymentMethod,fundId:fundIdForPayment(normalizedPaymentMethod),referenceId,note,createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:getOpenShift()?.id||'',status:'Hoàn thành'};
  state.cashbook.push(row);return row;
 }
 function hasCashMovement(referenceId,type){
@@ -875,10 +878,13 @@ function saveOpenShift(){
 }
 function cashbookPage(c){
  if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
- const rows=(state.cashbook||[]).map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.type==='thu'?'Thu':'Chi')+'</td><td>'+esc(x.paymentMethod||'')+'</td><td>'+esc(x.subject||'')+'</td><td>'+money(x.amount||0)+' ₫</td><td>'+esc(x.shiftId||'—')+'</td><td>'+esc(x.note||'')+'</td></tr>').join('');
- const cash=(state.cashbook||[]).filter(x=>normalizePaymentMethod(x.paymentMethod||'Tiền mặt')==='Tiền mặt'); const deposits=(state.cashbook||[]).filter(x=>['Chuyển khoản','Ví điện tử','Thẻ'].includes(normalizePaymentMethod(x.paymentMethod||'')));
- const bal=a=>a.reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0); c.innerHTML='<div class="page-title">Sổ quỹ & tiền gửi</div><div class="kpis"><div class="kpi">Quỹ tiền mặt<div class="n">'+money(bal(cash))+' ₫</div></div><div class="kpi">Tiền gửi<div class="n">'+money(bal(deposits))+' ₫</div></div></div><div class="card report"><table><thead><tr><th>Mã</th><th>Loại</th><th>Phương thức</th><th>Đối tượng</th><th>Số tiền</th><th>Ca</th><th>Ghi chú</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+ const books=state.cashbook||[], cats=CASH_CATEGORIES;
+ const rows=books.map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.type==='thu'?'Thu':'Chi')+'</td><td>'+esc(x.category||cashCategoryFor(x))+'</td><td>'+esc(fundById(x.fundId)?.name||'—')+'</td><td>'+esc(x.subject||'')+'</td><td style="text-align:right">'+money(x.amount||0)+' ₫</td><td>'+esc(x.shiftId||'—')+'</td><td>'+esc(x.note||'')+'</td></tr>').join('');
+ const fundRows=(state.funds||[]).filter(f=>f.active!==false).map(f=>{const a=books.filter(x=>x.fundId===f.id);const thu=a.filter(x=>x.type==='thu').reduce((s,x)=>s+Number(x.amount||0),0),chi=a.filter(x=>x.type==='chi').reduce((s,x)=>s+Number(x.amount||0),0);return '<tr><td>'+esc(f.name)+'</td><td style="text-align:right">'+money(0)+' ₫</td><td style="text-align:right">'+money(thu-chi)+' ₫</td><td style="text-align:right">'+money(thu-chi)+' ₫</td></tr>'}).join('');
+ const catRows=cats.map(cat=>{const a=books.filter(x=>(x.category||cashCategoryFor(x))===cat),v=a.reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0);return '<tr><td>'+esc(cat)+'</td><td style="text-align:right">'+money(v)+' ₫</td></tr>'}).join('');
+ c.innerHTML='<div class="page-title">Sổ quỹ & tiền gửi</div><div class="card report"><h3>Theo quỹ</h3><table><thead><tr><th>Quỹ</th><th>Đầu kỳ</th><th>Phát sinh</th><th>Cuối kỳ</th></tr></thead><tbody>'+fundRows+'</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Theo category</h3><table><thead><tr><th>Category</th><th style="text-align:right">Thuần</th></tr></thead><tbody>'+catRows+'</tbody></table></div><div class="card report" style="margin-top:15px"><table><thead><tr><th>Mã</th><th>Loại</th><th>Category</th><th>Quỹ</th><th>Đối tượng</th><th>Số tiền</th><th>Ca</th><th>Ghi chú</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
+
 function openCloseShift(){
  if(!hasPermission('Chốt quỹ'))return alert('Bạn không có quyền chốt quỹ.');
  const sh=getOpenShift();if(!sh)return alert('Không có ca đang mở.');
