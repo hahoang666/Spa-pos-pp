@@ -1448,8 +1448,8 @@ function createTherapyCardFromInvoice(invoice){
  state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
  const created=[];
  packageItems.forEach(it=>{
-   const p=state.products.find(x=>x.code===it.code),sessions=getPackageSessions(p)*Math.max(1,Number(it.qty)||1);
-   const card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,totalSessions:sessions,remainingSessions:sessions,expiresAt:'',status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
+   const p=state.products.find(x=>x.code===it.code),qty=Math.max(1,Number(it.qty)||1),sessions=getPackageSessions(p)*qty,gross=(Number(it.price)||0)*qty,discount=Math.min(gross,Math.max(0,Number(it.discount)||0)),vatRate=Number(p?.vat??10);
+   const card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,packageGross:gross,packageDiscount:discount,vatRate,allocatedPackageValue:(vatRate?Math.max(0,gross-discount)/(1+vatRate/100):Math.max(0,gross-discount)),totalSessions:sessions,remainingSessions:sessions,expiresAt:'',status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
    state.therapyCards.push(card);created.push(card);
  });
  return created;
@@ -4324,6 +4324,48 @@ state.section='Tổng quan';
 state.page='Tổng quan';
 initLogin();
 renderAll();
+
+function therapyCommissionRule(productCode){
+ const r=(state.commissionRules||[]).find(x=>x.productCode===productCode);
+ return {rate:Math.max(0,Number(r?.rate)||0)};
+}
+function therapyPackageNetExVat(card){
+ const gross=Math.max(0,Number(card?.packageGross||card?.packagePrice||0));
+ const discount=Math.min(gross,Math.max(0,Number(card?.packageDiscount)||0));
+ const afterDiscount=Math.max(0,gross-discount);
+ const rate=Math.max(0,Number(card?.vatRate)||0);
+ return rate?afterDiscount/(1+rate/100):afterDiscount;
+}
+function therapySessionValue(card){
+ return therapyPackageNetExVat(card)/Math.max(1,Number(card?.totalSessions)||1);
+}
+function therapySessionCommission(card){
+ const rule=therapyCommissionRule(card.productCode);
+ return {rate:rule.rate,value:therapySessionValue(card),amount:therapySessionValue(card)*rule.rate/100};
+}
+function useTherapySession(cardId,employeeId){
+ const card=(state.therapyCards||[]).find(x=>x.id===cardId);
+ if(!card)return alert('Không tìm thấy thẻ liệu trình.');
+ if(card.status==='Đã hủy'||card.remainingSessions<=0)return alert('Thẻ liệu trình không còn buổi.');
+ const emp=(state.employees||[]).find(x=>x.id===employeeId);
+ if(!emp)return alert('Vui lòng chọn nhân viên thực hiện.');
+ const now=new Date().toISOString(),calc=therapySessionCommission(card);
+ card.usageHistory=Array.isArray(card.usageHistory)?card.usageHistory:[];
+ const usageId=nextAutoCode('SD',6,'spa_next_therapy_usage_id',card.usageHistory,'id');
+ card.remainingSessions--;
+ card.usageHistory.push({id:usageId,at:now,employeeId,employeeName:emp.name||emp.username||'',allocatedValue:calc.value,commissionRate:calc.rate,commissionAmount:calc.amount,status:'Đã thực hiện'});
+ state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
+ if(calc.amount>0)state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),usageId,therapyCardId:card.id,invoiceId:card.invoiceId||'',employeeId,employeeName:emp.name||emp.username||'',productCode:card.productCode,productName:card.productName,revenue:calc.value,rate:calc.rate,amount:calc.amount,createdAt:now,status:'Đang ghi nhận',reversed:false});
+ if(card.remainingSessions===0)card.status='Đã hết buổi';
+ saveState();return calc;
+}
+function undoTherapySession(cardId,usageId){
+ const card=(state.therapyCards||[]).find(x=>x.id===cardId),usage=card?.usageHistory?.find(x=>x.id===usageId);
+ if(!card||!usage||usage.status==='Đã hoàn tác')return false;
+ usage.status='Đã hoàn tác';usage.undoneAt=new Date().toISOString();card.remainingSessions=Math.min(Number(card.totalSessions)||0,Number(card.remainingSessions||0)+1);if(card.status==='Đã hết buổi')card.status='Đang sử dụng';
+ (state.serviceCommissions||[]).filter(x=>x.usageId===usageId&&!x.reversed).forEach(x=>{x.reversed=true;x.status='Đã hoàn tác';x.reversedAt=new Date().toISOString();});
+ saveState();return true;
+}
 </script>
 </body>
 </html>function findCommissionRule(productCode){
