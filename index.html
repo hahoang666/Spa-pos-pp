@@ -719,7 +719,7 @@ function useTherapySession(id){
  const product=state.products.find(x=>x.code===card.productCode);
  const commissionAmount=rate>0?Number(product?.price||0)*rate/100:0;
  consumeMaterialsForService(card.productCode,1,usageId);
- card.remainingSessions--;if(card.remainingSessions===0)card.status='Đã hết buổi';
+ card.remainingSessions--;recognizeTherapyRevenue(card,Number(card.sessionValue||0),'realize','Thực hiện 1 buổi');if(card.remainingSessions===0)card.status='Đã hết buổi';
  card.lastUsedAt=now;
  card.usageHistory=Array.isArray(card.usageHistory)?card.usageHistory:[];
  card.usageHistory.push({id:usageId,at:now,employeeId,employeeName:employee?.name||employee?.username||'',consultantId,consultantName:consultant?.name||consultant?.username||'',customerSignature:signature,confirmedAt:now,status:'Đã thực hiện'});
@@ -735,7 +735,7 @@ function undoTherapySession(cardId,usageId){
  const usage=(card.usageHistory||[]).find(x=>x.id===usageId&&x.status==='Đã thực hiện');if(!usage)return alert('Không tìm thấy buổi cần hoàn tác.');
  if(!confirm('Hoàn tác buổi này? Hệ thống sẽ hoàn lại 1 buổi, nguyên liệu và hoa hồng.'))return;
  restoreMaterialUsage(usageId);
- card.remainingSessions=Math.min(Number(card.totalSessions||card.remainingSessions+1),Number(card.remainingSessions||0)+1);
+ card.remainingSessions=Math.min(Number(card.totalSessions||card.remainingSessions+1),Number(card.remainingSessions||0)+1);recognizeTherapyRevenue(card,Number(card.sessionValue||0),'defer','Hoàn tác buổi');
  card.status='Đang sử dụng';
  usage.status='Đã hoàn tác';usage.reversedAt=new Date().toISOString();
  (state.serviceCommissions||[]).filter(x=>x.usageId===usageId&&!x.reversed).forEach(x=>{x.status='Đã hoàn tác';x.reversed=true;});
@@ -1839,6 +1839,7 @@ function genericPage(c,title,col1,col2){
   <div class="filter-group"><div class="filter-title">${col2}</div><select class="field"><option>Chọn ${col2.toLowerCase()}</option></select></div>
  </div><div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>${col1}</th><th>Thời gian</th><th>${col2}</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead><tbody><tr><td colspan="6"><div class="empty"><div class="circle">▣</div>Chưa có dữ liệu</div></td></tr></tbody></table></div></div>`;
 }
+function setExpiredRevenueAction(value){const cfg=getRevenueRecognitionConfig();cfg.expiredAction=value;cfg.expiredReason=value==='recognize'?'Thẻ hết hạn - ghi nhận doanh thu':'Thẻ hết hạn - giữ lại số dư';saveState();reportPage(document.getElementById('content'));}
 function reportPage(c){
  if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo doanh thu.</div>';return;}
  const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
@@ -1859,7 +1860,7 @@ function reportPage(c){
    <div class="kpi">Khách hàng<div class="n">${customers}</div></div>
    <div class="kpi">Giá trị TB/HĐ<div class="n">${money(avg)} ₫</div></div>
   </div>
-  <div class="grid-2">
+  <div class="card report" style="margin-bottom:15px"><h3>Doanh thu gói dịch vụ</h3><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px"><div class="kpi">Doanh thu thực hiện<div class="n">'+money(unearnedRevenueSummary().realized)+' ₫</div></div><div class="kpi">Chưa thực hiện còn lại<div class="n">'+money(unearnedRevenueSummary().unearned)+' ₫</div></div></div><div style="margin-top:12px;color:#667085;font-size:13px">Số dư chưa thực hiện = tổng (buổi còn lại × giá trị một buổi) của các thẻ còn hiệu lực.</div><div style="margin-top:12px;display:flex;gap:8px;align-items:center"><label style="font-weight:600">Khi thẻ hết hạn:</label><select class="field" style="max-width:260px" onchange="setExpiredRevenueAction(this.value)"><option value="defer" '+(getRevenueRecognitionConfig().expiredAction==='defer'?'selected':'')+'>Giữ lại số dư</option><option value="recognize" '+(getRevenueRecognitionConfig().expiredAction==='recognize'?'selected':'')+'>Ghi nhận doanh thu</option></select></div><div style="margin-top:6px;color:#667085;font-size:12px">Lý do xử lý được lưu cùng bút toán chuyển doanh thu.</div></div>  <div class="grid-2">
    <div class="card report"><h3>Tình hình thanh toán</h3>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px">
      <div class="kpi">Đã thanh toán<div class="n">${money(paid)} ₫</div></div>
@@ -2218,18 +2219,13 @@ function calcInvoice(){
  const amount=q*r;const grand=Math.max(0,amount-d);const product=state.products[Number(document.getElementById('productSelect').value)||0];const vat=Number(product?.vat)||0;const tax=vat>0?grand-(grand/(1+vat/100)):0;
  document.getElementById('sum').innerText=money(amount)+' ₫';document.getElementById('tax').innerText=money(tax)+' ₫';document.getElementById('grand').innerText=money(grand)+' ₫';
 }
-function createTherapyCardFromInvoice(invoice){
- const packageItems=(invoice.items||[]).filter(it=>{const p=state.products.find(x=>x.code===it.code);return p&&p.type==='Gói dịch vụ, liệu trình';});
- if(!packageItems.length)return [];
- state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const created=[];
- packageItems.forEach(it=>{
-   const p=state.products.find(x=>x.code===it.code),sessions=getPackageSessions(p)*Math.max(1,Number(it.qty)||1);
-   const card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,totalSessions:sessions,remainingSessions:sessions,sessionValue:getPackageSessionValue(p),expiresAt:packageExpiryDate(p),status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
-   state.therapyCards.push(card);created.push(card);
- });
- return created;
-}
+function getRevenueRecognitionConfig(){state.revenueRecognitionConfig=state.revenueRecognitionConfig||{expiredAction:'defer',expiredReason:'Chưa xử lý số dư thẻ hết hạn'};return state.revenueRecognitionConfig;}
+function packageValueExVatFromInvoiceItem(item,product){const qty=Math.max(1,Number(item?.qty)||1),grossIncl=Math.max(0,(Number(item?.price)||0)*qty-Math.max(0,Number(item?.discount)||0)),rate=Math.max(0,Number(item?.vat??product?.vat)||0);return rate>0?grossIncl/(1+rate/100):grossIncl;}
+function recognizeTherapyRevenue(card,amount,type,reason){const value=Math.max(0,Number(amount)||0);if(!value)return;card.revenueLedger=Array.isArray(card.revenueLedger)?card.revenueLedger:[];card.revenueLedger.push({id:nextAutoCode('DT',6,'spa_next_revenue_transfer_id',card.revenueLedger,'id'),type,amount:value,reason:reason||'',createdAt:new Date().toISOString()});card.realizedRevenue=Math.max(0,Number(card.realizedRevenue)||0)+(type==='realize'?value:-value);card.unearnedRevenue=Math.max(0,Number(card.unearnedRevenue)||0)+(type==='realize'?-value:value);}
+function syncExpiredTherapyCards(){const today=localDateKey(new Date()),cfg=getRevenueRecognitionConfig();(state.therapyCards||[]).forEach(card=>{if(card.expiresAt&&card.expiresAt<today&&card.status!=='Đã xử lý hết hạn'&&Number(card.remainingSessions)>0){if(cfg.expiredAction==='recognize'){const amount=Number(card.remainingSessions||0)*Number(card.sessionValue||0);recognizeTherapyRevenue(card,amount,'realize','Thẻ hết hạn - ghi nhận số dư theo cấu hình');card.remainingSessions=0;card.status='Đã xử lý hết hạn';card.expiredProcessedAt=new Date().toISOString();}else{card.status='Hết hạn - giữ số dư';card.expiredReason=cfg.expiredReason||'Thẻ hết hạn - giữ lại số dư';}}});}
+function unearnedRevenueSummary(){syncExpiredTherapyCards();let unearned=0,realized=0;(state.therapyCards||[]).forEach(card=>{if(card.status==='Hết hạn - giữ số dư')return;unearned+=Math.max(0,Number(card.remainingSessions||0)*Number(card.sessionValue||0));realized+=Math.max(0,Number(card.realizedRevenue)||0);});return {unearned:Math.round(unearned),realized:Math.round(realized)};}
+function createTherapyCardFromInvoice(invoice){const packageItems=(invoice.items||[]).filter(it=>{const p=state.products.find(x=>x.code===it.code);return p&&p.type==='Gói dịch vụ, liệu trình';});if(!packageItems.length)return [];state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];const created=[];packageItems.forEach(it=>{const p=state.products.find(x=>x.code===it.code),sessions=getPackageSessions(p)*Math.max(1,Number(it.qty)||1),packageExVat=packageValueExVatFromInvoiceItem(it,p),sessionValue=sessions>0?packageExVat/sessions:getPackageSessionValue(p),card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,totalSessions:sessions,remainingSessions:sessions,sessionValue,unearnedRevenue:packageExVat,realizedRevenue:0,revenueLedger:[],expiresAt:packageExpiryDate(p),status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};card.revenueLedger.push({id:nextAutoCode('DT',6,'spa_next_revenue_transfer_id',[],'id'),type:'defer',amount:packageExVat,reason:'Bán gói - ghi nhận doanh thu chưa thực hiện',createdAt:new Date().toISOString()});state.therapyCards.push(card);created.push(card);});return created;}
+
 function invoiceRevenueFields(data){
  const items=Array.isArray(data?.items)?data.items:[];
  let grossExVat=0,vatAmount=0;
