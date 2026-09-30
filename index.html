@@ -608,7 +608,7 @@ function renderAll(){saveState();renderNav();renderSidebar();renderUserSession()
 
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession('${escJs(x.id)}')">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession('${escJs(x.id)}','${escJs(u.id)}')">Hoàn tác</button>').join('')}</td></tr>`).join('');
+ const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession(${JSON.stringify(x.id)})">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession('+JSON.stringify(x.id)+','+JSON.stringify(u.id)+')">Hoàn tác</button>').join('')}</td></tr>`).join('');
  c.innerHTML=header('Thẻ liệu trình','Tạo thẻ liệu trình','openTherapyCard()')+'<div class="card table-wrap"><table><thead><tr><th>Mã thẻ</th><th>Khách hàng</th><th>Liệu trình</th><th>Tổng buổi</th><th>Còn lại</th><th>Hạn dùng</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có thẻ liệu trình</div></td></tr>')+'</tbody></table></div>';
 }
 function getPackageSessions(product){
@@ -700,7 +700,7 @@ function undoTherapySession(cardId,usageId){
 
 function employeeProfilePage(c){
  const emps=Array.isArray(state.employees)?state.employees:[];
- const rows=emps.map(e=>{const acc=e.accountId?state.accounts.find(a=>a.id===e.accountId):null;return '<tr><td>'+esc(e.id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.phone||'—')+'</td><td>'+esc(e.position||'—')+'</td><td>'+esc(e.specialties||'—')+'</td><td>'+esc(e.status||'')+'</td><td>'+esc(acc?.username||'Không có')+'</td><td><button class="btn btn-secondary" onclick="openEditEmployeeProfile(\\''+escJs(e.id)+'\\')">Sửa</button></td></tr>';}).join('');
+ const rows=emps.map(e=>{const acc=e.accountId?state.accounts.find(a=>a.id===e.accountId):null;return '<tr><td>'+esc(e.id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.phone||'—')+'</td><td>'+esc(e.position||'—')+'</td><td>'+esc(e.specialties||'—')+'</td><td>'+esc(e.status||'')+'</td><td>'+esc(acc?.username||'Không có')+'</td><td><button class="btn btn-secondary" onclick="openEditEmployeeProfile('+JSON.stringify(e.id)+')">Sửa</button></td></tr>';}).join('');
  c.innerHTML=header('Nhân viên','Thêm nhân sự','openCreateEmployeeProfile')+'<div class="card" style="margin-bottom:12px;padding:14px"><div style="font-size:13px;color:#667085">Hồ sơ nhân sự độc lập với tài khoản đăng nhập. Kỹ thuật viên/tư vấn có thể tồn tại mà không cần username/password.</div></div><div class="card table-wrap"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>SĐT</th><th>Chức danh</th><th>Chuyên môn</th><th>Trạng thái</th><th>Tài khoản</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có hồ sơ nhân sự</div></td></tr>')+'</tbody></table></div>';
 }
 function openCreateEmployeeProfile(){
@@ -719,7 +719,7 @@ function saveEmployeeProfile(){
 function openEditEmployeeProfile(id){
  const e=state.employees.find(x=>x.id===id);if(!e)return;
  const accounts=state.accounts.filter(a=>a.role!=='Admin'&&(!state.employees.some(x=>x.id!==id&&x.accountId===a.id)||a.id===e.accountId)).map(a=>'<option value="'+esc(a.id)+'" '+(a.id===e.accountId?'selected':'')+'>'+esc(a.name)+' - '+esc(a.username)+'</option>').join('');
- openModal('Sửa hồ sơ nhân sự','<div class="form-grid"><div><label>Mã NV</label><input class="field" value="'+esc(e.id)+'" readonly></div><div><label>Họ và tên *</label><input id="epName" class="field" value="'+esc(e.name)+'"></div><div><label>Số điện thoại</label><input id="epPhone" class="field" value="'+esc(e.phone||'')+'"></div><div><label>Email</label><input id="epEmail" class="field" value="'+esc(e.email||'')+'"></div><div><label>Chức danh *</label><input id="epPosition" class="field" value="'+esc(e.position||'')+'"></div><div><label>Chuyên môn</label><input id="epSpecialties" class="field" value="'+esc(e.specialties||'')+'"></div><div><label>Tài khoản hệ thống</label><select id="epAccount" class="field"><option value="">Không có tài khoản</option>'+accounts+'</select></div><div><label>Trạng thái</label><select id="epStatus" class="field"><option '+(e.status==='Hoạt động'?'selected':'')+'>Hoạt động</option><option '+(e.status==='Ngừng hoạt động'?'selected':'')+'>Ngừng hoạt động</option></select></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="updateEmployeeProfile(\\''+escJs(id)+'\\')">Lưu</button>');
+ openModal('Sửa hồ sơ nhân sự','<div class="form-grid"><div><label>Mã NV</label><input class="field" value="'+esc(e.id)+'" readonly></div><div><label>Họ và tên *</label><input id="epName" class="field" value="'+esc(e.name)+'"></div><div><label>Số điện thoại</label><input id="epPhone" class="field" value="'+esc(e.phone||'')+'"></div><div><label>Email</label><input id="epEmail" class="field" value="'+esc(e.email||'')+'"></div><div><label>Chức danh *</label><input id="epPosition" class="field" value="'+esc(e.position||'')+'"></div><div><label>Chuyên môn</label><input id="epSpecialties" class="field" value="'+esc(e.specialties||'')+'"></div><div><label>Tài khoản hệ thống</label><select id="epAccount" class="field"><option value="">Không có tài khoản</option>'+accounts+'</select></div><div><label>Trạng thái</label><select id="epStatus" class="field"><option '+(e.status==='Hoạt động'?'selected':'')+'>Hoạt động</option><option '+(e.status==='Ngừng hoạt động'?'selected':'')+'>Ngừng hoạt động</option></select></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="updateEmployeeProfile('+JSON.stringify(id)+')">Lưu</button>');
 }
 function updateEmployeeProfile(id){
  const e=state.employees.find(x=>x.id===id);if(!e)return;
@@ -1169,7 +1169,7 @@ function completeCashierSale(){
  const consultant=employees.find(x=>x.id===state.cashierConsultantId);
  const hasPriorPurchase=(state.invoices||[]).some(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===customer.code);
  const customerType=hasPriorPurchase?'Cũ':'Mới';
- const netBeforeOrder=cart.reduce((s,x)=>s+Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0)),0);
+ const netBeforeOrder=cart.reduce((s,x)=>s+Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0))),0);
  const invoiceItems=cart.map(x=>{
    const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0));
    const lineDisc=Math.min(Math.max(0,Number(x.discount)||0),gross);
@@ -1668,7 +1668,7 @@ function saveStockDocument(type){
 function stockDocumentPage(c,type){
  const cfg=stockDocConfig(type),arr=Array.isArray(state[cfg.arr])?state[cfg.arr]:[];
  const rows=arr.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.date||'')+'</td><td>'+esc(x.subject||'')+'</td><td>'+esc(x.productName||'')+'</td><td>'+x.quantity+'</td><td>'+money((Number(x.quantity)||0)*(Number(x.price)||0))+' ₫</td><td>'+esc(x.status||'')+'</td></tr>').join('');
- c.innerHTML=header(type,'Tạo phiếu','openStockDocument(\\''+type+'\\')')+'<div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Ngày</th><th>Đối tượng</th><th>Hàng hóa</th><th>SL</th><th>Giá trị</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có dữ liệu</div></td></tr>')+'</tbody></table></div>';
+ c.innerHTML=header(type,'Tạo phiếu','openStockDocument('+JSON.stringify(type)+')')+'<div class="card table-wrap"><table><thead><tr><th>Mã</th><th>Ngày</th><th>Đối tượng</th><th>Hàng hóa</th><th>SL</th><th>Giá trị</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có dữ liệu</div></td></tr>')+'</tbody></table></div>';
 }
 function transferPage(c){
  const arr=Array.isArray(state.transfers)?state.transfers:[];
