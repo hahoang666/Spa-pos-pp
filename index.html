@@ -420,7 +420,7 @@ const menus={
   'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ','Khóa kỳ sổ quỹ','Nhật ký sổ quỹ'],
   'Kho & Nguyên liệu':['Kho nguyên liệu','Định mức nguyên liệu'],
   'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
-  'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
+  'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu','Kiểm tra dữ liệu']
 };
 
 
@@ -1228,6 +1228,74 @@ function hasSellerProfile(){
   if(state.page==='Chuyển quỹ nội bộ') return internalFundTransferPage(c);
   if(state.page==='Khóa kỳ sổ quỹ') return cashbookLockPage(c);
   if(state.page==='Nhật ký sổ quỹ') return cashbookAuditPage(c);
+function dataCheckPage(c){
+ if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem Kiểm tra dữ liệu.</div>';return;}
+ const r=runDataChecks();
+ const status=v=>v.ok?'Đạt':'Lệch';
+ const badge=v=>v.ok?'<span style="color:#16a34a;font-weight:700">Đạt</span>':'<span style="color:#d92d20;font-weight:700">Lệch</span>';
+ const rows=r.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.name)+'</td><td>'+badge(x)+'</td><td style="text-align:right">'+esc(String(x.diffText||''))+'</td><td>'+(x.details.length?'<button class="btn btn-secondary" onclick="showDataCheckDetails('+i+')">Xem '+x.details.length+' chứng từ</button>':'—')+'</td></tr>').join('');
+ state.dataCheckResults=r;
+ c.innerHTML='<div class="page-title">Kiểm tra dữ liệu</div><div class="card report"><p class="dashboard-note">Đối chiếu dữ liệu hóa đơn, trả hàng, sổ quỹ, chuyển quỹ và trường bắt buộc. Nhấn vào số chứng từ để xem chi tiết khi có lệch.</p><table><thead><tr><th>#</th><th>Phép đối chiếu</th><th>Kết quả</th><th>Chênh lệch</th><th>Chi tiết</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function showDataCheckDetails(index){
+ const x=(state.dataCheckResults||[])[Number(index)];
+ if(!x)return;
+ const body=x.details.map(d=>'<tr><td>'+esc(d.id||'—')+'</td><td>'+esc(d.ref||'—')+'</td><td>'+esc(d.message||'')+'</td></tr>').join('');
+ openModal(x.name,'<div class="table-wrap"><table><thead><tr><th>Chứng từ</th><th>Tham chiếu</th><th>Chi tiết</th></tr></thead><tbody>'+body+'</tbody></table></div>','<button class="btn btn-secondary" onclick="closeModal()">Đóng</button>');
+}
+function runDataChecks(){
+ const books=Array.isArray(state.cashbook)?state.cashbook:[];
+ const invoices=Array.isArray(state.invoices)?state.invoices:[];
+ const returns=Array.isArray(state.returns)?state.returns:[];
+ const details=[];
+ const validInvoices=invoices.filter(inv=>inv.status!=='Đã hủy'&&inv.status!=='Hủy');
+ const returnByInvoice=new Map();
+ returns.filter(r=>r.status!=='Đã hủy').forEach(r=>returnByInvoice.set(r.invoiceId,(returnByInvoice.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0));
+ const cashRelevant=books.filter(x=>['Thu bán hàng','Thu nợ khách','Chi hoàn tiền trả hàng','Chi hoàn tiền hủy đơn'].includes(x.category));
+ const expectedTotal=validInvoices.reduce((sum,inv)=>sum+invoicePaymentTotal(inv)-Number(returnByInvoice.get(inv.id)||0),0);
+ const actualTotal=cashRelevant.reduce((sum,x)=>sum+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);
+ if(Math.abs(expectedTotal-actualTotal)>0.001){
+   validInvoices.forEach(inv=>{
+     const expected=invoicePaymentTotal(inv)-Number(returnByInvoice.get(inv.id)||0);
+     const actual=cashRelevant.filter(x=>x.referenceId===inv.id).reduce((sum,x)=>sum+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);
+     if(Math.abs(expected-actual)>0.001)details.push({id:inv.id,ref:inv.id,message:'Hóa đơn '+money(expected)+' ₫ nhưng cashbook theo referenceId là '+money(actual)+' ₫.'});
+   });
+   cashRelevant.filter(x=>!validInvoices.some(inv=>inv.id===x.referenceId)&&!returns.some(r=>r.id===x.referenceId)).forEach(x=>details.push({id:x.id,ref:x.referenceId,message:'Dòng cashbook không truy được hóa đơn/phiếu trả hợp lệ.'}));
+ }
+ const check1={name:'1. Thanh toán hóa đơn ↔ cashbook',ok:Math.abs(expectedTotal-actualTotal)<=0.001,diffText:money(expectedTotal-actualTotal)+' ₫',details};
+ const refundDetails=[];
+ books.filter(x=>['Chi hoàn tiền trả hàng','Chi hoàn tiền hủy đơn'].includes(x.category)).forEach(x=>{
+   const ok=returns.some(r=>r.id===x.referenceId&&r.status!=='Đã hủy')||invoices.some(inv=>inv.id===x.referenceId&&inv.status!=='Đã hủy'&&x.category==='Chi hoàn tiền hủy đơn');
+   if(!ok)refundDetails.push({id:x.id,ref:x.referenceId,message:'referenceId không trỏ tới phiếu trả hoặc hóa đơn tồn tại.'});
+ });
+ const check2={name:'2. Phiếu hoàn có referenceId hợp lệ',ok:refundDetails.length===0,diffText:refundDetails.length+' dòng lỗi',details:refundDetails};
+ const fundDetails=[];
+ let allOpening=0,allNet=0;
+ (state.funds||[]).filter(f=>f.active!==false).forEach(f=>{
+   const opening=fundOpening(f), movements=fundMovements(f.id), thu=movements.filter(x=>x.type==='thu').reduce((a,x)=>a+Number(x.amount||0),0), chi=movements.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0), end=opening+thu-chi, actual=fundBalance(f.id), diff=end-actual;
+   allOpening+=opening;allNet+=thu-chi;
+   if(Math.abs(diff)>0.001)fundDetails.push({id:f.id,ref:f.id,message:'Quỹ '+f.name+': công thức cuối kỳ lệch '+money(diff)+' ₫.'});
+ });
+ const allEnd=allOpening+allNet, allActual=(state.funds||[]).filter(f=>f.active!==false).reduce((a,f)=>a+fundBalance(f.id),0);
+ if(Math.abs(allEnd-allActual)>0.001)fundDetails.push({id:'ALL',ref:'—',message:'Tổng toàn bộ quỹ lệch '+money(allEnd-allActual)+' ₫.'});
+ const check3={name:'3. Đầu kỳ + thu − chi = cuối kỳ',ok:fundDetails.length===0,diffText:money(allEnd-allActual)+' ₫',details:fundDetails};
+ const transferGroups=new Map();
+ books.filter(x=>x.category==='Chuyển quỹ').forEach(x=>{const k=x.transferCode||x.referenceId||x.id;(transferGroups.get(k)||transferGroups.set(k,[]).get(k)).push(x);});
+ const transferDetails=[];
+ transferGroups.forEach((rows,k)=>{
+   const thu=rows.filter(x=>x.type==='thu'),chi=rows.filter(x=>x.type==='chi'),t=thu.reduce((a,x)=>a+Number(x.amount||0),0),q=chi.reduce((a,x)=>a+Number(x.amount||0),0);
+   if(rows.length!==2||thu.length!==1||chi.length!==1||Math.abs(t-q)>0.001)transferDetails.push({id:k,ref:k,message:'Cặp chuyển quỹ thiếu một chân hoặc số tiền không bằng nhau.'});
+ });
+ const check4={name:'4. Cặp chuyển quỹ đủ hai chân',ok:transferDetails.length===0,diffText:transferDetails.length+' cặp lỗi',details:transferDetails};
+ const missingDetails=[];
+ books.forEach(x=>{
+   const missing=[];
+   if(!x.fundId)missing.push('fundId'); if(!x.category)missing.push('category'); if(!x.shiftId&&normalizePaymentMethod(x.paymentMethod)==='Tiền mặt')missing.push('shiftId');
+   if(missing.length)missingDetails.push({id:x.id,ref:x.referenceId,message:'Thiếu: '+missing.join(', ')});
+ });
+ const check5={name:'5. Trường bắt buộc của cashbook',ok:missingDetails.length===0,diffText:missingDetails.length+' dòng lỗi',details:missingDetails};
+ return [check1,check2,check3,check4,check5];
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
@@ -1250,7 +1318,7 @@ function renderPage(){
   if(state.page==='Chuyển hàng') return transferPage(c);
   if(state.page==='Kiểm kho') return stocktakePage(c);
   if(state.page==='Trả hàng') return returnPage(c);
-  if(state.page==='Hóa đơn đầu vào') return purchaseInvoicePage(c);
+  if(state.page==='Hóa đơn đầu vào') return purchaseInvoicePage(c);\n  if(state.page==='Kiểm tra dữ liệu') return dataCheckPage(c);
   if(state.page==='Kho hàng') return inventoryPage(c);
   if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
