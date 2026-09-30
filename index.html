@@ -415,7 +415,7 @@ const menus={
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
   'Khách hàng':['Thẻ liệu trình','Khách hàng','Nhân viên'],
-  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ'],
+  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ','Khóa kỳ sổ quỹ'],
   'Kho & Nguyên liệu':['Kho nguyên liệu','Định mức nguyên liệu'],
   'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
@@ -429,7 +429,7 @@ const permissionCatalog={
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Thêm bảng giá','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
   'Báo cáo':['Xem biểu đồ','Xuất Excel'],
-  'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ','Quản lý kho nguyên liệu'],
+  'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ','Quản lý kho nguyên liệu','Khóa kỳ sổ quỹ'],
   'Quản trị':['Quản lý tài khoản','Phân quyền User']
 };
 const allPermissions=Object.values(permissionCatalog).flat();
@@ -473,11 +473,31 @@ function isTransactionClosed(inv){
 const CASH_CATEGORIES=['Thu bán hàng','Thu nợ khách','Thu khác','Chi hoàn tiền trả hàng','Chi hoàn tiền hủy đơn','Chi nhập hàng','Chi vận hành','Chi lương/hoa hồng','Thừa quỹ','Thiếu quỹ','Chuyển quỹ','Phí ngân hàng/cà thẻ'];
 function cashCategoryFor({type,subject='',referenceId='',category=''}){if(CASH_CATEGORIES.includes(category))return category;const sub=String(subject||'').toLowerCase();if(sub.includes('thừa quỹ'))return 'Thừa quỹ';if(sub.includes('thiếu quỹ'))return 'Thiếu quỹ';if(sub.includes('trả hàng'))return 'Chi hoàn tiền trả hàng';if(sub.includes('hủy đơn'))return 'Chi hoàn tiền hủy đơn';if(sub.includes('nhập hàng'))return 'Chi nhập hàng';if(sub.includes('lương')||sub.includes('hoa hồng'))return 'Chi lương/hoa hồng';if(sub.includes('ngân hàng')||sub.includes('cà thẻ'))return 'Phí ngân hàng/cà thẻ';if(type==='thu'&&referenceId)return 'Thu bán hàng';return type==='thu'?'Thu khác':'Chi vận hành';}
 function localTxnDate(d=new Date()){return d.toISOString().slice(0,10);}
+function cashbookLockedUntil(){return state.settings?.cashbookLockedUntil||'';}
+function cashbookLockReason(date){const lock=cashbookLockedUntil();return lock&&String(date||'')<=lock?'Sổ quỹ đã khóa đến '+lock+'. Giao dịch phát sinh muộn phải ghi vào kỳ hiện hành và ghi chú.':null;}
+function logCashbookLock(action,details=''){state.cashbookLockLogs=Array.isArray(state.cashbookLockLogs)?state.cashbookLockLogs:[];state.cashbookLockLogs.push({id:'LOCK'+Date.now(),action,details,at:new Date().toISOString(),by:state.currentUser?.id||''});}
+function cashbookLockPage(c){
+ if(!hasPermission('Khóa kỳ sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền quản lý khóa kỳ sổ quỹ.</div>';return;}
+ const lock=cashbookLockedUntil();
+ c.innerHTML='<div class="page-title">Khóa kỳ sổ quỹ</div><div class="card report"><p>Khóa đến ngày: <b>'+esc(lock||'Chưa khóa')+'</b></p><label>Khóa đến ngày<input id="cashbookLockedUntil" class="field" type="date" value="'+esc(lock)+'"></label><div style="margin-top:12px"><button class="btn btn-primary" onclick="saveCashbookLock()">Lưu khóa kỳ</button> <button class="btn btn-secondary" onclick="reopenCashbookLock()">Mở lại kỳ</button></div><p class="dashboard-note">Không được thêm, đảo hoặc sửa giao dịch có ngày ≤ ngày khóa. Mọi lần khóa/mở lại đều được ghi log.</p></div>';
+}
+function saveCashbookLock(){
+ if(!hasPermission('Khóa kỳ sổ quỹ'))return alert('Bạn không có quyền khóa kỳ sổ quỹ.');
+ const d=document.getElementById('cashbookLockedUntil').value;
+ if(!d)return alert('Chọn ngày khóa.');
+ state.settings=state.settings||{};state.settings.cashbookLockedUntil=d;logCashbookLock('Khóa kỳ sổ quỹ','lockedUntil='+d);saveState();cashbookLockPage(document.getElementById('content'));alert('Đã khóa sổ quỹ đến '+d+'.');
+}
+function reopenCashbookLock(){
+ if(!hasPermission('Khóa kỳ sổ quỹ'))return alert('Bạn không có quyền mở lại kỳ.');
+ const reason=prompt('Nhập lý do mở lại kỳ:');if(!reason?.trim())return alert('Bắt buộc nhập lý do.');
+ const pin=prompt('Nhập PIN phê duyệt:');if(!managerApprovalPinValid(pin))return alert('PIN phê duyệt không hợp lệ.');
+ state.settings=state.settings||{};const old=cashbookLockedUntil();state.settings.cashbookLockedUntil='';logCashbookLock('Mở lại kỳ sổ quỹ','oldLockedUntil='+old+'; reason='+reason.trim());saveState();cashbookLockPage(document.getElementById('content'));alert('Đã mở lại kỳ.');
+}
 function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',referenceId='',note='',category='',txnDate=''}) {
  const value=Number(amount)||0;
  const normalizedPaymentMethod=normalizePaymentMethod(paymentMethod);
  const normalizedCategory=cashCategoryFor({type,subject,referenceId,category});
- const date=txnDate||localTxnDate(); const targetFund=fundById(fundIdForPayment(normalizedPaymentMethod));if(type==='chi'&&!targetFund?.allowNegative){const available=fundBalanceAsOf(targetFund.id,date);if(value>available){alert('Quỹ không đủ số dư. Số dư hiện có tại ngày giao dịch '+date+' là '+money(available)+' ₫. Hãy chọn phương thức hoàn khác hoặc chuyển quỹ trước.');return null;}}
+ const date=txnDate||localTxnDate(); const lockMsg=cashbookLockReason(date);if(lockMsg){alert(lockMsg);return null;} const targetFund=fundById(fundIdForPayment(normalizedPaymentMethod));if(type==='chi'&&!targetFund?.allowNegative){const available=fundBalanceAsOf(targetFund.id,date);if(value>available){alert('Quỹ không đủ số dư. Số dư hiện có tại ngày giao dịch '+date+' là '+money(available)+' ₫. Hãy chọn phương thức hoàn khác hoặc chuyển quỹ trước.');return null;}}
  const shiftId=getOpenShift()?.id||'';
  const createdBy=state.currentUser?.id||'';
  if(!['thu','chi'].includes(type)||value<=0||!fundIdForPayment(normalizedPaymentMethod)||!normalizedCategory||!subject?.trim()||!note?.trim()||!referenceId?.trim()||!createdBy||!shiftId||!/^\d{4}-\d{2}-\d{2}$/.test(date)){
@@ -1190,6 +1210,7 @@ function hasSellerProfile(){
   return !!p && ['name','taxCode','address','invoiceTemplate','invoiceSeries'].every(k=>String(p[k]||'').trim());
 }
   if(state.page==='Chuyển quỹ nội bộ') return internalFundTransferPage(c);
+  if(state.page==='Khóa kỳ sổ quỹ') return cashbookLockPage(c);
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
