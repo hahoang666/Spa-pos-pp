@@ -1,381 +1,3 @@
-function reportPage(c){
- if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo doanh thu.</div>';return;}
- const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
- const sales=invoices.filter(x=>(x.type||'Thu')==='Thu');
- const revenue=reportNetRevenue(invoices);
- const gross=sales.reduce((sum,x)=>sum+Number(x.merchandiseAmountExVat ?? invoiceRevenueFields(x).merchandiseAmountExVat ?? 0),0);
- const reductionByType={
-   commercialDiscount:sales.reduce((s,x)=>s+Number(x.commercialDiscount||0),0),
-   salesDiscount:sales.reduce((s,x)=>s+Number(x.salesDiscount ?? x.discount ?? 0),0),
-   voucherDiscount:sales.reduce((s,x)=>s+Number(x.voucherDiscount||0),0),
-   loyaltyDiscount:sales.reduce((s,x)=>s+Number(x.loyaltyDiscount||0),0),
-   otherDeduction:sales.reduce((s,x)=>s+Number(x.otherDeduction||0),0)
- };
- const reductions=Object.values(reductionByType).reduce((a,b)=>a+b,0);
- const returnedExVat=sales.reduce((s,x)=>s+invoiceReturnedNetRevenue(x),0);
- const count=invoices.length;
- const customers=new Set(invoices.map(x=>x.customerCode||x.customerName||x.customer).filter(Boolean)).size;
- const avg=count?revenue/count:0;
- const paid=invoices.filter(x=>x.status==='Đã thanh toán').reduce((sum,x)=>sum+Number(x.total||0),0);
- const debt=invoices.filter(x=>x.status==='Còn nợ').reduce((sum,x)=>sum+Number(x.total||0)-Number(x.paid||0),0);
- const cancelled=(state.invoices||[]).filter(x=>x.status==='Đã hủy').length;
- const byPayment=PAYMENT_METHODS.map(method=>({method,total:invoices.filter(x=>normalizePaymentMethod(x.paymentMethod)===method).reduce((sum,x)=>sum+Number(x.total||0),0)}));
- const rows=byPayment.map(x=>'<tr><td>'+x.method+'</td><td style="text-align:right">'+money(x.total)+' ₫</td></tr>').join('');
- const reductionRows=[
-   ['Chiết khấu thương mại',reductionByType.commercialDiscount],
-   ['Giảm giá hàng bán',reductionByType.salesDiscount],
-   ['Voucher',reductionByType.voucherDiscount],
-   ['Điểm thưởng',reductionByType.loyaltyDiscount],
-   ['Khác',reductionByType.otherDeduction]
- ].map(x=>'<tr><td>'+x[0]+'</td><td style="text-align:right">'+money(x[1])+' ₫</td></tr>').join('');
- c.innerHTML='<div class="page-title">'+esc(state.page)+'</div>'+
- '<div class="kpis"><div class="kpi">Doanh thu thuần<div class="n">'+money(revenue)+' ₫</div></div><div class="kpi">Số hóa đơn<div class="n">'+count+'</div></div><div class="kpi">Khách hàng<div class="n">'+customers+'</div></div><div class="kpi">Giá trị TB/HĐ<div class="n">'+money(avg)+' ₫</div></div></div>'+
- '<div class="grid-2"><div class="card report"><h3>Đối chiếu doanh thu</h3><table><tbody>'+
- '<tr><td>Doanh thu gộp (chưa VAT)</td><td style="text-align:right">'+money(gross)+' ₫</td></tr>'+
- '<tr><td>Tổng giảm trừ</td><td style="text-align:right">'+money(reductions)+' ₫</td></tr>'+
- '<tr><td>Hàng bán bị trả lại (chưa VAT)</td><td style="text-align:right">'+money(returnedExVat)+' ₫</td></tr>'+
- '<tr><td><b>Doanh thu thuần</b></td><td style="text-align:right"><b>'+money(revenue)+' ₫</b></td></tr>'+
- '</tbody></table></div>'+
- '<div class="card report"><h3>Giảm trừ doanh thu theo loại</h3><table><thead><tr><th>Loại giảm trừ</th><th style="text-align:right">Giá trị</th></tr></thead><tbody>'+reductionRows+
- '<tr><td><b>Tổng giảm trừ</b></td><td style="text-align:right"><b>'+money(reductions)+' ₫</b></td></tr></tbody></table></div>'+
- '<div class="card report"><h3>Tình hình thanh toán</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px"><div class="kpi">Đã thanh toán<div class="n">'+money(paid)+' ₫</div></div><div class="kpi">Còn nợ<div class="n">'+money(debt)+' ₫</div></div><div class="kpi">Đã hủy<div class="n">'+cancelled+'</div></div></div></div>'+
- '<div class="card report"><h3>Doanh thu theo phương thức thanh toán</h3><table><thead><tr><th>Phương thức</th><th style="text-align:right">Doanh thu</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
-}
-function getDashboardPeriodRange(period){
-  const now=new Date();
-  const start=new Date(now);
-  const end=new Date(now);
-  end.setHours(23,59,59,999);
-  start.setHours(0,0,0,0);
-  if(period==='yesterday'){
-    start.setDate(start.getDate()-1); end.setDate(end.getDate()-1);
-  }else if(period==='7days'){
-    start.setDate(start.getDate()-6);
-  }else if(period==='month'){
-    start.setDate(1);
-  }else if(period==='lastMonth'){
-    start.setMonth(start.getMonth()-1,1); end.setMonth(end.getMonth(),0); end.setHours(23,59,59,999);
-  }else if(period==='quarter'){
-    start.setMonth(Math.floor(now.getMonth()/3)*3,1);
-  }else if(period==='lastQuarter'){
-    const q=Math.floor(now.getMonth()/3)-1;
-    const year=now.getFullYear()+(q<0?-1:0);
-    const normalized=(q+4)%4;
-    start.setFullYear(year,normalized*3,1);
-    end.setFullYear(year,normalized*3+3,0); end.setHours(23,59,59,999);
-  }else if(period==='year'){
-    start.setMonth(0,1);
-  }
-  return {start,end};
-}
-
-function dashboardInvoices(period){
-  const range=getDashboardPeriodRange(period);
-  return state.invoices.filter(x=>{
-    const d=x.createdAt?new Date(x.createdAt):new Date();
-    return d>=range.start && d<=range.end;
-  });
-}
-
-function dashboard(c){
-  document.getElementById('content').innerHTML=` 
-    <div class="page-title">Tổng quan</div>
-    <div class="toolbar">
-      <label style="margin:0;font-weight:600">Khoảng thời gian:</label>
-      <select id="dashboardPeriod" class="field" style="width:190px" onchange="refreshDashboard()">
-        <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
-        <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
-        <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
-        <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
-      </select>
-    </div>
-
-    <div class="kpis">
-      <div class="kpi">Doanh thu<div class="n" id="dashboardRevenue">0 ₫</div>
-        <div class="mini-stat"><span>Tiền mặt</span><b id="cashRevenue">0 ₫</b></div>
-        <div class="mini-stat"><span>Chuyển khoản</span><b id="bankRevenue">0 ₫</b></div>
-        <div class="mini-stat"><span>Ví điện tử</span><b id="ewalletRevenue">0 ₫</b></div>
-        <div class="mini-stat"><span>Thẻ</span><b id="otherRevenue">0 ₫</b></div>
-      </div>
-      <div class="kpi">Hóa đơn<div class="n" id="dashboardInvoices">0</div></div>
-      <div class="kpi">Lượng khách hàng<div class="n" id="dashboardCustomers">0 lượt</div>
-        <div class="mini-stat"><span>Khách hàng cũ</span><b id="oldCustomers">0</b></div>
-        <div class="mini-stat"><span>Khách hàng mới</span><b id="newCustomers">0</b></div>
-      </div>
-      <div class="kpi">Công nợ<div class="n" id="dashboardDebt">0 ₫</div>
-        <div class="mini-stat"><span>Tổng thu</span><b id="totalIncome">0 ₫</b></div>
-        <div class="mini-stat"><span>Tổng chi</span><b id="totalExpense">0 ₫</b></div>
-      </div>
-    </div>
-
-    <div class="card report dashboard-section">
-      <div class="dashboard-section-head">
-        <div><h3 style="margin:0">Biểu đồ doanh thu & lượng khách hàng</h3>
-          <div class="dashboard-note">Theo ngày hoặc theo giờ để nhận biết thời điểm khách hàng tập trung.</div>
-        </div>
-        <div class="dashboard-controls">
-          <select id="chartPeriod" class="field" onchange="refreshDashboardCharts()">
-            <option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option>
-            <option value="7days">7 ngày qua</option><option value="month">Tháng này</option>
-            <option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option>
-            <option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option>
-          </select>
-          <select id="chartGranularity" class="field" onchange="refreshDashboardCharts()">
-            <option value="day">Theo ngày</option><option value="weekday">Theo thứ</option><option value="hour">Theo giờ</option>
-          </select>
-        </div>
-      </div>
-      <div class="charts-grid">
-        <div class="chart-card"><div class="chart-title">Doanh thu</div>
-          <div class="chart-mini-kpis">
-            <div><span>Tổng Doanh thu</span><b id="chartRevenue">0 ₫</b></div>
-            <div><span>Số hoá đơn</span><b id="chartInvoiceCount">0</b></div>
-            <div><span>Số lượt trả hàng</span><b id="chartReturnCount">0</b></div>
-          </div>
-          <canvas id="barChart" height="260"></canvas><div class="chart-empty" id="barEmpty">Chưa có dữ liệu</div>
-        </div>
-        <div class="chart-card"><div class="chart-title">Lượng khách hàng</div>
-          <canvas id="lineChart" height="260"></canvas><div class="chart-empty" id="lineEmpty">Chưa có dữ liệu</div>
-        </div>
-      </div>
-    </div>
-
-
-
-  `;
-  refreshDashboard();
-}
-
-function refreshDashboard(){
-  const period=document.getElementById('dashboardPeriod')?.value||'today';
-  const rows=dashboardInvoices(period);
-  const validSales=rows.filter(x=>(x.type||'Thu')==='Thu'&&x.status!=='Đã hủy');
-  const returns=(state.returns||[]).filter(r=>{const d=new Date(r.createdAt||0),range=getDashboardPeriodRange(period);return d>=range.start&&d<=range.end&&r.status!=='Đã hủy';});
-  const returnedAmount=returns.reduce((a,r)=>a+Number(r.refundAmount||r.amount||0),0);
-  const revenue=validSales.reduce((a,x)=>a+Number(x.total||0),0)-returnedAmount;
-  const cash=(state.cashbook||[]).filter(x=>{const d=new Date(x.createdAt||0);const range=getDashboardPeriodRange(period);return d>=range.start&&d<=range.end;});
-  const legacyIncome=validSales.filter(x=>!hasCashMovement(x.id,'thu')).reduce((a,x)=>a+Number(x.paid||0),0);
-  const legacyExpense=rows.filter(x=>(x.type||'')==='Chi'&&!hasCashMovement(x.id,'chi')).reduce((a,x)=>a+Number(x.total||0),0);
-  const income=cash.filter(x=>x.type==='thu').reduce((a,x)=>a+Number(x.amount||0),0)+legacyIncome;
-  const expense=cash.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0)+legacyExpense;
-  const debt=validSales.reduce((a,x)=>a+Math.max(0,Number(x.total||0)-Number(x.paid||0)-invoiceReturnedAmount(x)),0);
-  document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
-  const paymentRevenue=(method)=>validSales.reduce((sum,x)=>{if(Array.isArray(x.paymentBreakdown)&&x.paymentBreakdown.length)return sum+x.paymentBreakdown.filter(p=>(p.source||'sale')==='sale'&&normalizePaymentMethod(p.method)===method).reduce((a,p)=>a+Number(p.amount||0),0);return sum+(!hasCashMovement(x.id,'thu')&&normalizePaymentMethod(x.paymentMethod)===method?Number(x.paid||0):0);},0);
-  document.getElementById('cashRevenue').innerText=money(paymentRevenue('Tiền mặt'))+' ₫';
-  document.getElementById('bankRevenue').innerText=money(paymentRevenue('Chuyển khoản'))+' ₫';
-  document.getElementById('ewalletRevenue').innerText=money(paymentRevenue('Ví điện tử'))+' ₫';
-  document.getElementById('otherRevenue').innerText=money(paymentRevenue('Thẻ'))+' ₫';
-  document.getElementById('dashboardInvoices').innerText=rows.filter(x=>x.status!=='Đã hủy').length;
-  const customerRows=validSales.filter(x=>x.customerCode);
-  const uniqueCustomers=new Map();customerRows.forEach(x=>{if(!uniqueCustomers.has(x.customerCode))uniqueCustomers.set(x.customerCode,x);});
-  document.getElementById('dashboardCustomers').innerText=uniqueCustomers.size+' khách';
-  let oldCount=0,newCount=0;uniqueCustomers.forEach((x,code)=>{const hadPrior=(state.invoices||[]).some(i=>i!==x&&i.status!=='Đã hủy'&&(i.type||'Thu')==='Thu'&&i.customerCode===code);if(hadPrior)oldCount++;else newCount++;});
-  document.getElementById('oldCustomers').innerText=oldCount;document.getElementById('newCustomers').innerText=newCount;
-  document.getElementById('dashboardDebt').innerText=money(debt)+' ₫';
-  document.getElementById('totalIncome').innerText=money(income)+' ₫';
-  document.getElementById('totalExpense').innerText=money(expense)+' ₫';
-  if(document.getElementById('chartPeriod'))document.getElementById('chartPeriod').value=period;
-  if(document.getElementById('pivotPeriod'))document.getElementById('pivotPeriod').value=period;
-  refreshDashboardCharts();
-}
-function getChartBuckets(period,granularity){
-  const rows=dashboardInvoices(period), range=getDashboardPeriodRange(period);
-  let labels=[],values=[],customers=[];
-  if(granularity==='hour'){
-    labels=Array.from({length:24},(_,i)=>String(i).padStart(2,'0')+'h');
-    values=Array(24).fill(0); customers=Array(24).fill(0);
-    rows.filter(x=>x.status!=='Đã hủy').forEach(x=>{const d=x.createdAt?new Date(x.createdAt):null;if(!d)return;values[d.getHours()]+=Number(x.total||0);customers[d.getHours()]+=1;});
-    (state.returns||[]).forEach(r=>{const d=r.createdAt?new Date(r.createdAt):null;if(!d)return;const idx=d.getHours();values[idx]-=Number(r.refundAmount||r.amount||0);});
-  }else if(granularity==='weekday'){
-    labels=['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ nhật'];
-    values=Array(7).fill(0); customers=Array(7).fill(0);
-    rows.filter(x=>x.status!=='Đã hủy').forEach(x=>{const d=x.createdAt?new Date(x.createdAt):null;if(!d)return;const idx=(d.getDay()+6)%7;values[idx]+=Number(x.total||0);customers[idx]+=1;});
-    (state.returns||[]).forEach(r=>{const d=r.createdAt?new Date(r.createdAt):null;if(!d)return;const idx=(d.getDay()+6)%7;values[idx]-=Number(r.refundAmount||r.amount||0);});
-  }else{
-    const cursor=new Date(range.start), end=new Date(range.end), map=new Map();
-    while(cursor<=end){
-      const key=localDateKey(cursor);
-      labels.push(cursor.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}));map.set(key,labels.length-1);
-      values.push(0);customers.push(0);cursor.setDate(cursor.getDate()+1);
-    }
-    rows.filter(x=>x.status!=='Đã hủy').forEach(x=>{const d=x.createdAt?new Date(x.createdAt):null;if(!d)return;const idx=map.get(localDateKey(d));if(idx!==undefined){values[idx]+=Number(x.total||0);customers[idx]+=1;}});
-    (state.returns||[]).forEach(r=>{const d=r.createdAt?new Date(r.createdAt):null;if(!d)return;const idx=map.get(localDateKey(d));if(idx!==undefined)values[idx]-=Number(r.refundAmount||r.amount||0);});
-  }
-  return {labels,values,customers};
-}
-function drawChart(canvasId,emptyId,type,data){
-  const canvas=document.getElementById(canvasId),empty=document.getElementById(emptyId);if(!canvas)return;
-  const ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1,width=canvas.clientWidth||700,height=260;
-  canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
-  const hasData=data.values.some(v=>v>0);if(empty)empty.style.display=hasData?'none':'flex';
-  const pad={left:58,right:18,top:18,bottom:40},chartW=Math.max(10,width-pad.left-pad.right),chartH=height-pad.top-pad.bottom;
-  const max=Math.max(1,...data.values),steps=4;
-  ctx.font='12px Arial';ctx.fillStyle='#7b8490';ctx.strokeStyle='#e7ebf0';ctx.lineWidth=1;
-  for(let i=0;i<=steps;i++){const y=pad.top+chartH-(chartH*i/steps);ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(width-pad.right,y);ctx.stroke();ctx.fillText(money(Math.round(max*i/steps)),6,y+4);}
-  ctx.strokeStyle='#cfd5dd';ctx.beginPath();ctx.moveTo(pad.left,pad.top);ctx.lineTo(pad.left,pad.top+chartH);ctx.lineTo(width-pad.right,pad.top+chartH);ctx.stroke();
-  const step=chartW/Math.max(1,data.labels.length),yFor=v=>pad.top+chartH-(v/max)*chartH;
-  if(type==='bar'){
-    const barW=Math.max(2,step*0.62);data.values.forEach((v,i)=>{const x=pad.left+i*step+(step-barW)/2,y=yFor(v);ctx.fillStyle='#0b78e3';ctx.fillRect(x,y,barW,pad.top+chartH-y);});
-  }else{
-    ctx.strokeStyle='#0b78e3';ctx.lineWidth=3;ctx.beginPath();
-    data.values.forEach((v,i)=>{const x=pad.left+i*step+step/2,y=yFor(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();
-    ctx.fillStyle='#0b78e3';data.values.forEach((v,i)=>{const x=pad.left+i*step+step/2,y=yFor(v);ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fill();});
-  }
-  const labelEvery=data.labels.length>24?Math.ceil(data.labels.length/12):data.labels.length>12?2:1;
-  ctx.fillStyle='#68717d';ctx.font='11px Arial';
-  data.labels.forEach((label,i)=>{if(i%labelEvery!==0)return;const x=pad.left+i*step+step/2;ctx.save();ctx.translate(x,height-12);ctx.rotate(-0.35);ctx.textAlign='right';ctx.fillText(label,0,0);ctx.restore();});
-}
-
-function refreshDashboardCharts(){
-  const period=document.getElementById('chartPeriod')?.value||'today';
-  const granularity=document.getElementById('chartGranularity')?.value||'day';
-  const data=getChartBuckets(period,granularity);
-  drawChart('barChart','barEmpty','bar',data);drawChart('lineChart','lineEmpty','line',{labels:data.labels,values:data.customers});
-  const rows=dashboardInvoices(period);
-  const revenue=rows.filter(x=>(x.type||'Thu')==='Thu'&&x.status!=='Đã hủy').reduce((a,x)=>a+Number(x.total||0),0)-(state.returns||[]).filter(r=>{const d=new Date(r.createdAt||0),range=getDashboardPeriodRange(period);return r.status!=='Đã hủy'&&d>=range.start&&d<=range.end;}).reduce((a,r)=>a+Number(r.refundAmount||r.amount||0),0);
-  const range=getDashboardPeriodRange(period);const returnCount=(state.returns||[]).filter(r=>{const d=new Date(r.createdAt||0);return r.status!=='Đã hủy'&&d>=range.start&&d<=range.end;}).length;
-  if(document.getElementById('chartRevenue'))document.getElementById('chartRevenue').innerText=money(revenue)+' ₫';
-  if(document.getElementById('chartInvoiceCount'))document.getElementById('chartInvoiceCount').innerText=rows.filter(x=>x.status!=='Đã hủy').length;
-  if(document.getElementById('chartReturnCount'))document.getElementById('chartReturnCount').innerText=returnCount;
-}
-
-function changeDashboardPeriod(period){
-  if(document.getElementById('dashboardPeriod'))document.getElementById('dashboardPeriod').value=period;
-  refreshDashboard();
-}
-
-
-function getInvoiceItems(inv){
- return Array.isArray(inv.items)&&inv.items.length?inv.items:[{code:inv.productCode||'',name:inv.productName||'',qty:1,price:Number(inv.amount||inv.total||0),discount:Number(inv.discount||0),vat:Number(inv.tax||10)}];
-}
-function returnableQty(invoice,code){
- const sold=getInvoiceItems(invoice).filter(x=>x.code===code).reduce((a,x)=>a+Number(x.qty||0),0);
- const returned=(state.returns||[]).filter(r=>r.invoiceId===invoice.id).reduce((a,r)=>a+(r.items||[]).filter(x=>x.code===code).reduce((b,x)=>b+Number(x.qty||0),0),0);
- return Math.max(0,sold-returned);
-}
-function openReturn(){
- if(!hasPermission('Tạo trả hàng'))return alert('Bạn không có quyền tạo trả hàng.');
- const opts=state.invoices.filter(i=>i.status!=='Đã hủy').map(i=>'<option value="'+esc(i.id)+'">'+esc(i.id)+' - '+esc(i.customerName||i.customer||'')+' - '+money(i.total||0)+' ₫</option>').join('');
- openModal('Tạo phiếu trả hàng','<div class="form-grid"><div class="full"><label>Hóa đơn gốc *</label><select id="returnInvoice" class="field" onchange="loadReturnItems()"><option value="">Chọn hóa đơn</option>'+opts+'</select></div><div class="full" id="returnItems"><div class="empty">Chọn hóa đơn để xem sản phẩm có thể trả.</div></div><div><label>Phương thức hoàn tiền</label><select id="returnMethod" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div><label>Ghi chú</label><input id="returnNote" class="field"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveReturn()">Xác nhận trả hàng</button>');
-}
-function loadReturnItems(){
- const inv=state.invoices.find(x=>x.id===document.getElementById('returnInvoice')?.value),box=document.getElementById('returnItems');if(!box)return;
- if(!inv){box.innerHTML='<div class="empty">Chọn hóa đơn để xem sản phẩm có thể trả.</div>';return;}
- box.innerHTML='<div class="table-wrap"><table><thead><tr><th>Sản phẩm</th><th>SL đã mua</th><th>SL có thể trả</th><th>SL trả</th><th>Đơn giá</th><th>Hoàn tiền</th></tr></thead><tbody>'+getInvoiceItems(inv).map((x,i)=>{const max=returnableQty(inv,x.code);return '<tr><td>'+esc(x.name)+'<br><small>'+esc(x.code)+'</small></td><td>'+x.qty+'</td><td>'+max+'</td><td><input class="field return-qty" data-code="'+esc(x.code)+'" data-max="'+max+'" data-price="'+Number(x.price||0)+'" data-discount="'+Number(x.discount||0)+'" type="number" min="0" max="'+max+'" value="0" step="1"></td><td>'+money(x.price||0)+' ₫</td><td class="return-line-total">0 ₫</td></tr>';}).join('')+'</tbody></table></div>';
- box.querySelectorAll('.return-qty').forEach(el=>el.addEventListener('input',updateReturnTotals));
-}
-function updateReturnTotals(){
- let total=0;
- document.querySelectorAll('.return-qty').forEach(el=>{const q=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);el.value=q;const lineGross=q*Number(el.dataset.price||0);const max=Number(el.dataset.max)||0;const lineDiscount=max>0?Math.min(Number(el.dataset.discount||0),Number(el.dataset.price||0)*max)*(q/max):0;const line=Math.max(0,lineGross-lineDiscount);total+=line;const cell=el.closest('tr')?.querySelector('.return-line-total');if(cell)cell.textContent=money(line)+' ₫';});
-}
-function saveReturn(){
- if(!hasPermission('Tạo trả hàng'))return alert('Bạn không có quyền tạo trả hàng.');
- const shift=requireOpenShift('trả hàng');if(!shift)return;
- const inv=state.invoices.find(x=>x.id===document.getElementById('returnInvoice')?.value);
- if(!inv)return alert('Vui lòng chọn hóa đơn gốc.');
- if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy không thể trả hàng.');
- if(Number(inv.paid||0)<=0)return alert('Hóa đơn chưa thanh toán nên chưa thể hoàn tiền.');
- if(isTransactionClosed(inv))return alert('Hóa đơn thuộc ca đã chốt, không thể tạo trả hàng.');
- const rows=[...document.querySelectorAll('.return-qty')];
- const items=rows.map(el=>{
-   const q=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);
-   const max=Number(el.dataset.max)||0,price=Number(el.dataset.price)||0,discount=Number(el.dataset.discount)||0;
-   const lineGross=q*price;
-   const lineDiscount=max>0?Math.min(discount,lineGross)*(q/max):0;
-   return {code:el.dataset.code,qty:q,price,discount:lineDiscount,vat:0};
- }).filter(x=>x.qty>0);
- if(!items.length)return alert('Vui lòng chọn ít nhất một sản phẩm để trả.');
- const sold=getInvoiceItems(inv);
- const lineBase=sold.map(x=>({code:x.code,qty:Number(x.qty)||0,price:Number(x.price)||0,discount:Number(x.discount)||0}));
- const totalLineNet=lineBase.reduce((s,x)=>s+Math.max(0,x.qty*x.price-x.discount),0);
- const orderDiscount=Math.max(0,Number(inv.discount||0)-lineBase.reduce((s,x)=>s+Number(x.discount||0),0));
- let amount=0;
- items.forEach(x=>{
-   const gross=x.qty*x.price;
-   const lineDisc=x.discount;
-   const base=Math.max(0,gross-lineDisc);
-   const orderDisc=totalLineNet>0?orderDiscount*(base/totalLineNet):0;
-   x.refund=Math.max(0,base-orderDisc);
-   amount+=x.refund;
- });
- if(amount<=0)return alert('Số tiền hoàn không hợp lệ.');
- const alreadyReturned=invoiceReturnedAmount(inv);
- const maxRefund=Math.max(0,Number(inv.paid||0));
- if(amount>maxRefund+0.000001)return alert('Số tiền hoàn vượt quá số tiền khách đã thanh toán.');
- const priorRefund=invoiceReturnedAmount(inv);
- if(priorRefund+amount>invoicePaymentTotal(inv)+0.000001)return alert('Tổng tiền hoàn vượt quá số tiền khách thực trả.');
- const method=normalizePaymentMethod(document.getElementById('returnMethod').value);
- const ret={id:nextAutoCode('TH',6,'spa_next_return_id',state.returns||[],'id'),invoiceId:inv.id,customerCode:inv.customerCode||'',customerName:inv.customerName||inv.customer||'',items,amount,type:'Chi',status:'Đã hoàn tiền',refundAmount:amount,paymentMethod:method,note:document.getElementById('returnNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:shift.id};
- state.returns=Array.isArray(state.returns)?state.returns:[];state.returns.push(ret);
- items.forEach(x=>{const p=state.products.find(p=>p.code===x.code);if(p&&typeof p.stock==='number')p.stock+=x.qty;});
- inv.paid=Math.max(0,Number(inv.paid||0)-amount);
- const effectiveTotal=Math.max(0,Number(inv.total||0)-alreadyReturned-amount);
- inv.status=inv.paid>=effectiveTotal?'Đã thanh toán':'Còn nợ';
- addCashMovement({type:'chi',amount,paymentMethod:method,subject:inv.customerName||inv.customer||'',referenceId:ret.id,note:'Hoàn tiền trả hàng '+ret.id+' từ '+inv.id});
- saveState();closeModal();returnPage(document.getElementById('content'));alert('Đã tạo phiếu trả hàng '+ret.id+' và hoàn tiền '+money(amount)+' ₫.');
-}
-function returnPage(c){
- const rows=(state.returns||[]).slice().reverse().map(r=>'<tr><td><b>'+esc(r.id)+'</b></td><td>'+esc(r.invoiceId)+'</td><td>'+esc(r.createdAt?new Date(r.createdAt).toLocaleString('vi-VN'):'')+'</td><td>'+esc(r.customerName||'')+'</td><td>'+money(r.amount||0)+' ₫</td><td>'+esc(r.paymentMethod||'')+'</td><td>'+esc(r.status||'')+'</td></tr>').join('');
- c.innerHTML=header('Trả hàng','Tạo trả hàng','openReturn')+'<div class="card table-wrap"><table><thead><tr><th>Mã trả hàng</th><th>Hóa đơn gốc</th><th>Thời gian</th><th>Khách hàng</th><th>Hoàn tiền</th><th>Phương thức</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có phiếu trả hàng</div></td></tr>')+'</tbody></table></div>';
-}
-function openModal(title,body,actions=''){
- document.getElementById('modal').innerHTML=`<div class="modal-head"><h2>${title}</h2><button class="btn btn-secondary" onclick="closeModal()">✕</button></div>${body}<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">${actions}</div>`;
- document.getElementById('modalBg').style.display='flex';
-}
-function closeModal(){document.getElementById('modalBg').style.display='none'}
-function invoiceEmployeeOptions(){ const list=state.accounts.filter(a=>a.status==='Hoạt động'&&(a.role==='Nhân viên'||a.role==='Quản lý'||a.role==='Admin')); return '<option value="">Chọn nhân viên</option>'+list.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name)+' - '+esc(a.role)+'</option>').join(''); }
-function openInvoice(){
- if(!hasPermission('Tạo hóa đơn'))return alert('Bạn không có quyền tạo hóa đơn.');
- if(!getOpenShift())return alert('Vui lòng mở ca trước khi tạo hóa đơn.');
- openModal('Tạo hóa đơn',`
- <div class="form-grid">
-  <div><label>Khách hàng</label><select class="field" id="customerSelect">${state.customers.map((x,i)=>`<option value="${i}">${esc(x.name)} - ${esc(x.code)}</option>`).join('')}</select></div>
-  <div><label>Nhân viên thực hiện</label><select class="field" id="invoiceEmployee">${invoiceEmployeeOptions()}</select></div>
-  <div><label>Nhân viên tư vấn</label><select class="field" id="invoiceConsultant">${invoiceEmployeeOptions()}</select></div>
-  <div><label>Kênh bán</label><select class="field"><option>Trực tiếp</option><option>Facebook</option><option>Zalo</option></select></div>
-  <div><label>Phương thức</label><select class="field" id="pay">${paymentOptions('Tiền mặt')}</select></div>
-  <div class="full"><label>Sản phẩm / dịch vụ</label><select class="field" id="productSelect">${state.products.map((p,i)=>`<option value="${i}">${esc(p.code)} - ${esc(p.name)} - ${money(p.price)} ₫</option>`).join('')}</select></div>
-  <div><label>Số lượng</label><input id="qty" class="field" type="number" value="1" min="1" max="9999"></div>
-  <div><label>Đơn giá</label><input id="rate" class="field" type="number" value="${state.products[0].price}" min="0" step="0.01"></div>
-  <div><label>Giảm giá</label><input id="discount" class="field" type="number" value="0" min="0"></div>
-  <div><label>VAT (%)</label><input id="vat" class="field" value="0%" readonly disabled></div><div><label>Ngày hẹn trả nợ</label><input id="invoiceDueDate" class="field" type="date"></div><div><label>Khách thanh toán</label><input id="invoicePaid" class="field" type="number" min="0" value="0"></div>
- </div>
- <div class="summary"><div class="summary-box"><div class="summary-row"><span>Thành tiền</span><b id="sum">0 ₫</b></div><div class="summary-row"><span>VAT</span><b id="tax">0 ₫</b></div><div class="summary-row total"><span>Tổng thanh toán</span><b id="grand">0 ₫</b></div></div></div>`,
- `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveInvoice()">Lưu hóa đơn</button>`);
- ['qty','rate','discount','invoicePaid'].forEach(id=>document.getElementById(id)?.addEventListener('input',calcInvoice));
- document.getElementById('productSelect').addEventListener('change',function(){
-   const product=state.products[Number(this.value)];
-   const rate=document.getElementById('rate');
-   if(product&&rate){
-     rate.value=Number(product.price)||0;
-     rate.dataset.productCode=product.code;
-   }
-   calcInvoice();
- });
- const firstProduct=state.products[Number(document.getElementById('productSelect').value)||0];
- if(firstProduct){
-   document.getElementById('rate').value=Number(firstProduct.price)||0;
-   document.getElementById('rate').dataset.productCode=firstProduct.code;
- }
- calcInvoice();
-}
-function calcInvoice(){
- const q=Number(document.getElementById('qty').value)||0,r=Number(document.getElementById('rate').value)||0,d=Number(document.getElementById('discount').value)||0;
- const amount=q*r;const grand=Math.max(0,amount-d);const product=state.products[Number(document.getElementById('productSelect').value)||0];const vat=Number(product?.vat)||0;const tax=vat>0?grand-(grand/(1+vat/100)):0;
- document.getElementById('sum').innerText=money(amount)+' ₫';document.getElementById('tax').innerText=money(tax)+' ₫';document.getElementById('grand').innerText=money(grand)+' ₫';
-}
-function createTherapyCardFromInvoice(invoice){
- const packageItems=(invoice.items||[]).filter(it=>{const p=state.products.find(x=>x.code===it.code);return p&&p.type==='Gói dịch vụ, liệu trình';});
- if(!packageItems.length)return [];
- state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const created=[];
- packageItems.forEach(it=>{
-   const p=state.products.find(x=>x.code===it.code),sessions=getPackageSessions(p)*Math.max(1,Number(it.qty)||1);
-   const card={id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),invoiceId:invoice.id,customerCode:invoice.customerCode,customerName:invoice.customerName||invoice.customer,productCode:it.code,productName:it.name,totalSessions:sessions,remainingSessions:sessions,expiresAt:'',status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||''};
-   state.therapyCards.push(card);created.push(card);
- });
- return created;
-}
 function invoiceRevenueFields(data){
  const items=Array.isArray(data?.items)?data.items:[];
  let merchandiseAmountExVat=0, vatAmount=0;
@@ -413,6 +35,41 @@ function invoiceRevenueFields(data){
    totalReductions:Math.round(totalReductions),
    returnedAmountExVat:0,
    netRevenue:Math.round(Math.max(0,merchandiseAmountExVat-totalReductions))
+ };
+}
+function invoiceRevenueFields(data){
+ const items=Array.isArray(data?.items)?data.items:[];
+ let merchandiseAmountExVat=0,vatAmount=0;
+ items.forEach(x=>{
+  const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0));
+  const lineDiscount=Math.min(Math.max(0,Number(x.discount)||0),gross);
+  const lineNet=Math.max(0,gross-lineDiscount);
+  const rate=Math.max(0,Number(x.vat)||0);
+  merchandiseAmountExVat+=rate?gross/(1+rate/100):gross;
+  vatAmount+=rate?lineNet-(lineNet/(1+rate/100)):0;
+ });
+ if(!items.length){
+  const total=Number(data?.total)||0,tax=Number(data?.tax??data?.vatAmount)||0;
+  merchandiseAmountExVat=Math.max(0,Number(data?.merchandiseAmountExVat??data?.amount??(total-tax)));
+  vatAmount=Math.max(0,tax);
+ }
+ const reductions=reductionByType(data);
+ const allocatedByType={};
+ REDUCTION_TYPES.forEach(type=>{
+  const allocations=allocateOrderReduction(items,reductions[type]);
+  allocations.forEach((x,idx)=>{if(!allocatedByType[idx])allocatedByType[idx]={};allocatedByType[idx][type]=x._allocated;});
+ });
+ const totalReductions=REDUCTION_TYPES.reduce((s,k)=>s+reductions[k],0);
+ return {
+  merchandiseAmountExVat:Math.round(merchandiseAmountExVat),
+  vatAmount:Math.round(vatAmount),
+  commercialDiscount:Math.round(reductions.commercialDiscount),
+  salesDiscount:Math.round(reductions.salesDiscount),
+  voucherDiscount:Math.round(reductions.voucherDiscount),
+  totalReductions:Math.round(totalReductions),
+  reductionAllocations:allocatedByType,
+  returnedAmountExVat:0,
+  netRevenue:Math.round(merchandiseAmountExVat-totalReductions)
  };
 }
 function invoiceReturnedNetRevenue(inv){
