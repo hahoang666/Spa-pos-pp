@@ -1336,16 +1336,16 @@ function renderCashbookSubpage(c){
 function runFR20Reconciliation(){
  const invoices=Array.isArray(state.invoices)?state.invoices:[], returns=Array.isArray(state.returns)?state.returns:[], books=Array.isArray(state.cashbook)?state.cashbook:[];
  const valid=invoices.filter(x=>x.status!=='Đã hủy'&&x.status!=='Hủy'&&x.isEInvoiceRelated!==true);
- const retByInv=new Map(); returns.filter(x=>x.status!=='Đã hủy'&&valid.some(inv=>inv.id===x.invoiceId)).forEach(r=>retByInv.set(r.invoiceId,(retByInv.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0));
+ const retByInv=new Map(); returns.filter(x=>x.status!=='Đã hủy'&&valid.some(inv=>inv.id===x.invoiceId)).forEach(r=>retByInv.set(r.invoiceId,(retByInv.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0)));
  const paidExpected=valid.reduce((a,x)=>a+invoicePaymentTotal(x),0)-Array.from(retByInv.values()).reduce((a,v)=>a+v,0);
  const validIds=new Set(valid.map(x=>x.id)); const paidActual=books.filter(x=>validIds.has(x.referenceId)&&['Thu bán hàng','Thu nợ khách'].includes(x.category)).reduce((a,x)=>a+Number(x.amount||0),0);
  const details1=[];
  valid.forEach(inv=>{const ret=Number(retByInv.get(inv.id)||0), expected=invoicePaymentTotal(inv)-ret, ids=returns.filter(r=>r.invoiceId===inv.id&&r.status!=='Đã hủy').map(r=>r.id), actual=books.filter(x=>x.referenceId===inv.id||ids.includes(x.referenceId)).reduce((a,x)=>a+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);if(Math.abs(expected-actual)>.001)details1.push({id:inv.id,ref:inv.id,message:'Thanh toán kỳ vọng '+money(expected)+' ₫, cashbook '+money(actual)+' ₫.'});});
  const checks=[{name:'Thanh toán hóa đơn ↔ sổ quỹ',ok:Math.abs(paidExpected-paidActual)<=.001,diffText:money(paidExpected-paidActual)+' ₫',details:details1}];
  const vatGross=valid.reduce((a,x)=>a+Number(invoiceRevenueFields(x).merchandiseAmountExVat||0)+Number(invoiceRevenueFields(x).vatAmount||0),0);
+ const validReturn=returns.filter(r=>r.status!=='Đã hủy'&&validIds.has(r.invoiceId));
  const returnedGross=validReturn.reduce((a,r)=>a+Number(r.refundAmount||r.amount||0),0);
- const invoiceGross=valid.reduce((a,x)=>a+Number(x.total||invoicePaymentTotal(x)),0);
- const validReturn=returns.filter(r=>r.status!=='Đã hủy'&&validIds.has(r.invoiceId)); const revenueNet=reportNetRevenue(valid)-validReturn.reduce((a,r)=>a+Number(r.refundAmountExVat||0),0); const deferredRevenue=valid.reduce((a,x)=>a+(x.items||[]).reduce((q,it)=>{const p=state.products.find(pp=>pp.code===it.code);return q+(p&&p.type==='Gói dịch vụ, liệu trình'?Number(it.pre||p.pre||0)*Number(it.qty||1):0);},0),0);
+ const invoiceGross=valid.reduce((a,x)=>a+Number(x.total||invoicePaymentTotal(x)),0); const revenueNet=reportNetRevenue(valid)-validReturn.reduce((a,r)=>a+Number(r.refundAmountExVat||0),0); const deferredRevenue=valid.reduce((a,x)=>a+(x.items||[]).reduce((q,it)=>{const p=state.products.find(pp=>pp.code===it.code);return q+(p&&p.type==='Gói dịch vụ, liệu trình'?Number(it.pre||p.pre||0)*Number(it.qty||1):0);},0),0);
  const vatTotal=valid.reduce((a,x)=>a+Number(invoiceRevenueFields(x).vatAmount||0),0)-validReturn.reduce((a,r)=>a+Number(r.vatAmount||0),0);
  const revenueDetails=[]; const revenueExpected=invoiceGross-returnedGross, revenueActual=revenueNet+vatTotal+deferredRevenue;
  if(Math.abs(revenueExpected-revenueActual)>.001) valid.forEach(x=>{const f=invoiceRevenueFields(x);const expected=Number(x.total||invoicePaymentTotal(x)), actual=Number(f.netRevenue||0)+Number(f.vatAmount||0);if(Math.abs(expected-actual)>.001)revenueDetails.push({id:x.id,ref:x.id,message:'Tổng hóa đơn '+money(expected)+' ₫ nhưng doanh thu thuần + VAT '+money(actual)+' ₫.'});});
