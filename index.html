@@ -418,6 +418,7 @@ const menus={
   'Đơn hàng':['Hóa đơn','Trả hàng'],
   'Khách hàng':['Thẻ liệu trình','Khách hàng','Nhân viên'],
   'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ','Khóa kỳ sổ quỹ','Nhật ký sổ quỹ'],
+  'Kiểm soát':['Khóa kỳ giao dịch','Nhật ký thao tác'],
   'Kho & Nguyên liệu':['Kho nguyên liệu','Định mức nguyên liệu'],
   'Phân tích':['Bộ báo cáo chuẩn','Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu','Kiểm tra dữ liệu']
@@ -467,6 +468,34 @@ function shiftForTransaction(inv){
    const opened=new Date(x.openedAt||0),closed=x.closedAt?new Date(x.closedAt):null;
    return opened<=at&&(!closed||at<=closed);
  })||null;
+}
+function generalLockedUntil(){return state.settings?.transactionLockedUntil||'';}
+function isGeneralPeriodLocked(date){const lock=generalLockedUntil();return !!(lock&&String(date||'').slice(0,10)<=lock);}
+function generalLockMessage(date){const lock=generalLockedUntil();return isGeneralPeriodLocked(date)?'Kỳ đã khóa đến '+lock+'. Không thể thêm, sửa hoặc hủy giao dịch có ngày thuộc kỳ đã khóa.':null;}
+function auditSensitive(action,target='',before=null,after=null,details=''){
+ state.auditLogs=Array.isArray(state.auditLogs)?state.auditLogs:[];
+ state.auditLogs.push({id:'AUD'+Date.now()+Math.random().toString(36).slice(2,6),action,target,at:new Date().toISOString(),by:state.currentUser?.id||'',byName:state.currentUser?.name||state.currentUser?.username||'',before:before?JSON.parse(JSON.stringify(before)):null,after:after?JSON.parse(JSON.stringify(after)):null,details});
+}
+function transactionLockPage(c){
+ if(!hasPermission('Khóa kỳ sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền khóa kỳ giao dịch.</div>';return;}
+ const lock=generalLockedUntil();
+ c.innerHTML='<div class="page-title">Khóa kỳ giao dịch</div><div class="card report"><p>Kỳ khóa đến: <b>'+esc(lock||'Chưa khóa')+'</b></p><label>Khóa đến ngày<input id="generalLockedUntil" class="field" type="date" value="'+esc(lock)+'"></label><div style="margin-top:12px"><button class="btn btn-primary" onclick="saveGeneralLock()">Khóa kỳ</button> <button class="btn btn-secondary" onclick="reopenGeneralLock()">Mở lại kỳ</button></div><p class="dashboard-note">Kỳ đã khóa không cho thêm, sửa hoặc hủy giao dịch. Mọi lần khóa/mở lại đều được ghi nhật ký.</p></div>';
+}
+function saveGeneralLock(){
+ if(!hasPermission('Khóa kỳ sổ quỹ'))return alert('Bạn không có quyền khóa kỳ giao dịch.');
+ const d=document.getElementById('generalLockedUntil').value;if(!d)return alert('Chọn ngày khóa.');
+ const old=generalLockedUntil();state.settings=state.settings||{};state.settings.transactionLockedUntil=d;auditSensitive('Khóa kỳ',d,{lockedUntil:old},{lockedUntil:d});saveState();transactionLockPage(document.getElementById('content'));alert('Đã khóa kỳ đến '+d+'.');
+}
+function reopenGeneralLock(){
+ if(!hasPermission('Khóa kỳ sổ quỹ'))return alert('Bạn không có quyền mở lại kỳ.');
+ const old=generalLockedUntil(),reason=prompt('Nhập lý do mở lại kỳ:');if(!reason?.trim())return alert('Bắt buộc nhập lý do.');
+ const pin=prompt('Nhập PIN phê duyệt:');if(!managerApprovalPinValid(pin))return alert('PIN phê duyệt không hợp lệ.');
+ state.settings=state.settings||{};state.settings.transactionLockedUntil='';auditSensitive('Mở kỳ',old,{lockedUntil:old},{lockedUntil:''},reason.trim());saveState();transactionLockPage(document.getElementById('content'));alert('Đã mở lại kỳ.');
+}
+function auditLogPage(c){
+ if(!hasPermission('Khóa kỳ sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem nhật ký thao tác.</div>';return;}
+ const logs=Array.isArray(state.auditLogs)?state.auditLogs:[], rows=logs.slice().reverse().map(x=>'<tr><td>'+esc(x.at)+'</td><td>'+esc(x.byName||x.by)+'</td><td>'+esc(x.action)+'</td><td>'+esc(x.target||'')+'</td><td>'+esc(x.details||'')+'</td></tr>').join('');
+ c.innerHTML='<div class="page-title">Nhật ký thao tác</div><div class="card table-wrap"><table><thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5"><div class="empty">Chưa có nhật ký</div></td></tr>')+'</tbody></table></div>';
 }
 function isTransactionClosed(inv){
  const sh=shiftForTransaction(inv);
@@ -1370,7 +1399,9 @@ function renderPage(){
   if(state.page==='Trả hàng') return returnPage(c);
   if(state.page==='Hóa đơn đầu vào') return purchaseInvoicePage(c);\n  if(state.page==='Kiểm tra dữ liệu') return dataCheckPage(c);
   if(state.page==='Kho hàng') return inventoryPage(c);
-  if(state.page==='Bộ báo cáo chuẩn') return standardReportsPage(c);\n  if(state.page.startsWith('Báo cáo')) return reportPage(c);
+  if(state.page==='Bộ báo cáo chuẩn') return standardReportsPage(c);
+  if(state.page==='Khóa kỳ giao dịch') return transactionLockPage(c);
+  if(state.page==='Nhật ký thao tác') return auditLogPage(c);\n  if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
   if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
   if(state.page==='Phân quyền User') return adminPermissionsPage(c);
@@ -1711,6 +1742,7 @@ function cancelInvoice(id){
  const inv=state.invoices.find(x=>x.id===id),reason=document.getElementById('cancelReason')?.value.trim();
  if(!inv||!reason)return alert('Vui lòng nhập lý do hủy.');
  if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy.');
+ const cancelLock=generalLockMessage(inv.createdAt);if(cancelLock)return alert(cancelLock);
  if(!requiresApproval('Hủy hóa đơn',{amount:Number(inv.total||0),details:reason}))return alert('Hủy hóa đơn cần được phê duyệt.');
  if(isTransactionClosed(inv))return alert('Hóa đơn thuộc ca đã chốt, không thể hủy.');
  const shift=requireOpenShift('hủy hóa đơn');if(!shift)return;
@@ -2561,6 +2593,7 @@ function saveReturn(){
  const shift=requireOpenShift('trả hàng');if(!shift)return;
  const inv=state.invoices.find(x=>x.id===document.getElementById('returnInvoice')?.value);
  if(!inv)return alert('Vui lòng chọn hóa đơn gốc.');
+ const returnLock=generalLockMessage(inv.createdAt);if(returnLock)return alert(returnLock);
  if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy không thể trả hàng.');
  if(Number(inv.paid||0)<=0)return alert('Hóa đơn chưa thanh toán nên chưa thể hoàn tiền.');
  if(isTransactionClosed(inv))return alert('Hóa đơn thuộc ca đã chốt, không thể tạo trả hàng.');
@@ -2738,6 +2771,7 @@ function reportNetRevenue(invoices){
  return (invoices||[]).filter(x=>(x.type||'Thu')==='Thu'&&x.status!=='Đã hủy').reduce((sum,x)=>sum+invoiceNetRevenue(x),0);
 }
 function createInvoice(data){
+ const txnDate=String(data.txnDate||data.createdAt||localDateKey(new Date())).slice(0,10);const lockMsg=generalLockMessage(txnDate);if(lockMsg){alert(lockMsg);return null;}
  const now=new Date();
  const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
  const total=Number(data.total)||0;
