@@ -1857,6 +1857,35 @@ function genericPage(c,title,col1,col2){
  </div><div class="card table-wrap" style="flex:1"><table><thead><tr><th>☐</th><th>${col1}</th><th>Thời gian</th><th>${col2}</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead><tbody><tr><td colspan="6"><div class="empty"><div class="circle">▣</div>Chưa có dữ liệu</div></td></tr></tbody></table></div></div>`;
 }
 function setExpiredRevenueAction(value){const cfg=getRevenueRecognitionConfig();cfg.expiredAction=value;cfg.expiredReason=value==='recognize'?'Thẻ hết hạn - ghi nhận doanh thu':'Thẻ hết hạn - giữ lại số dư';saveState();reportPage(document.getElementById('content'));}
+function arDueAmount(inv){
+ const total=Math.max(0,Number(inv?.total||0));
+ const paid=Math.max(0,Number(inv?.paid||0));
+ const returned=Math.max(0,invoiceReturnedAmount(inv));
+ return Math.max(0,total-paid-returned);
+}
+function arDueDate(inv){
+ return inv?.dueDate || inv?.createdAt || '';
+}
+function arAgeBucket(inv){
+ const due=arDueDate(inv); if(!due)return 'Trong hạn';
+ const d=new Date(due); if(Number.isNaN(d.getTime()))return 'Trong hạn';
+ const diff=Math.floor((Date.now()-d.getTime())/86400000);
+ if(diff<=0)return 'Trong hạn';
+ if(diff<=30)return 'Quá 1–30 ngày';
+ if(diff<=60)return '31–60 ngày';
+ return 'Trên 60 ngày';
+}
+function accountsReceivablePage(c){
+ if(!requirePermission('Xem công nợ phải thu','xem công nợ phải thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem công nợ phải thu.</div>';return;}
+ const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy'&&String(x.customerType||'').toLowerCase()!=='khách lẻ'&&String(x.customerName||x.customer||'').toLowerCase()!=='khách lẻ');
+ const rows=invoices.map(inv=>({inv,due:arDueAmount(inv),bucket:arAgeBucket(inv)})).filter(x=>x.due>0);
+ const total=rows.reduce((s,x)=>s+x.due,0);
+ const byCustomer={}; rows.forEach(x=>{const k=x.inv.customerCode||x.inv.customerName||x.inv.customer||'Không xác định'; if(!byCustomer[k])byCustomer[k]={name:x.inv.customerName||x.inv.customer||k,amount:0};byCustomer[k].amount+=x.due;});
+ const customerRows=Object.values(byCustomer).sort((a,b)=>b.amount-a.amount).map(x=>'<tr><td>'+esc(x.name)+'</td><td style="text-align:right">'+money(x.amount)+' ₫</td></tr>').join('');
+ const invoiceRows=rows.map(x=>'<tr><td>'+esc(x.inv.id)+'</td><td>'+esc(x.inv.customerName||x.inv.customer||'')+'</td><td>'+esc(x.inv.dueDate||'—')+'</td><td>'+x.bucket+'</td><td style="text-align:right">'+money(x.due)+' ₫</td></tr>').join('');
+ const buckets=['Trong hạn','Quá 1–30 ngày','31–60 ngày','Trên 60 ngày'].map(b=>({b,amount:rows.filter(x=>x.bucket===b).reduce((s,x)=>s+x.due,0)}));
+ c.innerHTML='<div class="page-title">Công nợ phải thu</div><div class="kpis"><div class="kpi">Tổng công nợ<div class="n">'+money(total)+' ₫</div></div>'+buckets.map(x=>'<div class="kpi">'+x.b+'<div class="n">'+money(x.amount)+' ₫</div></div>').join('')+'</div><div class="card report"><h3>Theo khách hàng</h3><table><thead><tr><th>Khách hàng</th><th style="text-align:right">Còn nợ</th></tr></thead><tbody>'+customerRows+'</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Theo hóa đơn</h3><table><thead><tr><th>Hóa đơn</th><th>Khách hàng</th><th>Ngày hẹn trả</th><th>Tuổi nợ</th><th style="text-align:right">Còn nợ</th></tr></thead><tbody>'+invoiceRows+'</tbody></table></div>';
+}
 function reportPage(c){
  if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo doanh thu.</div>';return;}
  const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
