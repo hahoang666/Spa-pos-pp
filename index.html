@@ -342,12 +342,12 @@ function loadState(){
 }
 loadState();
 resetDemoData();
-const DEFAULT_FUNDS=[{id:'FUND-CASH',name:'Quỹ tiền mặt',type:'cash',active:true,openingBalance:0,openingDate:localDateKey(new Date())},{id:'FUND-BANK',name:'Tài khoản ngân hàng',type:'bank',active:true,openingBalance:0,openingDate:localDateKey(new Date())},{id:'FUND-WALLET',name:'Ví điện tử',type:'wallet',active:true,openingBalance:0,openingDate:localDateKey(new Date())},{id:'FUND-POS',name:'Máy POS thẻ',type:'pos',active:true,openingBalance:0,openingDate:localDateKey(new Date())}];
+const DEFAULT_FUNDS=[{id:'FUND-CASH',name:'Quỹ tiền mặt',type:'cash',active:true,openingBalance:0,openingDate:localDateKey(new Date()),allowNegative:false},{id:'FUND-BANK',name:'Tài khoản ngân hàng',type:'bank',active:true,openingBalance:0,openingDate:localDateKey(new Date())},{id:'FUND-WALLET',name:'Ví điện tử',type:'wallet',active:true,openingBalance:0,openingDate:localDateKey(new Date())},{id:'FUND-POS',name:'Máy POS thẻ',type:'pos',active:true,openingBalance:0,openingDate:localDateKey(new Date())}];
 state.funds=Array.isArray(state.funds)&&state.funds.length?state.funds:DEFAULT_FUNDS.map(x=>({...x}));
 state.paymentFundMap=typeof state.paymentFundMap==='object'&&state.paymentFundMap?state.paymentFundMap:{'Tiền mặt':'FUND-CASH','Chuyển khoản':'FUND-BANK','Ví điện tử':'FUND-WALLET','Thẻ':'FUND-POS'};
 const fundById=id=>(state.funds||[]).find(f=>f.id===id)||null;
 function fundIdForPayment(pm){const n=normalizePaymentMethod(pm);return state.paymentFundMap[n]||'FUND-CASH';}
-(state.funds||[]).forEach(f=>{if(!Number.isFinite(Number(f.openingBalance)))f.openingBalance=0;if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f.openingDate||'')))f.openingDate=localDateKey(new Date());if(typeof f.openingConfigured!=='boolean')f.openingConfigured=false;});
+(state.funds||[]).forEach(f=>{if(!Number.isFinite(Number(f.openingBalance)))f.openingBalance=0;if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f.openingDate||'')))f.openingDate=localDateKey(new Date());if(typeof f.openingConfigured!=='boolean')f.openingConfigured=false;if(typeof f.allowNegative!=='boolean')f.allowNegative=false;});
 (state.cashbook||[]).forEach(x=>{if(!x.fundId)x.fundId=fundIdForPayment(x.paymentMethod);if(!x.category)x.category=cashCategoryFor(x);if(!x.txnDate)x.txnDate=String(x.createdAt||localTxnDate()).slice(0,10);if(!x.createdBy)x.createdBy=state.currentUser?.id||'legacy';if(!x.shiftId)x.shiftId=getOpenShift()?.id||x.shiftId||'legacy';if(!x.subject)x.subject=x.note||'Giao dịch cũ';if(!x.note)x.note=x.subject||'Giao dịch cũ';if(!x.referenceId)x.referenceId=x.id;});
 saveState();
 
@@ -378,9 +378,9 @@ function fundsPage(c){
  const mapRows=PAYMENT_METHODS.map(pm=>`<tr><td>${esc(pm)}</td><td><select class="field" onchange="state.paymentFundMap[${JSON.stringify(pm)}]=this.value;saveState();cashbookPage(document.getElementById('content'))">${opts}</select></td></tr>`).join('');
  const fundRows=(state.funds||[]).map(f=>{
    const locked=fundHasTransactions(f.id);
-   return `<tr><td>${esc(f.id)}</td><td>${esc(f.name)}</td><td>${esc(f.type)}</td><td><input id="fundOpeningBalance_${esc(f.id)}" class="field" type="number" min="0" step="1" value="${fundOpening(f)}"></td><td><input id="fundOpeningDate_${esc(f.id)}" class="field" type="date" value="${esc(fundOpeningDate(f))}"></td><td>${esc(locked?'Đã có giao dịch — sửa cần phê duyệt':(f.openingConfigured?'Đã cấu hình':'Chưa khai báo'))}</td><td><button class="btn btn-secondary" onclick="saveFundOpening(${JSON.stringify(f.id)})">${locked?'Yêu cầu phê duyệt':'Lưu'}</button></td></tr>`;
+   return `<tr><td>${esc(f.id)}</td><td>${esc(f.name)}</td><td>${esc(f.type)}</td><td><input id="fundOpeningBalance_${esc(f.id)}" class="field" type="number" min="0" step="1" value="${fundOpening(f)}"></td><td><input id="fundOpeningDate_${esc(f.id)}" class="field" type="date" value="${esc(fundOpeningDate(f))}"></td><td><input type="checkbox" ${f.allowNegative?'checked':''} onchange="state.funds.find(x=>x.id===${JSON.stringify(f.id)}).allowNegative=this.checked;saveState()"></td><td>${esc(locked?'Đã có giao dịch — sửa cần phê duyệt':(f.openingConfigured?'Đã cấu hình':'Chưa khai báo'))}</td><td><button class="btn btn-secondary" onclick="saveFundOpening(${JSON.stringify(f.id)})">${locked?'Yêu cầu phê duyệt':'Lưu'}</button></td></tr>`;
  }).join('');
- c.innerHTML=`<div class="page-title">Danh mục quỹ / tài khoản</div><div class="card report"><h3>Ánh xạ phương thức thanh toán</h3><table><thead><tr><th>Phương thức thanh toán</th><th>Quỹ được ánh xạ</th></tr></thead><tbody>${mapRows}</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Hồ sơ số dư đầu kỳ</h3><p class="dashboard-note">Số dư đầu kỳ là điểm gốc của từng quỹ. Giao dịch trước ngày bắt đầu sử dụng không tính vào sổ.</p><table><thead><tr><th>Mã quỹ</th><th>Tên quỹ</th><th>Loại</th><th>Số dư đầu kỳ</th><th>Ngày bắt đầu</th><th>Trạng thái</th><th></th></tr></thead><tbody>${fundRows}</tbody></table></div>`;
+ c.innerHTML=`<div class="page-title">Danh mục quỹ / tài khoản</div><div class="card report"><h3>Ánh xạ phương thức thanh toán</h3><table><thead><tr><th>Phương thức thanh toán</th><th>Quỹ được ánh xạ</th></tr></thead><tbody>${mapRows}</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Hồ sơ số dư đầu kỳ</h3><p class="dashboard-note">Số dư đầu kỳ là điểm gốc của từng quỹ. Giao dịch trước ngày bắt đầu sử dụng không tính vào sổ.</p><table><thead><tr><th>Mã quỹ</th><th>Tên quỹ</th><th>Loại</th><th>Số dư đầu kỳ</th><th>Ngày bắt đầu</th><th>Cho phép âm</th><th>Trạng thái</th><th></th></tr></thead><tbody>${fundRows}</tbody></table></div>`;
 }
 state.priceLists=Array.isArray(state.priceLists)?state.priceLists:[];
 state.documents=Array.isArray(state.documents)?state.documents:[];
@@ -477,7 +477,7 @@ function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',re
  const value=Number(amount)||0;
  const normalizedPaymentMethod=normalizePaymentMethod(paymentMethod);
  const normalizedCategory=cashCategoryFor({type,subject,referenceId,category});
- const date=txnDate||localTxnDate();
+ const date=txnDate||localTxnDate(); const targetFund=fundById(fundIdForPayment(normalizedPaymentMethod));if(type==='chi'&&!targetFund?.allowNegative){const available=fundBalanceAsOf(targetFund.id,date);if(value>available){alert('Quỹ không đủ số dư. Số dư hiện có tại ngày giao dịch '+date+' là '+money(available)+' ₫. Hãy chọn phương thức hoàn khác hoặc chuyển quỹ trước.');return null;}}
  const shiftId=getOpenShift()?.id||'';
  const createdBy=state.currentUser?.id||'';
  if(!['thu','chi'].includes(type)||value<=0||!fundIdForPayment(normalizedPaymentMethod)||!normalizedCategory||!subject?.trim()||!note?.trim()||!referenceId?.trim()||!createdBy||!shiftId||!/^\d{4}-\d{2}-\d{2}$/.test(date)){
@@ -1903,14 +1903,13 @@ function openCashPayment(){openCashVoucher('chi')}
 function saveCashVoucher(type){
  const isIncome=type==='thu', perm=isIncome?'Tạo phiếu thu':'Tạo phiếu chi';
  if(!hasPermission(perm))return alert('Bạn không có quyền thực hiện thao tác này.');
- const amount=Number(document.getElementById('cashAmount').value);
+ const amount=Number(document.getElementById('cashAmount').value),subject=document.getElementById('cashSubject').value.trim(),paymentMethod=normalizePaymentMethod(document.getElementById('cashMethod').value),note=document.getElementById('cashNote').value.trim();
  if(!Number.isFinite(amount)||amount<=0)return alert('Số tiền phải lớn hơn 0.');
- const subject=document.getElementById('cashSubject').value.trim();
  if(!subject)return alert('Vui lòng nhập Đối tượng.');
- state.cashbook=Array.isArray(state.cashbook)?state.cashbook:[];
- const id=nextAutoCode(isIncome?'PT':'PC',6,isIncome?'spa_next_receipt_id':'spa_next_payment_id',state.cashbook,'id');
- state.cashbook.push({id,type,amount,subject,paymentMethod:normalizePaymentMethod(document.getElementById('cashMethod').value),note:document.getElementById('cashNote').value.trim(),createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',status:'Hoàn thành'});
- saveState();closeModal();cashBookPage(document.getElementById('content'),type);alert('Đã lưu '+(isIncome?'phiếu thu ':'phiếu chi ')+id+'.');
+ if(!note)return alert('Vui lòng nhập Ghi chú.');
+ const row=addCashMovement({type,amount,paymentMethod,subject,note,referenceId:'MANUAL-'+Date.now(),category:isIncome?'Thu khác':'Chi khác',txnDate:localTxnDate()});
+ if(!row)return;
+ saveState();closeModal();cashBookPage(document.getElementById('content'),type);alert('Đã lưu '+(isIncome?'phiếu thu ':'phiếu chi ')+row.id+'.');
 }
 function inventoryPage(c){
  const products=(state.products||[]).filter(p=>p.type!=='Dịch vụ'&&p.type!=='Gói dịch vụ, liệu trình');
