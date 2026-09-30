@@ -860,6 +860,12 @@ function saveOpenShift(){
  state.shifts.push({id:nextAutoCode('CA',6,'spa_next_shift_id',state.shifts,'id'),date:today,openedAt:new Date().toISOString(),openedBy:state.currentUser?.id||'',openedByName:state.currentUser?.name||state.currentUser?.username||'',openingCash:amount,status:'Đang mở',note:document.getElementById('shiftNote').value.trim(),totalIncome:0,totalExpense:0});
  saveState();closeModal();shiftClosePage(document.getElementById('content'));alert('Đã mở ca.');
 }
+function cashbookPage(c){
+ if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
+ const rows=(state.cashbook||[]).map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.type==='thu'?'Thu':'Chi')+'</td><td>'+esc(x.paymentMethod||'')+'</td><td>'+esc(x.subject||'')+'</td><td>'+money(x.amount||0)+' ₫</td><td>'+esc(x.shiftId||'—')+'</td><td>'+esc(x.note||'')+'</td></tr>').join('');
+ const cash=(state.cashbook||[]).filter(x=>normalizePaymentMethod(x.paymentMethod||'Tiền mặt')==='Tiền mặt'); const deposits=(state.cashbook||[]).filter(x=>['Chuyển khoản','Ví điện tử','Thẻ'].includes(normalizePaymentMethod(x.paymentMethod||'')));
+ const bal=a=>a.reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0); c.innerHTML='<div class="page-title">Sổ quỹ & tiền gửi</div><div class="kpis"><div class="kpi">Quỹ tiền mặt<div class="n">'+money(bal(cash))+' ₫</div></div><div class="kpi">Tiền gửi<div class="n">'+money(bal(deposits))+' ₫</div></div></div><div class="card report"><table><thead><tr><th>Mã</th><th>Loại</th><th>Phương thức</th><th>Đối tượng</th><th>Số tiền</th><th>Ca</th><th>Ghi chú</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
 function openCloseShift(){
  if(!hasPermission('Chốt quỹ'))return alert('Bạn không có quyền chốt quỹ.');
  const sh=getOpenShift();if(!sh)return alert('Không có ca đang mở.');
@@ -874,9 +880,9 @@ function openCloseShift(){
 }
 function saveCloseShift(){
  if(!hasPermission('Chốt quỹ'))return alert('Bạn không có quyền chốt quỹ.');
- const d=Number(document.getElementById('actualCash').value);if(!Number.isFinite(d)||d<0)return alert('Tiền thực tế không hợp lệ.');
+ const d=Number(document.getElementById('actualCash').value);if(!Number.isFinite(d)||d<0)return alert('Tiền thực tế không hợp lệ.'); const note=document.getElementById('closeNote').value.trim(); const diff=d-x.expected; if(Math.abs(diff)>0.000001&&!note)return alert('Bắt buộc ghi chú khi thừa hoặc thiếu quỹ.');
  const x=window._closingShift;if(!x)return;
- Object.assign(x.sh,{closedAt:new Date().toISOString(),closedBy:state.currentUser?.id||'',totalIncome:x.income,totalExpense:x.expense,expectedCash:x.expected,actualCash:d,difference:d-x.expected,status:'Đã chốt',closeNote:document.getElementById('closeNote').value.trim()});
+ if(Math.abs(diff)>0.000001){ addCashMovement({type:diff>0?'thu':'chi',amount:Math.abs(diff),paymentMethod:'Tiền mặt',subject:diff>0?'Thừa quỹ':'Thiếu quỹ',referenceId:x.sh.id,note:note}); } Object.assign(x.sh,{closedAt:new Date().toISOString(),closedBy:state.currentUser?.id||'',totalIncome:x.income,totalExpense:x.expense,expectedCash:x.expected,actualCash:d,difference:d-x.expected,status:'Đã chốt',closeNote:note});
  saveState();window._closingShift=null;closeModal();shiftClosePage(document.getElementById('content'));alert('Đã chốt quỹ.');
 }
 
