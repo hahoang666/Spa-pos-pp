@@ -1255,9 +1255,31 @@ function hasSellerProfile(){
   if(state.page==='Chuyển quỹ nội bộ') return internalFundTransferPage(c);
   if(state.page==='Khóa kỳ sổ quỹ') return cashbookLockPage(c);
   if(state.page==='Nhật ký sổ quỹ') return cashbookAuditPage(c);
+function runFR20Reconciliation(){
+ const invoices=Array.isArray(state.invoices)?state.invoices:[], returns=Array.isArray(state.returns)?state.returns:[], books=Array.isArray(state.cashbook)?state.cashbook:[];
+ const valid=invoices.filter(x=>x.status!=='Đã hủy'&&x.status!=='Hủy');
+ const retByInv=new Map(); returns.filter(x=>x.status!=='Đã hủy').forEach(r=>retByInv.set(r.invoiceId,(retByInv.get(r.invoiceId)||0)+Number(r.refundAmount||r.amount||0));
+ const paidExpected=valid.reduce((a,x)=>a+invoicePaymentTotal(x),0)-Array.from(retByInv.values()).reduce((a,v)=>a+v,0);
+ const paidActual=books.filter(x=>['Thu bán hàng','Thu nợ khách','Chi hoàn tiền trả hàng','Chi hoàn tiền hủy đơn'].includes(x.category)).reduce((a,x)=>a+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);
+ const details1=[];
+ valid.forEach(inv=>{const ret=Number(retByInv.get(inv.id)||0), expected=invoicePaymentTotal(inv)-ret, ids=returns.filter(r=>r.invoiceId===inv.id&&r.status!=='Đã hủy').map(r=>r.id), actual=books.filter(x=>x.referenceId===inv.id||ids.includes(x.referenceId)).reduce((a,x)=>a+(x.category.startsWith('Thu ')?1:-1)*Number(x.amount||0),0);if(Math.abs(expected-actual)>.001)details1.push({id:inv.id,ref:inv.id,message:'Thanh toán kỳ vọng '+money(expected)+' ₫, cashbook '+money(actual)+' ₫.'});});
+ const checks=[{name:'Thanh toán hóa đơn ↔ sổ quỹ',ok:Math.abs(paidExpected-paidActual)<=.001,diffText:money(paidExpected-paidActual)+' ₫',details:details1}];
+ const vatGross=valid.reduce((a,x)=>a+Number(invoiceRevenueFields(x).merchandiseAmountExVat||0)+Number(invoiceRevenueFields(x).vatAmount||0),0);
+ const returnedGross=returns.filter(r=>r.status!=='Đã hủy').reduce((a,r)=>a+Number(r.refundAmount||r.amount||0),0);
+ const invoiceGross=valid.reduce((a,x)=>a+Number(x.total||invoicePaymentTotal(x)),0);
+ const revenueNet=reportNetRevenue(valid)-returns.filter(r=>r.status!=='Đã hủy').reduce((a,r)=>a+Number(r.refundAmountExVat||0),0);
+ const vatTotal=valid.reduce((a,x)=>a+Number(invoiceRevenueFields(x).vatAmount||0),0)-returns.filter(r=>r.status!=='Đã hủy').reduce((a,r)=>a+Number(r.vatAmount||0),0);
+ const revenueDetails=[]; const revenueExpected=invoiceGross-returnedGross, revenueActual=revenueNet+vatTotal;
+ if(Math.abs(revenueExpected-revenueActual)>.001) valid.forEach(x=>{const f=invoiceRevenueFields(x);const expected=Number(x.total||invoicePaymentTotal(x)), actual=Number(f.netRevenue||0)+Number(f.vatAmount||0);if(Math.abs(expected-actual)>.001)revenueDetails.push({id:x.id,ref:x.id,message:'Tổng hóa đơn '+money(expected)+' ₫ nhưng doanh thu thuần + VAT '+money(actual)+' ₫.'});});
+ checks.push({name:'Doanh thu thuần + VAT ↔ hóa đơn − hàng trả',ok:Math.abs(revenueExpected-revenueActual)<=.001,diffText:money(revenueExpected-revenueActual)+' ₫',details:revenueDetails});
+ const products=Array.isArray(state.products)?state.products:[], stockDetails=[]; let stockDiff=0;
+ products.forEach(p=>{const code=p.code||p.id; const qtyIn=(state.stockReceipts||[]).filter(x=>x.status!=='Đã hủy'&&x.items?.some(i=>(i.productCode||i.productId)===code)).reduce((a,x)=>a+(x.items||[]).filter(i=>(i.productCode||i.productId)===code).reduce((q,i)=>q+Number(i.qty||i.quantity||0),0),0); const qtySold=valid.reduce((a,x)=>a+(x.items||[]).filter(i=>(i.productCode||i.productId)===code).reduce((q,i)=>q+Number(i.qty||i.quantity||0),0),0); const qtyRet=returns.filter(r=>r.status!=='Đã hủy').reduce((a,x)=>a+(x.items||[]).filter(i=>(i.productCode||i.productId)===code).reduce((q,i)=>q+Number(i.qty||i.quantity||0),0),0); const expected=qtyIn-qtySold+qtyRet; const actual=Number(p.stock||p.stockQty||p.quantityInStock||0); if(Math.abs(expected-actual)>.001){stockDiff++;stockDetails.push({id:code,ref:code,message:'Tồn kỳ vọng '+expected+', tồn hệ thống '+actual+' (nhập '+qtyIn+' − bán '+qtySold+' + trả '+qtyRet+').' });}});
+ checks.push({name:'Tồn kho ↔ nhập − bán + trả',ok:stockDiff===0,diffText:stockDiff+' mã hàng lệch',details:stockDetails});
+ return checks;
+}
 function dataCheckPage(c){
  if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem Kiểm tra dữ liệu.</div>';return;}
- const r=runDataChecks();
+ const r=runDataChecks().concat(runFR20Reconciliation());
  const status=v=>v.ok?'Đạt':'Lệch';
  const badge=v=>v.ok?'<span style="color:#16a34a;font-weight:700">Đạt</span>':'<span style="color:#d92d20;font-weight:700">Lệch</span>';
  const rows=r.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.name)+'</td><td>'+badge(x)+'</td><td style="text-align:right">'+esc(String(x.diffText||''))+'</td><td>'+(x.details.length?'<button class="btn btn-secondary" onclick="showDataCheckDetails('+i+')">Xem '+x.details.length+' chứng từ</button>':'—')+'</td></tr>').join('');
