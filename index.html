@@ -1246,6 +1246,26 @@ function completeCashierSale(){
 function eInvoiceStatusLabel(inv){return inv?.eInvoiceStatus||'Chưa xuất';}
 function nextEInvoiceNumber(series){const key='spa_einvoice_seq_'+String(series||'').toUpperCase();const n=Number(localStorage.getItem(key)||0)+1;localStorage.setItem(key,String(n));return String(n).padStart(6,'0');}
 function generateTaxAuthorityCode(){return 'GOV-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();}
+function requireEInvoiceAction(inv){
+ if(!inv||!['Đã cấp mã','Đã điều chỉnh','Đã thay thế'].includes(inv.eInvoiceStatus))return false;
+ if(!hasSellerProfile()&&!inv.sellerSnapshot)return alert('Chưa cấu hình hồ sơ đơn vị bán.');
+ return true;
+}
+function eInvoiceAction(id,action){
+ const inv=state.invoices.find(x=>x.id===id);if(!requireEInvoiceAction(inv))return;
+ const reason=prompt('Nhập lý do '+action+':');if(!reason||!reason.trim())return alert('Bắt buộc nhập lý do.');
+ const approval=prompt('Nhập PIN phê duyệt:');if(!approval||approval.trim()!=='1111')return alert('Phê duyệt không hợp lệ.');
+ const originalId=inv.originalInvoiceId||inv.id;
+ const type=action==='Hủy'?'Đã hủy':action==='Thay thế'?'Đã thay thế':'Đã điều chỉnh';
+ inv.eInvoiceStatus=type;inv.eInvoiceAction=action;inv.eInvoiceReason=reason.trim();inv.approvalLog={type:action,approvedAt:new Date().toISOString(),approvedBy:state.currentUser?.username||'manager'};
+ inv.relatedInvoiceId=originalId;inv.originalInvoiceId=originalId;
+ saveState();renderAll();alert('Đã ghi nhận '+action+' hóa đơn mô phỏng.');
+}
+function eInvoiceChain(id){
+ const inv=state.invoices.find(x=>x.id===id);if(!inv)return [];
+ const root=inv.originalInvoiceId||inv.id;
+ return state.invoices.filter(x=>x.id===root||x.originalInvoiceId===root||x.relatedInvoiceId===root);
+}
 function exportEInvoice(id){
  const inv=state.invoices.find(x=>x.id===id);if(!inv)return alert('Không tìm thấy đơn bán hàng.');
  if(inv.status!=='Đã thanh toán')return alert('Chỉ đơn đã thanh toán mới được xuất hóa đơn điện tử.');
