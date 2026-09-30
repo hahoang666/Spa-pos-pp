@@ -415,7 +415,7 @@ const menus={
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
   'Khách hàng':['Thẻ liệu trình','Khách hàng','Nhân viên'],
-  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Đóng ca / Chốt quỹ'],
+  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Đóng ca / Chốt quỹ'],
   'Kho & Nguyên liệu':['Kho nguyên liệu','Định mức nguyên liệu'],
   'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
@@ -935,6 +935,25 @@ function cashbookPeriodRange(mode,from,to){
  if(mode==='month'){const d=from||today;const p=d.slice(0,7);return [p+'-01',new Date(Number(p.slice(0,4)),Number(p.slice(5,7)),0).toISOString().slice(0,10)];}
  if(mode==='quarter'){const d=from||today,y=Number(d.slice(0,4)),m=Number(d.slice(5,7)),q=Math.floor((m-1)/3)*3+1;return [`${y}-${String(q).padStart(2,'0')}-01`,new Date(y,q+2,0).toISOString().slice(0,10)];}
  return [from||'0000-01-01',to||today];
+}
+function cashbookSummaryPage(c){
+ if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
+ const mode=state.cashbookSummaryMode||'month', today=localDateKey(new Date()), from=state.cashbookSummaryFrom||today,to=state.cashbookSummaryTo||today;
+ const [rangeStart,rangeEnd]=cashbookPeriodRange(mode,from,to);
+ const funds=(state.funds||[]).filter(f=>f.active!==false);
+ const rows=funds.map(f=>{
+   const opening=fundOpening(f)+((state.cashbook||[]).filter(x=>x.fundId===f.id&&String(x.txnDate||'')>=fundOpeningDate(f)&&String(x.txnDate||'')<rangeStart).reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0));
+   const tx=(state.cashbook||[]).filter(x=>x.fundId===f.id&&String(x.txnDate||'')>=rangeStart&&String(x.txnDate||'')<=rangeEnd);
+   const thu=tx.filter(x=>x.type==='thu'&&x.category!=='Chuyển quỹ').reduce((s,x)=>s+Number(x.amount||0),0);
+   const chi=tx.filter(x=>x.type==='chi'&&x.category!=='Chuyển quỹ').reduce((s,x)=>s+Number(x.amount||0),0);
+   const netInternal=tx.reduce((s,x)=>s+(x.type==='thu'?1:-1)*(x.category==='Chuyển quỹ'?Number(x.amount||0):0),0);
+   const end=fundBalance(f.id);
+   const endInPeriod=opening+thu-chi+netInternal;
+   return {f,opening,thu,chi,end:endInPeriod};
+ });
+ const total=rows.reduce((a,r)=>({opening:a.opening+r.opening,thu:a.thu+r.thu,chi:a.chi+r.chi,end:a.end+r.end}),{opening:0,thu:0,chi:0,end:0});
+ const trs=rows.map(r=>`<tr><td>${esc(r.f.name)}</td><td style="text-align:right">${money(r.opening)} ₫</td><td style="text-align:right">${money(r.thu)} ₫</td><td style="text-align:right">${money(r.chi)} ₫</td><td style="text-align:right">${money(r.end)} ₫</td></tr>`).join('');
+ c.innerHTML=`<div class="page-title">Báo cáo tổng hợp các quỹ</div><div class="card report"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label>Kỳ<select class="field" onchange="state.cashbookSummaryMode=this.value;cashbookSummaryPage(document.getElementById('content'))"><option value="day" ${mode==='day'?'selected':''}>Ngày</option><option value="month" ${mode==='month'?'selected':''}>Tháng</option><option value="quarter" ${mode==='quarter'?'selected':''}>Quý</option><option value="custom" ${mode==='custom'?'selected':''}>Tùy chọn</option></select></label><label>Từ ngày<input class="field" type="date" value="${esc(from)}" onchange="state.cashbookSummaryFrom=this.value;cashbookSummaryPage(document.getElementById('content'))"></label><label>Đến ngày<input class="field" type="date" value="${esc(to)}" onchange="state.cashbookSummaryTo=this.value;cashbookSummaryPage(document.getElementById('content'))"></label></div><p class="dashboard-note">Kỳ: ${rangeStart} → ${rangeEnd}. Chuyển quỹ nội bộ không được tính vào tổng thu/chi toàn bộ.</p><table><thead><tr><th>Quỹ</th><th>Đầu kỳ</th><th>Tổng thu</th><th>Tổng chi</th><th>Cuối kỳ</th></tr></thead><tbody>${trs}<tr><th>TỔNG CỘNG</th><th style="text-align:right">${money(total.opening)} ₫</th><th style="text-align:right">${money(total.thu)} ₫</th><th style="text-align:right">${money(total.chi)} ₫</th><th style="text-align:right">${money(total.end)} ₫</th></tr></tbody></table></div>`;
 }
 function cashbookDetailPage(c){
  if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
