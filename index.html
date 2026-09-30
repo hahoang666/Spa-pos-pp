@@ -1757,6 +1757,7 @@ function cancelInvoice(id){
   parts.forEach(p=>addCashMovement({type:'chi',amount:partTotal>0?refund*(Number(p.amount||0)/partTotal):refund,paymentMethod:p.method,subject:inv.customerName||inv.customer||'',referenceId:inv.id,note:'Hoàn tiền do hủy hóa đơn '+inv.id}));
 }
  inv.paid=0;inv.status='Đã hủy';inv.cancelReason=reason;inv.cancelledAt=new Date().toISOString();inv.cancelledBy=state.currentUser?.username||'';inv.cancelRefundAmount=refund;inv.cancelledShiftId=shift.id;
+ auditSensitive('Hủy hóa đơn',inv.id,{status:'Đã thanh toán',total:inv.total},{status:inv.status,cancelRefundAmount:refund},reason);
  saveState();closeModal();applyInvoiceFilters();alert(refund>0?'Đã hủy hóa đơn, hoàn kho và hoàn tiền.':'Đã hủy hóa đơn và hoàn kho.');
 }
 function openCollectDebt(id){
@@ -2679,6 +2680,7 @@ function saveReturn(){
  const effectiveTotal=Math.max(0,Number(inv.total||0)-alreadyReturned-amount);
  inv.status=inv.paid>=effectiveTotal?'Đã thanh toán':'Còn nợ';
  addCashMovement({type:'chi',amount,paymentMethod:method,subject:inv.customerName||inv.customer||'',referenceId:ret.id,note:'Hoàn tiền trả hàng '+ret.id+' từ '+inv.id});
+ auditSensitive('Hoàn trả hàng',ret.id,{invoiceId:inv.id,amount:amount},{status:ret.status,refundAmount:amount},'Hoàn tiền từ '+inv.id);
  saveState();closeModal();returnPage(document.getElementById('content'));alert('Đã tạo phiếu trả hàng '+ret.id+' và hoàn tiền '+money(amount)+' ₫.');
 }
 function returnPage(c){
