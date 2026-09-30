@@ -1243,16 +1243,17 @@ function completeCashierSale(){
  state.lastCashierInvoiceId=invoice.id;state.cashierCart=[];state.cashierOrderDiscount=0;state.cashierDebtDueDate='';state.cashierPayments=[{method:'Tiền mặt',amount:0,tendered:0}];
  saveState();alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận là Còn nợ.':''));renderAll();
 }
+function eInvoiceStatusLabel(inv){return inv?.eInvoiceStatus||'Chưa xuất';}
+function nextEInvoiceNumber(series){const key='spa_einvoice_seq_'+String(series||'').toUpperCase();const n=Number(localStorage.getItem(key)||0)+1;localStorage.setItem(key,String(n));return String(n).padStart(6,'0');}
+function generateTaxAuthorityCode(){return 'GOV-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();}
 function exportEInvoice(id){
- const inv=state.invoices.find(x=>x.id===id);
- if(!inv)return alert('Không tìm thấy hóa đơn.');
- if(!hasSellerProfile() && !inv.sellerSnapshot)return alert('Chưa cấu hình hồ sơ đơn vị bán. Không thể xuất hóa đơn điện tử.');
+ const inv=state.invoices.find(x=>x.id===id);if(!inv)return alert('Không tìm thấy đơn bán hàng.');
+ if(inv.status!=='Đã thanh toán')return alert('Chỉ đơn đã thanh toán mới được xuất hóa đơn điện tử.');
+ if(['Đã cấp mã','Đã điều chỉnh','Đã thay thế','Đã hủy'].includes(inv.eInvoiceStatus))return alert('Hóa đơn đã được cấp mã hoặc đã xử lý. Không xuất trực tiếp lần nữa.');
+ if(!hasSellerProfile()&&!inv.sellerSnapshot)return alert('Chưa cấu hình hồ sơ đơn vị bán.');
  if(!inv.sellerSnapshot)inv.sellerSnapshot={...state.sellerProfile};
- inv.eInvoiceStatus='Đã xuất (mô phỏng)';
- inv.eInvoiceExportedAt=new Date().toISOString();
- saveState();
- alert('Đã xuất hóa đơn điện tử mô phỏng '+inv.id+'.');
- renderPage();
+ inv.eInvoiceStatus='Đã cấp mã';inv.eInvoiceNumber=nextEInvoiceNumber(inv.sellerSnapshot.invoiceSeries);inv.taxAuthorityCode=generateTaxAuthorityCode();inv.eInvoiceIssuedAt=new Date().toISOString();
+ saveState();renderAll();alert('Đã cấp mã hóa đơn điện tử mô phỏng số '+inv.eInvoiceNumber+'.');
 }
 function printLastCashierInvoice(){
  const id=state.lastCashierInvoiceId;
@@ -2247,7 +2248,7 @@ function createInvoice(data){
    netRevenue:revenueFields.netRevenue,
    status:data.status||status,
    sellerSnapshot:data.sellerSnapshot||(hasSellerProfile()?{...state.sellerProfile}:null),
-   eInvoiceStatus:data.eInvoiceStatus||'Chưa xuất',
+   eInvoiceStatus:data.eInvoiceStatus||'Chưa xuất',eInvoiceNumber:data.eInvoiceNumber||'',taxAuthorityCode:data.taxAuthorityCode||'',eInvoiceIssuedAt:data.eInvoiceIssuedAt||'',
  };
  state.invoices.unshift(invoice);
  saveState();
