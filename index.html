@@ -1031,14 +1031,29 @@ function openCloseShift(){
  const cashIncome=cash.filter(x=>x.type==='thu'&&normalizePaymentMethod(x.paymentMethod||'Tiền mặt')==='Tiền mặt').reduce((a,x)=>a+Number(x.amount||0),0);
  const cashExpense=cash.filter(x=>x.type==='chi'&&normalizePaymentMethod(x.paymentMethod||'Tiền mặt')==='Tiền mặt').reduce((a,x)=>a+Number(x.amount||0),0);
  const expected=(Number(sh.openingCash)||0)+cashIncome-cashExpense;
- openModal('Chốt quỹ','<div class="form-grid"><div><label>Tiền mặt dự kiến</label><input class="field" value="'+money(expected)+' ₫" disabled></div><div><label>Tiền mặt thực tế *</label><input id="actualCash" class="field" type="number" min="0"></div><div><label>Tổng thu</label><input class="field" value="'+money(income)+' ₫" disabled></div><div><label>Tổng chi</label><input class="field" value="'+money(expense)+' ₫" disabled></div><div class="full"><label>Ghi chú</label><textarea id="closeNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCloseShift()">Chốt quỹ</button>');
+ const denoms=[500000,200000,100000,50000,20000,10000,5000,2000,1000];
+ const fields=denoms.map(v=>'<label>'+money(v)+' ₫<input id="denom_'+v+'" class="field" type="number" min="0" step="1" value="0" oninput="recalcDenomTotal()"></label>').join('');
+ openModal('Chốt quỹ','<div class="form-grid"><div><label>Tiền mặt dự kiến</label><input class="field" value="'+money(expected)+' ₫" disabled></div><div><label>Tiền mặt thực tế</label><input id="actualCash" class="field" type="number" min="0" readonly></div><div class="full"><label>Số tờ theo mệnh giá</label><div class="form-grid">'+fields+'</div><div id="denomTotal" class="dashboard-note">Tiền thực tế: 0 ₫</div></div><div><label>Tổng thu</label><input class="field" value="'+money(income)+' ₫" disabled></div><div><label>Tổng chi</label><input class="field" value="'+money(expense)+' ₫" disabled></div><div class="full"><label>Ghi chú</label><textarea id="closeNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCloseShift()">Chốt quỹ</button>');
  window._closingShift={sh,income,expense,expected};
+}
+function recalcDenomTotal(){
+ const denoms=[500000,200000,100000,50000,20000,10000,5000,2000,1000];
+ const total=denoms.reduce((s,v)=>s+Math.max(0,Number(document.getElementById('denom_'+v)?.value)||0)*v,0);
+ const input=document.getElementById('actualCash');if(input)input.value=total;
+ const label=document.getElementById('denomTotal');if(label)label.textContent='Tiền thực tế: '+money(total)+' ₫';
+ return total;
 }
 function saveCloseShift(){
  if(!hasPermission('Chốt quỹ'))return alert('Bạn không có quyền chốt quỹ.');
- const d=Number(document.getElementById('actualCash').value);if(!Number.isFinite(d)||d<0)return alert('Tiền thực tế không hợp lệ.'); const note=document.getElementById('closeNote').value.trim(); const diff=d-x.expected; if(Math.abs(diff)>0.000001&&!note)return alert('Bắt buộc ghi chú khi thừa hoặc thiếu quỹ.');
  const x=window._closingShift;if(!x)return;
- if(Math.abs(diff)>0.000001){ addCashMovement({type:diff>0?'thu':'chi',amount:Math.abs(diff),paymentMethod:'Tiền mặt',subject:diff>0?'Thừa quỹ':'Thiếu quỹ',referenceId:x.sh.id,note:note}); } Object.assign(x.sh,{closedAt:new Date().toISOString(),closedBy:state.currentUser?.id||'',totalIncome:x.income,totalExpense:x.expense,expectedCash:x.expected,actualCash:d,difference:d-x.expected,status:'Đã chốt',closeNote:note});
+ const d=recalcDenomTotal();if(!Number.isFinite(d)||d<0)return alert('Tiền thực tế không hợp lệ.');
+ const note=document.getElementById('closeNote').value.trim(); const diff=d-x.expected;
+ if(Math.abs(diff)>0.000001&&!note)return alert('Bắt buộc ghi chú khi thừa hoặc thiếu quỹ.');
+ if(Math.abs(diff)>0.000001){
+   const row=addCashMovement({type:diff>0?'thu':'chi',amount:Math.abs(diff),paymentMethod:'Tiền mặt',subject:diff>0?'Thừa quỹ':'Thiếu quỹ',referenceId:x.sh.id,note,category:diff>0?'Thừa quỹ':'Thiếu quỹ',txnDate:localTxnDate()});
+   if(!row)return;
+ }
+ Object.assign(x.sh,{closedAt:new Date().toISOString(),closedBy:state.currentUser?.id||'',totalIncome:x.income,totalExpense:x.expense,expectedCash:x.expected,actualCash:d,difference:d-x.expected,denominationCounts:Object.fromEntries([500000,200000,100000,50000,20000,10000,5000,2000,1000].map(v=>[v,Number(document.getElementById('denom_'+v)?.value)||0])),status:'Đã chốt',closeNote:note});
  saveState();window._closingShift=null;closeModal();shiftClosePage(document.getElementById('content'));alert('Đã chốt quỹ.');
 }
 
