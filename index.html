@@ -1886,6 +1886,21 @@ function accountsReceivablePage(c){
  const buckets=['Trong hạn','Quá 1–30 ngày','31–60 ngày','Trên 60 ngày'].map(b=>({b,amount:rows.filter(x=>x.bucket===b).reduce((s,x)=>s+x.due,0)}));
  c.innerHTML='<div class="page-title">Công nợ phải thu</div><div class="kpis"><div class="kpi">Tổng công nợ<div class="n">'+money(total)+' ₫</div></div>'+buckets.map(x=>'<div class="kpi">'+x.b+'<div class="n">'+money(x.amount)+' ₫</div></div>').join('')+'</div><div class="card report"><h3>Theo khách hàng</h3><table><thead><tr><th>Khách hàng</th><th style="text-align:right">Còn nợ</th></tr></thead><tbody>'+customerRows+'</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Theo hóa đơn</h3><table><thead><tr><th>Hóa đơn</th><th>Khách hàng</th><th>Ngày hẹn trả</th><th>Tuổi nợ</th><th style="text-align:right">Còn nợ</th></tr></thead><tbody>'+invoiceRows+'</tbody></table></div>';
 }
+function inputVatRateValue(x){const n=Number(x);return Number.isFinite(n)&&n>=0?n:0;}
+function taxSummaryPage(c){
+ if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem Thuế & Kế toán.</div>';return;}
+ const period=state.taxPeriod||'month', now=new Date(), year=now.getFullYear(), p=period==='quarter'?Math.floor(now.getMonth()/3)+1:now.getMonth()+1;
+ const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
+ const output={};
+ invoices.forEach(inv=>getInvoiceItems(inv).forEach(it=>{const rate=inputVatRateValue(it.vatRate??it.vat??inv.vat??0);const vat=Number(it.vatAmount??it.vat??0);output[rate]=(output[rate]||0)+vat;}));
+ const inputs=Array.isArray(state.inputInvoices)?state.inputInvoices:[];
+ const filtered=inputs.filter(x=>Number(x.year||year)===year&&(period==='month'?Number(x.month||0)===p:Number(x.quarter||Math.floor((Number(x.month||1)-1)/3)+1)===p));
+ const inputTotal=filtered.reduce((sum,x)=>sum+Math.max(0,Number(x.taxAmount||x.vatAmount||0)),0);
+ const outputTotal=Object.values(output).reduce((a,b)=>a+b,0), payable=outputTotal-inputTotal;
+ const rows=Object.keys(output).sort((a,b)=>Number(a)-Number(b)).map(r=>'<tr><td>'+r+'%</td><td style="text-align:right">'+money(output[r])+' ₫</td></tr>').join('');
+ const inputRows=filtered.map(x=>'<tr><td>'+esc(x.number||'')+'</td><td>'+esc(x.symbol||'')+'</td><td>'+esc(x.supplierTaxId||'')+'</td><td>'+money(Number(x.preTaxAmount||0))+' ₫</td><td>'+Number(x.taxRate||0)+'%</td><td>'+money(Number(x.taxAmount||x.vatAmount||0))+' ₫</td></tr>').join('');
+ c.innerHTML='<div class="page-title">Thuế & Kế toán → Tổng hợp</div><div class="card" style="margin-bottom:15px"><h3>Kỳ kê khai</h3><select class="field" style="max-width:180px" onchange="state.taxPeriod=this.value;saveState();taxSummaryPage(document.getElementById(\'content\'))"><option value="month" '+(period==='month'?'selected':'')+'>Tháng</option><option value="quarter" '+(period==='quarter'?'selected':'')+'>Quý</option></select></div><div class="kpis"><div class="kpi">VAT đầu ra<div class="n">'+money(outputTotal)+' ₫</div></div><div class="kpi">VAT đầu vào được khấu trừ<div class="n">'+money(inputTotal)+' ₫</div></div><div class="kpi">VAT '+(payable>=0?'phải nộp':'được khấu trừ chuyển kỳ sau')+'<div class="n">'+money(Math.abs(payable))+' ₫</div></div></div><div class="card report"><h3>Đầu ra theo thuế suất</h3><table><thead><tr><th>Thuế suất</th><th style="text-align:right">VAT đầu ra</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Hóa đơn đầu vào</h3><table><thead><tr><th>Số</th><th>Ký hiệu</th><th>MST nhà cung cấp</th><th>Tiền trước thuế</th><th>Thuế suất</th><th>Tiền thuế</th></tr></thead><tbody>'+inputRows+'</tbody></table></div>';
+}
 function reportPage(c){
  if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo doanh thu.</div>';return;}
  const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
