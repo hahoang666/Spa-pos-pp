@@ -1771,7 +1771,7 @@ function genericPage(c,title,col1,col2){
 function reportPage(c){
  if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo doanh thu.</div>';return;}
  const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy');
- const revenue=invoices.reduce((sum,x)=>sum+Number(x.total||0),0);
+ const revenue=reportNetRevenue(invoices);
  const count=invoices.length;
  const customers=new Set(invoices.map(x=>x.customerCode||x.customerName||x.customer).filter(Boolean)).size;
  const avg=count?revenue/count:0;
@@ -2136,6 +2136,38 @@ function createTherapyCardFromInvoice(invoice){
  });
  return created;
 }
+function invoiceRevenueFields(data){
+ const items=Array.isArray(data?.items)?data.items:[];
+ let grossExVat=0,vatAmount=0;
+ items.forEach(x=>{
+  const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0));
+  const discount=Math.min(Math.max(0,Number(x.discount)||0),gross);
+  const net=Math.max(0,gross-discount);
+  const rate=Math.max(0,Number(x.vat)||0);
+  if(rate>0){grossExVat+=net/(1+rate/100);vatAmount+=net-grossExVat;}
+  else grossExVat+=net;
+ });
+ // Trường hợp chứng từ cũ không có items: amount được coi là tổng tiền hàng trước VAT.
+ if(!items.length){
+   const total=Number(data?.total)||0, tax=Number(data?.tax)||0;
+   grossExVat=Math.max(0,Number(data?.amount)||Math.max(0,total-tax));
+   vatAmount=Math.max(0,tax);
+ }
+ const commercialDiscount=Math.max(0,Number(data?.commercialDiscount)||0);
+ const discountAmount=Math.max(0,Number(data?.discount)||0);
+ const otherDeduction=Math.max(0,Number(data?.otherDeduction)||0);
+ const netRevenue=Math.max(0,grossExVat-commercialDiscount-discountAmount-otherDeduction);
+ return {merchandiseAmountExVat:Math.round(grossExVat),vatAmount:Math.round(vatAmount),commercialDiscount:Math.round(commercialDiscount),discountAmount:Math.round(discountAmount),otherDeduction:Math.round(otherDeduction),returnedAmountExVat:0,netRevenue:Math.round(netRevenue)};
+}
+function invoiceNetRevenue(inv){
+ if(!inv||inv.status==='Đã hủy')return 0;
+ if(Number.isFinite(Number(inv.netRevenue)))return Math.max(0,Number(inv.netRevenue)-Number(inv.returnedAmountExVat||0));
+ const f=invoiceRevenueFields(inv);
+ return Math.max(0,f.netRevenue);
+}
+function reportNetRevenue(invoices){
+ return (invoices||[]).filter(x=>(x.type||'Thu')==='Thu'&&x.status!=='Đã hủy').reduce((sum,x)=>sum+invoiceNetRevenue(x),0);
+}
 function createInvoice(data){
  const now=new Date();
  const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
@@ -2168,6 +2200,13 @@ function createInvoice(data){
    paymentBreakdown:Array.isArray(data.paymentBreakdown)?data.paymentBreakdown:[],
    employeeId:data.employeeId||'',employeeName:data.employeeName||'',consultantId:data.consultantId||'',consultantName:data.consultantName||'',dueDate:data.dueDate||'',
    items:Array.isArray(data.items)?data.items:[],
+   merchandiseAmountExVat:revenueFields.merchandiseAmountExVat,
+   vatAmount:revenueFields.vatAmount,
+   commercialDiscount:revenueFields.commercialDiscount,
+   discountAmount:revenueFields.discountAmount,
+   otherDeduction:revenueFields.otherDeduction,
+   returnedAmountExVat:revenueFields.returnedAmountExVat,
+   netRevenue:revenueFields.netRevenue,
    status:data.status||status,
  };
  state.invoices.unshift(invoice);
