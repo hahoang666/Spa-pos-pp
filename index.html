@@ -342,6 +342,19 @@ function loadState(){
 }
 loadState();
 resetDemoData();
+const DEFAULT_FUNDS=[{id:'FUND-CASH',name:'Quỹ tiền mặt',type:'cash',active:true},{id:'FUND-BANK',name:'Tài khoản ngân hàng',type:'bank',active:true},{id:'FUND-WALLET',name:'Ví điện tử',type:'wallet',active:true},{id:'FUND-POS',name:'Máy POS thẻ',type:'pos',active:true}];
+state.funds=Array.isArray(state.funds)&&state.funds.length?state.funds:DEFAULT_FUNDS.map(x=>({...x}));
+state.paymentFundMap=typeof state.paymentFundMap==='object'&&state.paymentFundMap?state.paymentFundMap:{'Tiền mặt':'FUND-CASH','Chuyển khoản':'FUND-BANK','Ví điện tử':'FUND-WALLET','Thẻ':'FUND-POS'};
+const fundById=id=>(state.funds||[]).find(f=>f.id===id)||null;
+function fundIdForPayment(pm){const n=normalizePaymentMethod(pm);return state.paymentFundMap[n]||'FUND-CASH';}
+(state.cashbook||[]).forEach(x=>{if(!x.fundId)x.fundId=fundIdForPayment(x.paymentMethod);});
+saveState();
+function fundsPage(c){
+ if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem quỹ.</div>';return;}
+ const opts=(state.funds||[]).filter(f=>f.active!==false).map(f=>'<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>').join('');
+ const mapRows=PAYMENT_METHODS.map(pm=>'<tr><td>'+esc(pm)+'</td><td><select class="field" onchange="state.paymentFundMap['+JSON.stringify(pm)+']=this.value;saveState();cashbookPage(document.getElementById(\'content\'))">'+opts+'</select></td></tr>').join('');
+ c.innerHTML='<div class="page-title">Danh mục quỹ / tài khoản</div><div class="card report"><table><thead><tr><th>Phương thức thanh toán</th><th>Quỹ được ánh xạ</th></tr></thead><tbody>'+mapRows+'</tbody></table></div><div class="card report" style="margin-top:15px"><table><thead><tr><th>Mã quỹ</th><th>Tên quỹ</th><th>Loại</th><th>Trạng thái</th></tr></thead><tbody>'+(state.funds||[]).map(f=>'<tr><td>'+esc(f.id)+'</td><td>'+esc(f.name)+'</td><td>'+esc(f.type)+'</td><td>'+esc(f.active===false?'Ngừng sử dụng':'Đang sử dụng')+'</td></tr>').join('')+'</tbody></table></div>';
+}
 state.priceLists=Array.isArray(state.priceLists)?state.priceLists:[];
 state.documents=Array.isArray(state.documents)?state.documents:[];
 state.stockMovements=Array.isArray(state.stockMovements)?state.stockMovements:[];
@@ -436,7 +449,7 @@ function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',re
  const prefix=type==='thu'?'PT':'PC';
  const key=type==='thu'?'spa_next_receipt_id':'spa_next_payment_id';
  const id=nextAutoCode(prefix,6,key,state.cashbook,'id');
- const row={id,type,amount:value,subject,paymentMethod:normalizePaymentMethod(paymentMethod),referenceId,note,createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:getOpenShift()?.id||'',status:'Hoàn thành'};
+ const normalizedPaymentMethod=normalizePaymentMethod(paymentMethod);const row={id,type,amount:value,subject,paymentMethod:normalizedPaymentMethod,fundId:fundIdForPayment(normalizedPaymentMethod),referenceId,note,createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',shiftId:getOpenShift()?.id||'',status:'Hoàn thành'};
  state.cashbook.push(row);return row;
 }
 function hasCashMovement(referenceId,type){
