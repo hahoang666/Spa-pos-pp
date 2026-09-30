@@ -4367,7 +4367,63 @@ function undoTherapySession(cardId,usageId){
  saveState();return true;
 }
 </script>
-</body>
+<script>
+/* FR-05: separate report permissions and report contents */
+window.permissionCatalog=window.permissionCatalog||{
+ 'Báo cáo':['Xem báo cáo doanh thu','Xem báo cáo nhân viên','Xem báo cáo hàng hóa','Xem báo cáo khách hàng']
+};
+window.allPermissions=window.allPermissions||['Xem báo cáo doanh thu','Xem báo cáo nhân viên','Xem báo cáo hàng hóa','Xem báo cáo khách hàng'];
+window.accountPermissions=function(account){
+ if(!account)return [];
+ if(account.role==='Admin')return window.allPermissions.slice();
+ const explicit=Array.isArray(account.permissions)?account.permissions:[];
+ if(account.role==='Quản lý')return [...new Set([...explicit,...window.allPermissions])];
+ return explicit;
+};
+window.hasPermission=function(permission){
+ const u=state.currentUser;
+ return !!u&&(u.role==='Admin'||window.accountPermissions(u).includes(permission));
+};
+window.requirePermission=function(permission,message){
+ if(window.hasPermission(permission))return true;
+ if(message)alert(message);
+ return false;
+};
+function reportPage(c){
+ const type=state.reportType||'revenue';
+ const cfg={
+  revenue:['Xem báo cáo doanh thu','Báo cáo doanh thu'],
+  employee:['Xem báo cáo nhân viên','Báo cáo nhân viên'],
+  product:['Xem báo cáo hàng hóa','Báo cáo hàng hóa'],
+  customer:['Xem báo cáo khách hàng','Báo cáo khách hàng']
+ }[type]||['Xem báo cáo doanh thu','Báo cáo doanh thu'];
+ if(!requirePermission(cfg[0],'Bạn không có quyền xem '+cfg[1].toLowerCase()+'.')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo này.</div>';return;}
+ const buttons=Object.entries({
+  revenue:'Báo cáo doanh thu',employee:'Báo cáo nhân viên',product:'Báo cáo hàng hóa',customer:'Báo cáo khách hàng'
+ }).filter(([k])=>hasPermission(cfgForReport(k)[0])).map(([k,t])=>'<button class="btn '+(k===type?'btn-primary':'btn-secondary')+'" onclick="state.reportType=\\''+k+'\\';renderPage()">'+t+'</button>').join(' ');
+ const sales=(state.invoices||[]).filter(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu');
+ let body='';
+ if(type==='revenue'){
+  const revenue=reportNetRevenue(sales);
+  const gross=sales.reduce((a,x)=>a+Number(x.merchandiseAmountExVat??invoiceRevenueFields(x).merchandiseAmountExVat??0),0);
+  body='<div class="kpis"><div class="kpi">Doanh thu theo kỳ<div class="n">'+money(revenue)+' ₫</div></div><div class="kpi">Số đơn<div class="n">'+sales.length+'</div></div></div>';
+ }else if(type==='employee'){
+  const map={};
+  sales.forEach(x=>{const key=x.employeeId||x.employeeName||'Chưa xác định';if(!map[key])map[key]={name:x.employeeName||key,count:0,commission:0};map[key].count++;map[key].commission+=(state.serviceCommissions||[]).filter(cm=>cm.invoiceId===x.id&&!cm.reversed).reduce((a,cm)=>a+Number(cm.amount||0),0);});
+  body='<div class="card report"><h3>Hoa hồng và số đơn theo nhân viên</h3><table><thead><tr><th>Nhân viên</th><th>Số đơn</th><th style="text-align:right">Hoa hồng</th></tr></thead><tbody>'+Object.values(map).map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.count+'</td><td style="text-align:right">'+money(x.commission)+' ₫</td></tr>').join('')+'</tbody></table></div>';
+ }else if(type==='product'){
+  const map={};
+  sales.forEach(inv=>(inv.items||[]).forEach(it=>{const k=it.code||it.productCode||'N/A';if(!map[k])map[k]={code:k,name:it.name||it.productName||k,qty:0,sales:0};map[k].qty+=Number(it.qty||0);map[k].sales+=Math.max(0,(Number(it.qty)||0)*(Number(it.price)||0)-Number(it.discount||0));}));
+  body='<div class="card report"><h3>Doanh số theo hàng hóa</h3><table><thead><tr><th>Mã hàng</th><th>Hàng hóa</th><th>Số lượng</th><th style="text-align:right">Doanh số</th></tr></thead><tbody>'+Object.values(map).map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td>'+x.qty+'</td><td style="text-align:right">'+money(x.sales)+' ₫</td></tr>').join('')+'</tbody></table></div>';
+ }else{
+  const map={};
+  sales.forEach(x=>{const k=x.customerCode||x.customerName||'Khách lẻ';if(!map[k])map[k]={name:x.customerName||x.customer||'Khách lẻ',count:0,sales:0};map[k].count++;map[k].sales+=invoiceNetRevenue(x);});
+  body='<div class="card report"><h3>Doanh số theo khách hàng</h3><table><thead><tr><th>Khách hàng</th><th>Số đơn</th><th style="text-align:right">Doanh số</th></tr></thead><tbody>'+Object.values(map).map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.count+'</td><td style="text-align:right">'+money(x.sales)+' ₫</td></tr>').join('')+'</tbody></table></div>';
+ }
+ c.innerHTML='<div class="page-title">'+cfg[1]+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'+buttons+'</div>'+body;
+}
+function cfgForReport(k){return {revenue:['Xem báo cáo doanh thu','Báo cáo doanh thu'],employee:['Xem báo cáo nhân viên','Báo cáo nhân viên'],product:['Xem báo cáo hàng hóa','Báo cáo hàng hóa'],customer:['Xem báo cáo khách hàng','Báo cáo khách hàng']}[k];}
+</script></body>
 </html>function findCommissionRule(productCode){
  return (state.commissionRules||[]).find(x=>x.productCode===productCode)||null;
 }
