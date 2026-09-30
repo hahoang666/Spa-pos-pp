@@ -270,6 +270,7 @@ const state={
   section:'Đơn hàng',
   page:'Hóa đơn',
   invoices:[],
+  sellerProfile:{name:'',taxCode:'',address:'',invoiceTemplate:'',invoiceSeries:''},
   customers:[
     {code:'KH000001',name:'Khách lẻ',phone:''},
     {code:'KH000002',name:'NGUYỄN THỊ HÀ',phone:''},
@@ -369,7 +370,7 @@ state.settings.discountLimits=state.settings.discountLimits||{Admin:100,'Quản 
 state.invoicePage=Number(state.invoicePage)||1;state.invoicePageSize=10;
 
 const menus={
-  'Quản trị':['Quản lý tài khoản','Phân quyền User'],
+  'Quản trị':['Quản lý tài khoản','Phân quyền User','Hồ sơ đơn vị bán'],
   'Tổng quan':['Tổng quan'],
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
@@ -948,6 +949,29 @@ function saveInvoice(){
  if(commissionRate>0&&employee.id){state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:product.code,productName:product.name,revenue:total,rate:commissionRate,amount:total*commissionRate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}
  closeModal();state.section='Đơn hàng';state.page='Hóa đơn';saveState();renderAll();alert(paid>=total?'Đã tạo và thanh toán hóa đơn.':'Đã tạo hóa đơn, phần còn lại được ghi nhận là Còn nợ.');
 }
+function sellerProfilePage(c){
+  const p=state.sellerProfile||{name:'',taxCode:'',address:'',invoiceTemplate:'',invoiceSeries:''};
+  c.innerHTML='<div class="page-title">Hồ sơ đơn vị bán</div>'+
+    '<div class="card" style="max-width:760px">'+
+    '<div class="admin-note" style="margin-bottom:16px">Thông tin giả lập dùng cho hóa đơn điện tử demo. Không kết nối cơ quan thuế.</div>'+
+    '<div class="form-grid">'+
+    '<div><label>Tên đơn vị bán *</label><input id="sellerName" class="field" value="'+esc(p.name)+'" placeholder="VD: SPA POS DEMO"></div>'+
+    '<div><label>Mã số thuế (dữ liệu giả) *</label><input id="sellerTaxCode" class="field" value="'+esc(p.taxCode)+'" placeholder="VD: 0101234567"></div>'+
+    '<div class="full"><label>Địa chỉ *</label><input id="sellerAddress" class="field" value="'+esc(p.address)+'" placeholder="Địa chỉ đơn vị"></div>'+
+    '<div><label>Mẫu số hóa đơn *</label><input id="sellerInvoiceTemplate" class="field" value="'+esc(p.invoiceTemplate)+'" placeholder="VD: 1"></div>'+
+    '<div><label>Ký hiệu hóa đơn *</label><input id="sellerInvoiceSeries" class="field" value="'+esc(p.invoiceSeries)+'" placeholder="VD: C26TAA"></div>'+
+    '</div>'+
+    '<div style="margin-top:16px;display:flex;justify-content:flex-end"><button class="btn btn-primary" onclick="saveSellerProfile()">Lưu hồ sơ</button></div></div>';
+}
+function saveSellerProfile(){
+  const profile={name:document.getElementById('sellerName')?.value.trim()||'',taxCode:document.getElementById('sellerTaxCode')?.value.trim()||'',address:document.getElementById('sellerAddress')?.value.trim()||'',invoiceTemplate:document.getElementById('sellerInvoiceTemplate')?.value.trim()||'',invoiceSeries:document.getElementById('sellerInvoiceSeries')?.value.trim()||''};
+  if(Object.values(profile).some(v=>!v))return alert('Vui lòng nhập đầy đủ hồ sơ đơn vị bán.');
+  state.sellerProfile=profile; saveState(); alert('Đã lưu hồ sơ đơn vị bán.'); renderAll();
+}
+function hasSellerProfile(){
+  const p=state.sellerProfile;
+  return !!p && ['name','taxCode','address','invoiceTemplate','invoiceSeries'].every(k=>String(p[k]||'').trim());
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
@@ -976,6 +1000,7 @@ function renderPage(){
   if(state.page==='Tổng quan') return dashboard(c);
   if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
   if(state.page==='Phân quyền User') return adminPermissionsPage(c);
+  if(state.page==='Hồ sơ đơn vị bán') return sellerProfilePage(c);
   return genericPage(c,state.page,'Mã chứng từ','Đối tượng');
 }
 
@@ -1225,13 +1250,13 @@ function printLastCashierInvoice(){
 function printInvoice(id){
  const inv=state.invoices.find(x=>x.id===id);
  if(!inv)return alert('Không tìm thấy hóa đơn.');
- const items=Array.isArray(inv.items)&&inv.items.length?inv.items:[{code:inv.productCode,name:inv.productName,qty:1,price:inv.amount,discount:inv.discount||0,vat:10}];
- const w=window.open('','_blank','width=480,height=720');
- if(!w)return alert('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
- w.document.write('<!doctype html><html><head><title>'+esc(inv.id)+'</title><style>body{font-family:Arial;padding:20px;max-width:420px;margin:auto}h2{text-align:center}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #eee}.r{text-align:right}.total{font-size:18px;font-weight:700}</style></head><body><h2>POS🍀</h2><div>Mã hóa đơn: '+esc(inv.id)+'</div><div>Thời gian: '+esc(inv.time||'')+'</div><div>Khách hàng: '+esc(inv.customerName||'')+'</div><div>Nhân viên: '+esc(inv.employeeName||'')+'</div><hr><table>'+items.map(x=>'<tr><td>'+esc(x.name)+' × '+x.qty+'<br><small>VAT '+Number(x.vat||0)+'%</small></td><td class="r">'+money((Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0))+' ₫</td></tr>').join('')+'</table><hr><div>Tạm tính: <span class="r">'+money(inv.amount||inv.total||0)+' ₫</span></div><div>VAT: <span class="r">'+money(inv.tax||0)+' ₫</span></div><div>Giảm giá: <span class="r">'+money(inv.discount||0)+' ₫</span></div><div class="total">Tổng: <span class="r">'+money(inv.total||0)+' ₫</span></div><div>Trạng thái: '+esc(inv.status||'')+'</div><script>window.onload=function(){window.print();}<\\/script></body></html>');
+ const seller=inv.sellerSnapshot||state.sellerProfile||{};
+ if(!inv.sellerSnapshot && !hasSellerProfile())return alert('Chưa cấu hình hồ sơ đơn vị bán. Không thể in/xuất hóa đơn điện tử.');
+ const items=Array.isArray(inv.items)&&inv.items.length?inv.items:[{code:inv.productCode,name:inv.productName,qty:1,price:inv.amount,discount:inv.discount||0,vat:inv.vat||10}];
+ const w=window.open('','_blank','width=520,height=760'); if(!w)return alert('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
+ w.document.write('<!doctype html><html><head><title>'+esc(inv.id)+'</title><style>body{font-family:Arial;padding:20px;max-width:460px;margin:auto}h2{text-align:center;margin-bottom:8px}.seller{border:1px solid #ddd;padding:12px;margin-bottom:14px}.seller b{font-size:16px}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #eee}.r{text-align:right}.total{font-size:18px;font-weight:700}</style></head><body><h2>HÓA ĐƠN ĐIỆN TỬ MÔ PHỎNG</h2><div class="seller"><b>'+esc(seller.name)+'</b><br>MST: '+esc(seller.taxCode)+'<br>Địa chỉ: '+esc(seller.address)+'<br>Mẫu số: '+esc(seller.invoiceTemplate)+' &nbsp; Ký hiệu: '+esc(seller.invoiceSeries)+'</div><div>Mã hóa đơn: '+esc(inv.id)+'</div><div>Thời gian: '+esc(inv.time||'')+'</div><div>Khách hàng: '+esc(inv.customerName||'')+'</div><hr><table>'+items.map(x=>'<tr><td>'+esc(x.name)+' × '+x.qty+'<br><small>VAT '+Number(x.vat||0)+'%</small></td><td class="r">'+money((Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0))+' ₫</td></tr>').join('')+'</table><hr><div>Tiền hàng: <span class="r">'+money(inv.amount||0)+' ₫</span></div><div>VAT: <span class="r">'+money(inv.tax||0)+' ₫</span></div><div>Giảm giá: <span class="r">'+money(inv.discount||0)+' ₫</span></div><div class="total">Tổng: <span class="r">'+money(inv.total||0)+' ₫</span></div><div>Trạng thái: '+esc(inv.status||'')+'</div><script>window.onload=function(){window.print();}<\\/script></body></html>');
  w.document.close();
-}
-function header(title,buttonText,action){
+}function header(title,buttonText,action){
  return `<div class="page-title">${title}</div>
  <div class="toolbar">
   <input id="commonSearch" class="search" placeholder="🔍 Tìm theo mã, tên, điện thoại..." oninput="applyInvoiceFilters()">
@@ -2208,6 +2233,8 @@ function createInvoice(data){
    returnedAmountExVat:revenueFields.returnedAmountExVat,
    netRevenue:revenueFields.netRevenue,
    status:data.status||status,
+   sellerSnapshot:data.sellerSnapshot||null,
+   eInvoiceStatus:data.eInvoiceStatus||'Chưa xuất',
  };
  state.invoices.unshift(invoice);
  saveState();
