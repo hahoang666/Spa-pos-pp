@@ -1028,7 +1028,11 @@ function cashierTotals(){
  const subtotal=cart.reduce((sum,x)=>sum+(Number(x.price)||0)*(Number(x.qty)||0),0);
  const lineDiscount=cart.reduce((sum,x)=>sum+Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0)),0);
  const orderDiscount=Math.min(Math.max(0,Number(state.cashierOrderDiscount)||0),Math.max(0,subtotal-lineDiscount));
- const netBeforeOrder=cart.reduce((sum,x)=>sum+Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0)),0);
+ const netBeforeOrder=cart.reduce((sum,x)=>{
+   const gross=(Number(x.price)||0)*(Number(x.qty)||0);
+   const lineDiscount=Math.min(Math.max(0,Number(x.discount)||0),gross);
+   return sum+Math.max(0,gross-lineDiscount);
+ },0);
  const total=Math.max(0,netBeforeOrder-orderDiscount);
  const vat=cart.reduce((sum,x)=>{
    const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0));
