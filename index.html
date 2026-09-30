@@ -299,10 +299,10 @@ const state={
   ]
 };
 const STORAGE_KEY='spa_pos_state_v1';
-const RESET_DEMO_DATA = !localStorage.getItem('spa_pos_demo_reset_v2');
+const RESET_DEMO_DATA = !localStorage.getItem('spa_pos_demo_reset_v3');
 function resetDemoData(){
   if(!RESET_DEMO_DATA)return;
-  const keepAccounts=Array.isArray(state.accounts)&&state.accounts.length?state.accounts:[{id:'ADMIN001',name:'Quản trị viên',username:'admin',password:'1111',role:'Admin',status:'Hoạt động',permissions:[],isDemo:true}];
+  const keepAccounts=[{id:'ADMIN001',name:'Quản trị viên',username:'admin',password:'1111',role:'Admin',status:'Hoạt động',permissions:[],isDemo:true}];
   state.invoices=[];
   state.customers=[];
   state.products=[];
