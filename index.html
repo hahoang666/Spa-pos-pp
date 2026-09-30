@@ -357,7 +357,7 @@ function fundOpeningDate(f){return /^\d{4}-\d{2}-\d{2}$/.test(String(f?.openingD
 function fundMovements(fundId){const f=fundById(fundId);if(!f)return [];const start=fundOpeningDate(f);return (state.cashbook||[]).filter(x=>x.fundId===fundId&&String(x.txnDate||'')>=start);}
 function fundBalance(fundId){const f=fundById(fundId);if(!f)return 0;return fundOpening(f)+fundMovements(fundId).reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0);}
 function saveFundOpening(fundId){
- if(!hasPermission('Xem quỹ'))return alert('Bạn không có quyền thực hiện thao tác này.');
+ if(!hasPermission('Sửa số dư đầu kỳ'))return alert('Bạn không có quyền thực hiện thao tác này.');
  const f=fundById(fundId);if(!f)return;
  const before={openingBalance:f.openingBalance,openingDate:f.openingDate};
  const balance=Number(document.getElementById('fundOpeningBalance_'+fundId)?.value);
