@@ -1,76 +1,33 @@
-function invoiceRevenueFields(data){
- const items=Array.isArray(data?.items)?data.items:[];
- let merchandiseAmountExVat=0, vatAmount=0;
- const reductions={
-   commercialDiscount:Math.max(0,Number(data?.commercialDiscount)||0),
-   salesDiscount:Math.max(0,Number(data?.salesDiscount ?? data?.discount)||0),
-   voucherDiscount:Math.max(0,Number(data?.voucherDiscount)||0),
-   loyaltyDiscount:Math.max(0,Number(data?.loyaltyDiscount)||0),
-   otherDeduction:Math.max(0,Number(data?.otherDeduction)||0)
- };
- items.forEach(x=>{
-   const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0));
-   const lineDiscount=Math.min(Math.max(0,Number(x.discount)||0),gross);
-   const lineNet=Math.max(0,gross-lineDiscount);
-   const rate=Math.max(0,Number(x.vat)||0);
-   const grossExVat=rate>0?gross/(1+rate/100):gross;
-   const netExVat=rate>0?lineNet/(1+rate/100):lineNet;
-   merchandiseAmountExVat+=grossExVat;
-   vatAmount+=Math.max(0,lineNet-netExVat);
- });
- if(!items.length){
-   const total=Number(data?.total)||0, tax=Number(data?.tax ?? data?.vatAmount)||0;
-   merchandiseAmountExVat=Math.max(0,Number(data?.merchandiseAmountExVat ?? data?.amount ?? (total-tax)));
-   vatAmount=Math.max(0,tax);
- }
- const totalReductions=Object.values(reductions).reduce((a,b)=>a+b,0);
- return {
-   merchandiseAmountExVat:Math.round(merchandiseAmountExVat),
-   vatAmount:Math.round(vatAmount),
-   commercialDiscount:Math.round(reductions.commercialDiscount),
-   salesDiscount:Math.round(reductions.salesDiscount),
-   voucherDiscount:Math.round(reductions.voucherDiscount),
-   loyaltyDiscount:Math.round(reductions.loyaltyDiscount),
-   otherDeduction:Math.round(reductions.otherDeduction),
-   totalReductions:Math.round(totalReductions),
-   returnedAmountExVat:0,
-   netRevenue:Math.round(Math.max(0,merchandiseAmountExVat-totalReductions))
- };
+function roundVat(amount,rate){const a=Number(amount)||0,r=Number(rate)||0;return Math.round(a-(r?amount/(1+r/100):amount));}
+function lineTotalsWithVat(item){
+ const qty=Number(item?.qty)||0,price=Number(item?.price)||0,discount=Math.max(0,Number(item?.discount)||0),rate=Math.max(0,Number(item?.vat)||0);
+ const gross=qty*price,net=Math.max(0,gross-discount);
+ const vat=roundVat(net,rate);
+ return {gross,net,vat,total:Math.round(net)};
 }
+function invoiceVatTotal(data){return (Array.isArray(data?.items)?data.items:[]).reduce((sum,item)=>sum+lineTotalsWithVat(item).vat,0);}
 function invoiceRevenueFields(data){
  const items=Array.isArray(data?.items)?data.items:[];
  let merchandiseAmountExVat=0,vatAmount=0;
  items.forEach(x=>{
-  const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0));
-  const lineDiscount=Math.min(Math.max(0,Number(x.discount)||0),gross);
-  const lineNet=Math.max(0,gross-lineDiscount);
-  const rate=Math.max(0,Number(x.vat)||0);
-  merchandiseAmountExVat+=rate?gross/(1+rate/100):gross;
-  vatAmount+=rate?lineNet-(lineNet/(1+rate/100)):0;
+  const qty=Number(x.qty)||0,price=Number(x.price)||0,discount=Math.max(0,Number(x.discount)||0),rate=Math.max(0,Number(x.vat)||0);
+  const gross=qty*price,net=Math.max(0,gross-discount);
+  const vat=roundVat(net,rate);
+  merchandiseAmountExVat+=rate?net-vat:net;
+  vatAmount+=vat;
  });
  if(!items.length){
   const total=Number(data?.total)||0,tax=Number(data?.tax??data?.vatAmount)||0;
-  merchandiseAmountExVat=Math.max(0,Number(data?.merchandiseAmountExVat??data?.amount??(total-tax)));
-  vatAmount=Math.max(0,tax);
+  merchandiseAmountExVat=Math.max(0,Number(data?.merchandiseAmountExVat??data?.amount??total-tax));
+  vatAmount=Math.round(tax);
  }
- const reductions=reductionByType(data);
- const allocatedByType={};
- REDUCTION_TYPES.forEach(type=>{
-  const allocations=allocateOrderReduction(items,reductions[type]);
-  allocations.forEach((x,idx)=>{if(!allocatedByType[idx])allocatedByType[idx]={};allocatedByType[idx][type]=x._allocated;});
- });
- const totalReductions=REDUCTION_TYPES.reduce((s,k)=>s+reductions[k],0);
- return {
-  merchandiseAmountExVat:Math.round(merchandiseAmountExVat),
-  vatAmount:Math.round(vatAmount),
-  commercialDiscount:Math.round(reductions.commercialDiscount),
-  salesDiscount:Math.round(reductions.salesDiscount),
-  voucherDiscount:Math.round(reductions.voucherDiscount),
-  totalReductions:Math.round(totalReductions),
-  reductionAllocations:allocatedByType,
-  returnedAmountExVat:0,
-  netRevenue:Math.round(merchandiseAmountExVat-totalReductions)
+ const reductions={
+  commercialDiscount:Math.max(0,Number(data?.commercialDiscount)||0),
+  salesDiscount:Math.max(0,Number(data?.salesDiscount??data?.discount)||0),
+  voucherDiscount:Math.max(0,Number(data?.voucherDiscount)||0)
  };
+ const totalReductions=Object.values(reductions).reduce((a,b)=>a+b,0);
+ return {merchandiseAmountExVat:Math.round(merchandiseAmountExVat),vatAmount:Math.round(vatAmount),commercialDiscount:Math.round(reductions.commercialDiscount),salesDiscount:Math.round(reductions.salesDiscount),voucherDiscount:Math.round(reductions.voucherDiscount),totalReductions:Math.round(totalReductions),returnedAmountExVat:0,netRevenue:Math.round(Math.max(0,merchandiseAmountExVat-totalReductions))};
 }
 function invoiceReturnedNetRevenue(inv){
  const refundGross=invoiceReturnedAmount(inv);
