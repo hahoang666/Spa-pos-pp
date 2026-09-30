@@ -299,6 +299,35 @@ const state={
   ]
 };
 const STORAGE_KEY='spa_pos_state_v1';
+const RESET_DEMO_DATA = true;
+function resetDemoData(){
+  if(!RESET_DEMO_DATA)return;
+  const keepAccounts=Array.isArray(state.accounts)&&state.accounts.length?state.accounts:[{id:'ADMIN001',name:'Quản trị viên',username:'admin',password:'1111',role:'Admin',status:'Hoạt động',permissions:[],isDemo:true}];
+  state.invoices=[];
+  state.customers=[];
+  state.products=[];
+  state.therapyCards=[];
+  state.suppliers=[];
+  state.returns=[];
+  state.imports=[];
+  state.transfers=[];
+  state.damages=[];
+  state.stocktakes=[];
+  state.purchaseInvoices=[];
+  state.documents=[];
+  state.stockMovements=[];
+  state.cashbook=[];
+  state.shifts=[];
+  state.attendance=[];
+  state.serviceCommissions=[];
+  state.materialRecipes=[];
+  state.priceLists=[];
+  state.employees=[];
+  state.accounts=keepAccounts;
+  Object.keys(localStorage).filter(k=>k.startsWith('spa_next_')).forEach(k=>localStorage.removeItem(k));
+  saveState();
+}
+
 function saveState(){
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){console.warn('Không thể lưu dữ liệu',e);}
 }
@@ -311,6 +340,7 @@ function loadState(){
   }catch(e){console.warn('Không thể đọc dữ liệu',e);}
 }
 loadState();
+resetDemoData();
 state.priceLists=Array.isArray(state.priceLists)?state.priceLists:[];
 state.documents=Array.isArray(state.documents)?state.documents:[];
 state.stockMovements=Array.isArray(state.stockMovements)?state.stockMovements:[];
