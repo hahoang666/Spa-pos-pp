@@ -419,7 +419,7 @@ const menus={
   'Khách hàng':['Thẻ liệu trình','Khách hàng','Nhân viên'],
   'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ','Khóa kỳ sổ quỹ','Nhật ký sổ quỹ'],
   'Kho & Nguyên liệu':['Kho nguyên liệu','Định mức nguyên liệu'],
-  'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
+  'Phân tích':['Bộ báo cáo chuẩn','Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu','Kiểm tra dữ liệu']
 };
 
@@ -1348,7 +1348,7 @@ function renderPage(){
   if(state.page==='Trả hàng') return returnPage(c);
   if(state.page==='Hóa đơn đầu vào') return purchaseInvoicePage(c);\n  if(state.page==='Kiểm tra dữ liệu') return dataCheckPage(c);
   if(state.page==='Kho hàng') return inventoryPage(c);
-  if(state.page.startsWith('Báo cáo')) return reportPage(c);
+  if(state.page==='Bộ báo cáo chuẩn') return standardReportsPage(c);\n  if(state.page.startsWith('Báo cáo')) return reportPage(c);
   if(state.page==='Tổng quan') return dashboard(c);
   if(state.page==='Quản lý tài khoản') return adminAccountPage(c);
   if(state.page==='Phân quyền User') return adminPermissionsPage(c);
@@ -2221,6 +2221,37 @@ function taxSummaryPage(c){
  const rows=Object.keys(output).sort((a,b)=>Number(a)-Number(b)).map(r=>'<tr><td>'+r+'%</td><td style="text-align:right">'+money(output[r])+' ₫</td></tr>').join('');
  const inputRows=filtered.map(x=>'<tr><td>'+esc(x.number||'')+'</td><td>'+esc(x.symbol||'')+'</td><td>'+esc(x.supplierTaxId||'')+'</td><td>'+money(Number(x.preTaxAmount||0))+' ₫</td><td>'+Number(x.taxRate||0)+'%</td><td>'+money(Number(x.taxAmount||x.vatAmount||0))+' ₫</td></tr>').join('');
  c.innerHTML='<div class="page-title">Thuế & Kế toán → Tổng hợp</div><div class="card" style="margin-bottom:15px"><h3>Kỳ kê khai</h3><select class="field" style="max-width:180px" onchange="state.taxPeriod=this.value;saveState();taxSummaryPage(document.getElementById(\'content\'))"><option value="month" '+(period==='month'?'selected':'')+'>Tháng</option><option value="quarter" '+(period==='quarter'?'selected':'')+'>Quý</option></select></div><div class="kpis"><div class="kpi">VAT đầu ra<div class="n">'+money(outputTotal)+' ₫</div></div><div class="kpi">VAT đầu vào được khấu trừ<div class="n">'+money(inputTotal)+' ₫</div></div><div class="kpi">VAT '+(payable>=0?'phải nộp':'được khấu trừ chuyển kỳ sau')+'<div class="n">'+money(Math.abs(payable))+' ₫</div></div></div><div class="card report"><h3>Đầu ra theo thuế suất</h3><table><thead><tr><th>Thuế suất</th><th style="text-align:right">VAT đầu ra</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Hóa đơn đầu vào</h3><table><thead><tr><th>Số</th><th>Ký hiệu</th><th>MST nhà cung cấp</th><th>Tiền trước thuế</th><th>Thuế suất</th><th>Tiền thuế</th></tr></thead><tbody>'+inputRows+'</tbody></table></div>';
+}
+function standardReportsPage(c){
+ if(!requirePermission('Xem báo cáo','xem bộ báo cáo chuẩn')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo.</div>';return;}
+ state.standardReportFrom=state.standardReportFrom||localDateKey(new Date(new Date().getFullYear(),new Date().getMonth(),1));
+ state.standardReportTo=state.standardReportTo||localDateKey(new Date());
+ const from=state.standardReportFrom,to=state.standardReportTo;
+ const inRange=(d)=>{const k=String(d||'').slice(0,10);return k>=from&&k<=to;};
+ const invoices=(state.invoices||[]).filter(x=>x.status!=='Đã hủy'&&inRange(x.createdAt));
+ const returns=(state.returns||[]).filter(x=>x.status!=='Đã hủy'&&inRange(x.createdAt));
+ const gross=invoices.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.merchandiseAmountExVat||invoiceRevenueFields(x).merchandiseAmountExVat||0),0);
+ const deductions=invoices.filter(x=>(x.type||'Thu')==='Thu').reduce((a,x)=>a+Number(x.commercialDiscount||0)+Number(x.discountAmount||x.discount||0)+Number(x.otherDeduction||0),0)+returns.reduce((a,x)=>a+Number(x.refundAmountExVat||0),0);
+ const net=Math.max(0,reportNetRevenue(invoices)-returns.reduce((a,x)=>a+Number(x.refundAmountExVat||0),0));
+ const vatByRate={};
+ invoices.filter(x=>(x.type||'Thu')==='Thu').forEach(inv=>(inv.items||[]).forEach(it=>{const rate=Number(it.vat||0);const netLine=Math.max(0,(Number(it.price)||0)*(Number(it.qty)||0)-Number(it.discount||0));const ex=rate>0?netLine/(1+rate/100):netLine;const vat=netLine-ex;(vatByRate[rate]??={ex:0,vat:0});vatByRate[rate].ex+=ex;vatByRate[rate].vat+=vat;}));
+ const saleInvoiceRows=invoices.filter(x=>(x.type||'Thu')==='Thu').map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(String(x.createdAt||'').slice(0,10))+'</td><td>'+esc(x.customerName||x.customer||'Khách lẻ')+'</td><td>'+money(x.merchandiseAmountExVat||invoiceRevenueFields(x).merchandiseAmountExVat)+'</td><td>'+money(x.vatAmount||invoiceRevenueFields(x).vatAmount)+'</td><td>'+money(x.total||0)+'</td><td>'+esc(x.eInvoiceStatus||'Chưa xuất')+'</td></tr>').join('');
+ const cash=(state.cashbook||[]).filter(x=>inRange(x.txnDate));
+ const cashRows=(state.funds||[]).filter(f=>f.active!==false).map(f=>{const rs=cash.filter(x=>x.fundId===f.id),thu=rs.filter(x=>x.type==='thu').reduce((a,x)=>a+Number(x.amount||0),0),chi=rs.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0);return '<tr><td>'+esc(f.name)+'</td><td>'+money(fundOpening(f))+'</td><td>'+money(thu)+'</td><td>'+money(chi)+'</td><td>'+money(fundBalance(f.id))+'</td></tr>';}).join('');
+ const debtRows=[...new Set(invoices.map(x=>x.customerCode||x.customerName||x.customer).filter(Boolean))].map(key=>{const rs=invoices.filter(x=>(x.customerCode||x.customerName||x.customer)===key),total=rs.reduce((a,x)=>a+Math.max(0,Number(x.total||0)-Number(x.paid||0)-invoiceReturnedAmount(x)),0);return total>0?'<tr><td>'+esc(key)+'</td><td>'+money(total)+'</td></tr>':'';}).join('');
+ const cardSummary=(state.therapyCards||[]).filter(x=>inRange(x.createdAt)||inRange(x.lastUsedAt)).reduce((a,x)=>({realized:a.realized+Number(x.realizedRevenue||0),unearned:a.unearned+(x.status==='Hết hạn - giữ số dư'?Number(x.remainingSessions||0)*Number(x.sessionValue||0):Number(x.remainingSessions||0)*Number(x.sessionValue||0))}),{realized:0,unearned:0});
+ const commRows=(state.serviceCommissions||[]).filter(x=>inRange(x.createdAt)).reduce((m,x)=>{const k=x.employeeId||x.employeeName||'Không xác định';m[k]=(m[k]||0)+Number(x.amount||0);return m;},{}); 
+ const commHtml=Object.entries(commRows).map(([k,v])=>'<tr><td>'+esc(k)+'</td><td>'+money(v)+'</td></tr>').join('');
+ const purchase=(state.purchaseInvoices||[]).filter(x=>inRange(x.date)); const inputVat=purchase.reduce((a,x)=>a+Number(x.vat||0),0),outputVat=Object.values(vatByRate).reduce((a,x)=>a+x.vat,0),vatDue=outputVat-inputVat;
+ const table=(title,head,body,empty='Không có dữ liệu')=>'<div class="card report" style="margin-top:14px"><h3>'+title+'</h3><div class="table-wrap"><table><thead><tr>'+head+'</tr></thead><tbody>'+ (body||'<tr><td colspan="8">'+empty+'</td></tr>')+'</tbody></table></div></div>';
+ c.innerHTML='<div class="page-title">Bộ báo cáo chuẩn</div><div class="card report"><div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap"><label>Từ ngày<input class="field" type="date" value="'+esc(from)+'" onchange="state.standardReportFrom=this.value;standardReportsPage(document.getElementById(\'content\'))"></label><label>Đến ngày<input class="field" type="date" value="'+esc(to)+'" onchange="state.standardReportTo=this.value;standardReportsPage(document.getElementById(\'content\'))"></label><span class="dashboard-note">Tất cả báo cáo dùng cùng kỳ và cùng nguồn dữ liệu chuẩn.</span></div></div>'+
+ table('1. Kết quả kinh doanh rút gọn','<th>Doanh thu gộp</th><th>Giảm trừ</th><th>Doanh thu thuần</th><th>Giá vốn</th>','<tr><td>'+money(gross)+'</td><td>'+money(deductions)+'</td><td>'+money(net)+'</td><td>—</td></tr>')+
+ table('2. Bảng kê hóa đơn bán ra','<th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Trước VAT</th><th>VAT</th><th>Tổng</th><th>Trạng thái HĐĐT</th>',saleInvoiceRows)+
+ table('3. Tờ tổng hợp VAT','<th>Thuế suất</th><th>Doanh số trước VAT</th><th>VAT đầu ra</th>',Object.entries(vatByRate).map(([r,v])=>'<tr><td>'+esc(r)+'%</td><td>'+money(v.ex)+'</td><td>'+money(v.vat)+'</td></tr>').join('')+'<tr><th>Tổng</th><th>'+money(outputVat*0+Object.values(vatByRate).reduce((a,x)=>a+x.ex,0))+'</th><th>'+money(outputVat)+'</th></tr><tr><th>VAT đầu vào</th><th></th><th>'+money(inputVat)+'</th></tr><tr><th>VAT phải nộp / chuyển kỳ sau</th><th></th><th>'+money(vatDue)+'</th></tr>')+
+ table('4. Sổ quỹ tiền mặt và tiền gửi','<th>Quỹ</th><th>Đầu kỳ</th><th>Thu</th><th>Chi</th><th>Cuối kỳ</th>',cashRows)+
+ table('5. Công nợ phải thu','<th>Khách hàng</th><th>Còn nợ</th>',debtRows)+
+ table('6. Doanh thu chưa thực hiện của thẻ','<th>Doanh thu thực hiện</th><th>Số dư chưa thực hiện</th>','<tr><td>'+money(cardSummary.realized)+'</td><td>'+money(cardSummary.unearned)+'</td></tr>')+
+ table('7. Hoa hồng nhân viên','<th>Nhân viên</th><th>Hoa hồng</th>',commHtml);
 }
 function reportPage(c){
  if(!requirePermission('Xem báo cáo','xem báo cáo doanh thu')){c.innerHTML='<div class="empty">Bạn không có quyền xem báo cáo doanh thu.</div>';return;}
