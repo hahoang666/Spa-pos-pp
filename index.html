@@ -415,7 +415,7 @@ const menus={
   'Hàng hóa':['Danh sách hàng hóa','Thiết lập giá','Hóa đơn đầu vào','Kho hàng','Kiểm kho','Chuyển hàng','Xuất hủy','Nhập hàng','Nhà cung cấp','Trả hàng nhập'],
   'Đơn hàng':['Hóa đơn','Trả hàng'],
   'Khách hàng':['Thẻ liệu trình','Khách hàng','Nhân viên'],
-  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Đóng ca / Chốt quỹ'],
+  'Sổ quỹ':['Phiếu thu','Phiếu chi','Sổ chi tiết theo quỹ','Báo cáo tổng hợp các quỹ','Tổng hợp thu chi theo category','Chuyển quỹ nội bộ','Đóng ca / Chốt quỹ'],
   'Kho & Nguyên liệu':['Kho nguyên liệu','Định mức nguyên liệu'],
   'Phân tích':['Báo cáo nhân viên','Báo cáo doanh thu','Báo cáo hàng hóa'],
   'Thuế & Kế toán':['Tổng hợp','Công nợ phải thu']
@@ -489,6 +489,35 @@ function addCashMovement({type,amount,paymentMethod='Tiền mặt',subject='',re
  const id=nextAutoCode(prefix,6,key,state.cashbook,'id');
  const row={id,type,amount:value,subject:subject.trim(),category:normalizedCategory,paymentMethod:normalizedPaymentMethod,fundId:fundIdForPayment(normalizedPaymentMethod),referenceId:referenceId.trim(),note:note.trim(),txnDate:date,createdAt:new Date().toISOString(),createdBy,shiftId,status:'Hoàn thành'};
  state.cashbook.push(row);return row;
+}
+function fundBalanceAsOf(fundId,date){
+ const f=fundById(fundId);if(!f)return 0;const start=fundOpeningDate(f);
+ return fundOpening(f)+(state.cashbook||[]).filter(x=>x.fundId===fundId&&String(x.txnDate||'')>=start&&String(x.txnDate||'')<=date).reduce((s,x)=>s+(x.type==='thu'?1:-1)*Number(x.amount||0),0);
+}
+function createInternalFundTransfer(){
+ if(!hasPermission('Xem quỹ'))return alert('Bạn không có quyền thực hiện chuyển quỹ.');
+ const from=document.getElementById('transferFrom')?.value,to=document.getElementById('transferTo')?.value,date=document.getElementById('transferDate')?.value,amount=Number(document.getElementById('transferAmount')?.value),note=document.getElementById('transferNote')?.value?.trim();
+ if(!from||!to||from===to)return alert('Quỹ nguồn và quỹ đích phải khác nhau.');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))return alert('Ngày chuyển quỹ không hợp lệ.');
+ if(!Number.isFinite(amount)||amount<=0)return alert('Số tiền chuyển phải lớn hơn 0.');
+ if(!note)return alert('Bắt buộc nhập diễn giải.');
+ if(date<fundOpeningDate(fundById(from))||date<fundOpeningDate(fundById(to)))return alert('Ngày chuyển phải từ ngày bắt đầu sử dụng của cả hai quỹ.');
+ const available=fundBalanceAsOf(from,date);
+ if(amount>available)return alert('Số dư quỹ nguồn không đủ. Số dư có thể chuyển: '+money(available)+' ₫.');
+ const transferCode='CT'+Date.now();
+ state.cashbook=Array.isArray(state.cashbook)?state.cashbook:[];
+ const shiftId=getOpenShift()?.id||'';const createdBy=state.currentUser?.id||'';
+ if(!shiftId||!createdBy)return alert('Cần có người lập và ca đang mở.');
+ const mk=(id,type,fundId,subject)=>({id,type,amount,subject,category:'Chuyển quỹ',paymentMethod:'Chuyển quỹ',fundId,referenceId:transferCode,note,txnDate:date,createdAt:new Date().toISOString(),createdBy,shiftId,status:'Hoàn thành',transferCode});
+ state.cashbook.push(mk(nextAutoCode('PC',6,'spa_next_payment_id',state.cashbook),'chi',from,'Chuyển quỹ đến '+(fundById(to)?.name||to)));
+ state.cashbook.push(mk(nextAutoCode('PT',6,'spa_next_receipt_id',state.cashbook),'thu',to,'Chuyển quỹ từ '+(fundById(from)?.name||from)));
+ saveState();alert('Đã chuyển '+money(amount)+' ₫. Mã chuyển: '+transferCode);cashbookPage(document.getElementById('content'));
+}
+function internalFundTransferPage(c){
+ if(!hasPermission('Xem quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền thực hiện chuyển quỹ.</div>';return;}
+ const funds=(state.funds||[]).filter(f=>f.active!==false),today=localDateKey(new Date());
+ const opts=funds.map(f=>'<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>').join('');
+ c.innerHTML='<div class="page-title">Chuyển quỹ nội bộ</div><div class="card report"><p class="dashboard-note">Tạo đồng thời một phiếu chi tại quỹ nguồn và một phiếu thu tại quỹ đích. Cả hai dùng category "Chuyển quỹ" và cùng mã chuyển.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px"><label>Quỹ nguồn<select id="transferFrom" class="field">'+opts+'</select></label><label>Quỹ đích<select id="transferTo" class="field">'+opts+'</select></label><label>Ngày chuyển<input id="transferDate" class="field" type="date" value="'+today+'"></label><label>Số tiền<input id="transferAmount" class="field" type="number" min="1" step="1"></label><label style="grid-column:1/-1">Diễn giải<input id="transferNote" class="field" placeholder="Ví dụ: Nộp tiền mặt vào ngân hàng"></label></div><div style="margin-top:15px"><button class="btn btn-primary" onclick="createInternalFundTransfer()">Thực hiện chuyển quỹ</button></div></div>';
 }
 function reverseCashMovement(id){
  const original=(state.cashbook||[]).find(x=>x.id===id);
@@ -1135,6 +1164,7 @@ function hasSellerProfile(){
   const p=state.sellerProfile;
   return !!p && ['name','taxCode','address','invoiceTemplate','invoiceSeries'].every(k=>String(p[k]||'').trim());
 }
+  if(state.page==='Chuyển quỹ nội bộ') return internalFundTransferPage(c);
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
