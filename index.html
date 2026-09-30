@@ -344,7 +344,9 @@ function seedDemoData(){
  state.accounts=[{id:'ADMIN001',name:'Quản trị viên',username:'admin',password:'1111',role:'Admin',status:'Hoạt động',permissions:defaultPermissions('Admin'),isDemo:true}];
  saveState();alert('Đã nạp dữ liệu mẫu: 7 tình huống kiểm thử.');renderAll();
 }
-function demoDataPage(c){c.innerHTML='<div class="page-title">Dữ liệu mẫu</div><div class="card report"><h3>Dữ liệu mẫu FR-22</h3><p>Có sẵn bán lẻ, bán gói, trả hàng một phần, hủy đơn, ghi nợ/thu nợ, dùng 3 buổi, chốt ca thiếu quỹ, chuỗi HĐĐT và giảm giá vượt hạn mức.</p><div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="seedDemoData()">Nạp dữ liệu mẫu</button><button class="btn btn-secondary" onclick="clearDemoData();renderAll();alert('Đã reset về trạng thái sạch.')">Reset về trạng thái sạch</button></div></div>';}
+function demoDataPage(c){
+ c.innerHTML=`<div class="page-title">Dữ liệu mẫu</div><div class="card report"><h3>Dữ liệu mẫu FR-22</h3><p>Có sẵn bán lẻ, bán gói, trả hàng một phần, hủy đơn, ghi nợ/thu nợ, dùng 3 buổi, chốt ca thiếu quỹ, chuỗi HĐĐT và giảm giá vượt hạn mức.</p><div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="seedDemoData()">Nạp dữ liệu mẫu</button><button class="btn btn-secondary" onclick="clearDemoData();renderAll();alert('Đã reset về trạng thái sạch.')">Reset về trạng thái sạch</button></div></div>`;
+}
 function resetDemoData(){
   if(!RESET_DEMO_DATA)return;
   const keepAccounts=[{id:'ADMIN001',name:'Quản trị viên',username:'admin',password:'1111',role:'Admin',status:'Hoạt động',permissions:[],isDemo:true}];
