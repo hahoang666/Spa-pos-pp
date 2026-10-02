@@ -1478,6 +1478,24 @@ function consumeMaterialsForService(serviceCode, multiplier=1, refId=''){
    state.materialMovements.push({id:nextAutoCode('XK',6,'spa_next_material_movement_id',state.materialMovements,'id'),materialCode:m.code,quantity:-qty,reason:'Sử dụng dịch vụ',referenceId:refId,createdAt:new Date().toISOString()});
  });
 }
+function servicePage(c){
+ const products=(Array.isArray(state.products)?state.products:[]).filter(p=>p.type==='Dịch vụ');
+ const rows=products.map(p=>'<tr><td><input type="checkbox" class="service-check" data-code="'+esc(p.code)+'"></td><td><b>'+esc(p.code)+'</b></td><td>'+esc(p.name||'')+'</td><td>'+esc(p.group||'')+'</td><td>'+esc(p.unit||'')+'</td><td>'+esc(p.duration||p.durationMinutes?((p.duration||p.durationMinutes)+' phút'):'—')+'</td><td>'+money(Number(p.price)||0)+' ₫</td><td>'+esc(p.vat==null?10:p.vat)+'%</td><td>'+esc(p.status||'Đang kinh doanh')+'</td><td><button class="btn btn-secondary" onclick="openProduct(\\''+esc(p.code)+'\\')">Sửa</button> <button class="btn btn-danger" onclick="deleteProduct(\\''+esc(p.code)+'\\')">Xóa</button></td></tr>').join('');
+ c.innerHTML='<div class="page-title">Danh sách dịch vụ</div><div class="toolbar"><input class="search" id="serviceSearch" placeholder="🔍 Tìm mã, tên, barcode..." oninput="filterServiceTable()"><button class="btn btn-primary" onclick="openService()">＋ Thêm dịch vụ</button></div><div class="card table-wrap"><table><thead><tr><th><input type="checkbox" onchange="toggleAllServices(this.checked)"></th><th>Mã</th><th>Tên dịch vụ</th><th>Nhóm dịch vụ</th><th>Đơn vị</th><th>Thời lượng</th><th>Giá bán</th><th>VAT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="serviceTableBody">'+(rows||'<tr><td colspan="10"><div class="empty">Chưa có dịch vụ</div></td></tr>')+'</tbody></table></div>';
+}
+function filterServiceTable(){
+ const q=(document.getElementById('serviceSearch')?.value||'').toLowerCase().trim();
+ document.querySelectorAll('#serviceTableBody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
+}
+function toggleAllServices(checked){document.querySelectorAll('.service-check').forEach(x=>x.checked=checked);}
+function openService(code){
+ if(code)return openProduct(code);
+ const next=nextAutoCode('DV',6,'spa_next_service_id',state.products,'code');
+ openProduct(next);
+ const name=document.getElementById('productName');
+ const type=document.getElementById('productType');
+ if(type) type.value='Dịch vụ';
+}
 function productPage(c){
   const products=Array.isArray(state.products)?state.products:[];
   const groups=[...new Set(products.map(x=>x.group||'').filter(Boolean))];
@@ -1757,6 +1775,7 @@ function renderPage(){
   if(state.page==='Hóa đơn') return invoicePage(c);
   if(state.page==='Phiếu thu') return cashBookPage(c,'thu');
   if(state.page==='Phiếu chi') return cashBookPage(c,'chi');
+  if(state.page==='Dịch vụ') return servicePage(c);
   if(state.page==='Danh sách hàng hóa') return productPage(c);
   if(state.page==='Thiết lập giá') return pricePage(c);
   if(state.page==='Nhà cung cấp') return supplierPage(c);
