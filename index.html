@@ -28,9 +28,22 @@ button,input,select{font:inherit}
 .nav-toggle{width:40px;height:40px;border:0;border-radius:9px;background:rgba(255,255,255,.12);color:#fff;font-size:20px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .nav-toggle:hover{background:rgba(255,255,255,.2)}
 .nav-toggle:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center;min-width:0}
 .top-actions button{border:0;border-radius:9px;background:white;color:#1268c9;padding:9px 13px;font-weight:600;cursor:pointer}
-.iconbtn{width:36px;height:36px;border-radius:50%!important;padding:0!important}
+.global-search{position:relative;width:min(310px,28vw)}
+.global-search-input{width:100%;height:38px;border:0;border-radius:9px;padding:0 12px 0 36px;background:rgba(255,255,255,.96);color:#344054;outline:none;box-sizing:border-box}
+.global-search-input:focus{box-shadow:0 0 0 2px rgba(255,255,255,.45)}
+.global-search-kbd{position:absolute;right:8px;top:8px;font-size:10px;color:#667085;background:#eef2f6;border-radius:5px;padding:2px 5px}
+.global-search-icon{position:absolute;left:11px;top:9px;color:#667085;font-size:15px}
+.global-search-results{position:absolute;left:0;right:0;top:44px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.16);padding:6px;display:none;z-index:80;max-height:420px;overflow:auto}
+.global-search-results.show{display:block}
+.global-search-result{width:100%;display:flex!important;align-items:center;gap:9px;text-align:left;background:#fff!important;color:#344054!important;border-radius:7px!important;padding:9px!important}
+.global-search-result:hover{background:#f2f7ff!important;color:var(--primary)!important}
+.global-search-result small{display:block;color:#98a2b3;font-weight:400;margin-top:2px}
+.topbar-action-primary{background:#fff!important;color:var(--primary)!important;box-shadow:0 1px 4px rgba(0,0,0,.12);font-weight:800!important}
+.iconbtn{width:36px;height:36px;border-radius:50%!important;padding:0!important;position:relative}
+.notification-wrap{position:relative}
+.notification-badge{position:absolute;right:-2px;top:-3px;min-width:16px;height:16px;border-radius:999px;background:#d92d20;color:#fff;font-size:9px;line-height:16px;text-align:center;padding:0 3px;box-sizing:border-box}
 .layout{display:flex;min-height:calc(100vh - 58px)}
 .sidebar{width:260px;background:white;border-right:1px solid var(--border);padding:12px 10px;flex-shrink:0;transition:width .18s ease,transform .18s ease;overflow:auto}
 .sidebar.collapsed{width:72px}
@@ -126,7 +139,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 @media(max-width:1100px){.charts-grid{grid-template-columns:1fr}.dashboard-section-head{flex-direction:column}.dashboard-controls{width:100%}.dashboard-controls .field{width:180px!important}}
 @media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}.cashier-layout{grid-template-columns:1fr;height:auto}.cashier-products-panel{min-height:360px}.cashier-order-panel{min-height:520px}.cashier-products{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){
- .topbar{padding:0 8px;gap:6px}.logo{min-width:auto;font-size:18px}.app-context{display:none}.shift-badge{padding:5px 7px}.shift-badge .shift-label{display:none}.top-actions{gap:4px}.top-actions>button:first-child{display:none}.user-session-info{display:none}
+ .topbar{padding:0 8px;gap:6px}.logo{min-width:auto;font-size:18px}.app-context{display:none}.global-search{width:38px}.global-search-input{width:38px;padding-left:34px;padding-right:0;cursor:pointer}.global-search-input::placeholder{color:transparent}.global-search-kbd{display:none}.global-search-results{position:fixed;left:8px;right:8px;top:64px;width:auto}.shift-badge{padding:5px 7px}.shift-badge .shift-label{display:none}.top-actions{gap:4px}.top-actions>button:first-child{display:none}.user-session-info{display:none}
  .sidebar{position:fixed;left:0;top:58px;bottom:0;width:280px;z-index:50;transform:translateX(-105%);box-shadow:8px 0 30px rgba(0,0,0,.12)}
  .sidebar.mobile-open{transform:translateX(0)}.sidebar.collapsed{width:280px}
  .sidebar.collapsed .nav-group-label,.sidebar.collapsed .nav-child-label,.sidebar.collapsed .nav-chevron,.sidebar.collapsed .nav-section-title{display:block}
@@ -164,12 +177,12 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .login-role{text-align:center;color:#667085;font-size:12px;margin-top:8px}
 .admin-note{font-size:12px;color:#667085;margin-top:8px}
 .settings-wrap{position:relative}
-.settings-menu{position:absolute;right:0;top:44px;width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.14);padding:8px;display:none;z-index:50}
+.settings-menu{position:absolute;right:0;top:44px;width:240px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.14);padding:8px;display:none;z-index:50}
 .settings-menu.show{display:block}
 .settings-menu .menu-title{padding:8px 10px 6px;font-size:12px;color:#98a2b3;text-transform:uppercase;font-weight:700}
 .settings-menu button{display:block;width:100%;text-align:left;border:0!important;background:#fff!important;color:#252525!important;border-radius:7px!important;padding:10px!important;cursor:pointer}
 .settings-menu button:hover{background:#f2f7ff!important;color:#0875e5!important}
-.user-session{display:flex;align-items:center;gap:9px;padding:4px 10px;border-left:1px solid var(--border);margin-left:4px}
+.user-session{display:flex;align-items:center;gap:9px;padding:4px 8px;border-left:1px solid rgba(255,255,255,.22);margin-left:0;cursor:pointer}
 .user-session-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;font-weight:700;font-size:13px}
 .user-session-info{display:flex;flex-direction:column;line-height:1.25;min-width:90px}
 .user-session-name{font-size:13px;font-weight:700;color:#27313a}
@@ -231,26 +244,34 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
   <div class="app-context" id="appContext"></div>
   <div class="nav" id="nav"></div>
   <div class="top-actions">
-    <button onclick="openCashierProtected()">🛒 Thu ngân</button>
-    <button class="iconbtn" title="Thông báo">🔔</button>
-    <button class="iconbtn" title="Trợ giúp">?</button>
-    <div class="shift-badge" id="shiftBadge"><span class="shift-dot"></span><span class="shift-label">Ca đã đóng</span></div>
-    <div class="user-session" id="userSession"></div>
-    <div class="settings-wrap">
-    <button class="iconbtn" title="Cài đặt" onclick="toggleSettingsMenu()">⚙</button>
-    <div class="settings-menu" id="settingsMenu">
-      <div class="menu-title">Giao diện</div>
-      <div class="theme-swatches">
-        <span class="theme-swatch" title="Xanh lá" data-theme="green" style="background-color:#3b6f63" onclick="setTheme('green')"></span>
-        <span class="theme-swatch" title="Xanh dương" data-theme="blue" style="background-color:#0875e5" onclick="setTheme('blue')"></span>
-        <span class="theme-swatch" title="Tím" data-theme="purple" style="background-color:#7c3aed" onclick="setTheme('purple')"></span>
-        <span class="theme-swatch" title="Cam" data-theme="orange" style="background-color:#ea580c" onclick="setTheme('orange')"></span>
-      </div>
-      <div class="menu-title">Admin</div>
-      <button onclick="changeMyPassword()">🔑 Đổi mật khẩu</button><button onclick="openAdminAccounts()">Quản lý tài khoản</button>
-      <button class="logout-btn" onclick="logout()">↪ Đăng xuất</button>
+    <div class="global-search">
+      <span class="global-search-icon">⌕</span>
+      <input id="globalSearchInput" class="global-search-input" placeholder="Tìm khách, hóa đơn, dịch vụ..." autocomplete="off" oninput="runGlobalSearch(this.value)" onkeydown="globalSearchKeydown(event)">
+      <span class="global-search-kbd">Ctrl K</span>
+      <div id="globalSearchResults" class="global-search-results"></div>
     </div>
-  </div>
+    <button class="topbar-action-primary" onclick="openCashierProtected()">🛒 Bán hàng</button>
+    <button class="shift-badge" id="shiftBadge" onclick="shiftTopbarAction()" title="Mở ca / chốt ca"><span class="shift-dot"></span><span class="shift-label">Ca đã đóng</span></button>
+    <div class="notification-wrap">
+      <button class="iconbtn" title="Thông báo" onclick="toggleNotifications()">🔔<span class="notification-badge" id="notificationBadge">0</span></button>
+      <div class="settings-menu notification-menu" id="notificationMenu"><div class="menu-title">Thông báo</div><div id="notificationList"></div></div>
+    </div>
+    <div class="settings-wrap">
+      <button class="user-session" id="userSession" onclick="toggleUserMenu()" title="Tài khoản"></button>
+      <div class="settings-menu" id="settingsMenu">
+        <div class="menu-title" id="userMenuTitle">Tài khoản</div>
+        <div class="menu-title">Giao diện</div>
+        <div class="theme-swatches">
+          <span class="theme-swatch" title="Xanh lá" data-theme="green" style="background-color:#3b6f63" onclick="setTheme('green')"></span>
+          <span class="theme-swatch" title="Xanh dương" data-theme="blue" style="background-color:#0875e5" onclick="setTheme('blue')"></span>
+          <span class="theme-swatch" title="Tím" data-theme="purple" style="background-color:#7c3aed" onclick="setTheme('purple')"></span>
+          <span class="theme-swatch" title="Cam" data-theme="orange" style="background-color:#ea580c" onclick="setTheme('orange')"></span>
+        </div>
+        <button onclick="changeMyPassword()">🔑 Đổi mật khẩu</button>
+        <button onclick="openAdminAccounts()">⚙ Quản lý tài khoản</button>
+        <button class="logout-btn" onclick="logout()">↪ Đăng xuất</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2066,26 +2087,42 @@ function getNavigationTrail(){
  const item=group?.children?.find(x=>x.page===state.page);
  return {group:group?.label||'Tổng quan',page:state.page||'Tổng quan',item};
 }
+function getCurrentShiftCashIncome(){
+ const sh=getOpenShift(); if(!sh)return 0;
+ return (state.cashbook||[]).filter(x=>x.shiftId===sh.id&&x.type==='thu'&&normalizePaymentMethod(x.paymentMethod||'Tiền mặt')==='Tiền mặt'&&x.status!=='Đã hủy').reduce((a,x)=>a+Number(x.amount||0),0);
+}
+function getTopbarNotifications(){
+ const logs=Array.isArray(state.auditLogs)?state.auditLogs:[];
+ return logs.slice(-5).reverse().map(x=>({title:x.action||'Thao tác hệ thống',detail:(x.createdByName||x.createdBy||'Người dùng')+' · '+(x.createdAt?new Date(x.createdAt).toLocaleString('vi-VN'):'')}));
+}
 function renderAppContext(){
  const ctx=document.getElementById('appContext');
  const badge=document.getElementById('shiftBadge');
  const trail=getNavigationTrail();
  if(ctx)ctx.innerHTML='<span class="app-context-title">'+esc(trail.page)+'</span>'+(trail.item?'<span class="app-context-sep">/</span><span class="app-context-crumb">'+esc(trail.group)+'</span>':'');
- const open=!!getOpenShift();
+ const open=!!getOpenShift(), income=getCurrentShiftCashIncome();
  if(badge){
   badge.classList.toggle('open',open);
-  badge.innerHTML='<span class="shift-dot"></span><span class="shift-label">'+(open?'Ca đang mở':'Ca đã đóng')+'</span>';
-  badge.title=open?'Ca hiện tại đang mở':'Hôm nay chưa có ca đang mở';
+  badge.innerHTML='<span class="shift-dot"></span><span class="shift-label">'+(open?'Ca đang mở · '+money(income/1000000)+'tr':'Ca đã đóng')+'</span>';
+  badge.title=open?'Bấm để chốt ca':'Bấm để mở ca';
  }
+ renderTopbarNotifications();
+}
+function renderTopbarNotifications(){
+ const list=document.getElementById('notificationList'),badge=document.getElementById('notificationBadge');
+ const items=getTopbarNotifications();
+ if(badge)badge.textContent=items.length>9?'9+':String(items.length);
+ if(list)list.innerHTML=items.length?items.map(x=>'<button class="settings-menu-item" type="button"><b>'+esc(x.title)+'</b><small>'+esc(x.detail)+'</small></button>').join(''):'<div style="padding:12px;color:#667085;font-size:12px">Không có thông báo mới.</div>';
 }
 function renderUserSession(){
  const el=document.getElementById('userSession');
  const u=state.currentUser;
  if(!el||!u)return;
  const name=u.name||u.username||'Người dùng';
- const role=u.role||'User';
+ const role=u.role||'Nhân viên';
  const initial=String(name).trim().charAt(0).toUpperCase()||'U';
- el.innerHTML=`<div class="user-session-avatar">${esc(initial)}</div><div class="user-session-info"><span class="user-session-name">${esc(name)}</span><span class="user-session-role">${esc(role)}</span></div>`;
+ el.innerHTML='<div class="user-session-avatar">'+esc(initial)+'</div><div class="user-session-info"><span class="user-session-name">'+esc(name)+'</span><span class="user-session-role">'+esc(role)+'</span></div>';
+ const title=document.getElementById('userMenuTitle');if(title)title.textContent=name+' · '+role;
 }
 function logout(){
  localStorage.removeItem('spa_pos_username');
@@ -2118,10 +2155,23 @@ function openCashierProtected(){
  if(!hasPermission('Sử dụng thu ngân')) return alert('Bạn không có quyền sử dụng Thu ngân.');
  state.section='Đơn hàng';state.page='Thu ngân';renderAll();
 }
-function toggleSettingsMenu(){
-  const menu=document.getElementById('settingsMenu');
-  menu.classList.toggle('show');
+function shiftTopbarAction(){if(getOpenShift())openCloseShift();else openShift();}
+function toggleNotifications(){document.getElementById('notificationMenu')?.classList.toggle('show');document.getElementById('settingsMenu')?.classList.remove('show');}
+function toggleUserMenu(){document.getElementById('settingsMenu')?.classList.toggle('show');document.getElementById('notificationMenu')?.classList.remove('show');}
+function runGlobalSearch(query){
+ const q=String(query||'').trim().toLowerCase(),box=document.getElementById('globalSearchResults');if(!box)return;
+ if(!q){box.classList.remove('show');box.innerHTML='';return;}
+ const out=[];
+ (state.customers||[]).forEach(x=>{if(JSON.stringify(x).toLowerCase().includes(q)&&out.length<5)out.push({icon:'👤',title:x.name||x.code,detail:'Khách hàng · '+(x.phone||x.code||''),page:'Khách hàng'});});
+ (state.invoices||[]).forEach(x=>{if(JSON.stringify(x).toLowerCase().includes(q)&&out.length<10)out.push({icon:'🧾',title:x.code||x.id,detail:'Hóa đơn · '+money(x.total||0)+' ₫',page:'Hóa đơn'});});
+ [...(state.products||[]),...(state.services||[])].forEach(x=>{if(JSON.stringify(x).toLowerCase().includes(q)&&out.length<10)out.push({icon:'🧴',title:x.name||x.code,detail:(x.type||'Dịch vụ & Hàng hóa')+' · '+money(x.price||x.pre||0)+' ₫',page:x.type==='Dịch vụ'?'Dịch vụ':'Danh sách hàng hóa'});});
+ box.innerHTML=out.length?out.map((x,n)=>'<button class="global-search-result" type="button" onclick="selectGlobalSearchResult('+n+')"><span>'+x.icon+'</span><span><b>'+esc(x.title)+'</b><small>'+esc(x.detail)+'</small></span></button>').join(''):'<div style="padding:12px;color:#667085;font-size:12px">Không tìm thấy kết quả.</div>';
+ box._items=out;box.classList.add('show');
 }
+function selectGlobalSearchResult(index){const box=document.getElementById('globalSearchResults'),item=box?._items?.[index];if(!item)return;box.classList.remove('show');const input=document.getElementById('globalSearchInput');if(input)input.value='';selectPage(item.page);}
+function globalSearchKeydown(e){if(e.key==='Enter'){const box=document.getElementById('globalSearchResults');if(box?._items?.length)selectGlobalSearchResult(0);}if(e.key==='Escape'){const box=document.getElementById('globalSearchResults');box?.classList.remove('show');}}
+document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();const input=document.getElementById('globalSearchInput');if(input){input.focus();input.select();}}});
+function toggleSettingsMenu(){toggleUserMenu();}
 document.addEventListener('click',function(e){
   const actionEl=e.target.closest('[data-action="toolbar-action"]');
   if(actionEl){
@@ -2139,10 +2189,11 @@ document.addEventListener('click',function(e){
     return;
   }
   const wrap=document.querySelector('.settings-wrap');
-  if(wrap && !wrap.contains(e.target)){
-    const menu=document.getElementById('settingsMenu');
-    if(menu) menu.classList.remove('show');
-  }
+  if(wrap && !wrap.contains(e.target)){const menu=document.getElementById('settingsMenu');if(menu)menu.classList.remove('show');}
+  const notify=document.querySelector('.notification-wrap');
+  if(notify && !notify.contains(e.target)){document.getElementById('notificationMenu')?.classList.remove('show');}
+  const search=document.querySelector('.global-search');
+  if(search && !search.contains(e.target)){document.getElementById('globalSearchResults')?.classList.remove('show');}
 });
 
 function openAdminAccounts(){
