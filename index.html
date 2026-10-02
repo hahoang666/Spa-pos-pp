@@ -654,6 +654,7 @@ const navigation=[
  {id:'staff',label:'Nhân sự',icon:'👨‍💼',children:[
   {id:'staff-list',label:'Hồ sơ nhân sự',page:'Nhân viên',permission:'Xem khách hàng'},
   {id:'attendance',label:'Chấm công',page:'Chấm công',permission:'Chấm công nhân viên'}
+  {id:'commission',label:'Hoa hồng',page:'Hoa hồng'},
  ]},
  {id:'cashbook',label:'Sổ quỹ',icon:'💰',children:[
   {id:'shifts',label:'Ca',page:'Đóng ca / Chốt quỹ',permission:'Mở ca'},
@@ -1102,6 +1103,28 @@ function toggleNavigation(){
 }
 function closeMobileNavigation(){document.getElementById('sidebar')?.classList.remove('mobile-open');document.getElementById('navBackdrop')?.classList.remove('show');}
 function renderAll(){document.body.classList.toggle('cashier-mode',state.page==='Thu ngân');saveState();renderNav();renderSidebar();renderAppContext();renderUserSession();renderPage()}
+function commissionPage(c){
+ const rows=(state.serviceCommissions||[]).slice().reverse().map(x=>{
+   const card=(state.therapyCards||[]).find(t=>t.id===x.therapyCardId)||{};
+   const employee=(state.employees||[]).find(e=>e.id===x.employeeId)||{};
+   const used=Array.isArray(card.usageHistory)?card.usageHistory.length:0;
+   const total=Number(card.totalSessions)||used+(Number(card.remainingSessions)||0);
+   const remain=Number.isFinite(Number(card.remainingSessions))?Number(card.remainingSessions):Math.max(0,total-used);
+   const gross=Number(card.totalAmount??x.revenue??0);
+   const discount=Number(card.discount??card.discountAmount??0);
+   const net=Number(card.netAmount??(gross-discount));
+   const vat=Number(card.vatAmount??(net*(Number(card.vatRate??x.vatRate??0)/100)));
+   const per=Number(x.amount||0);
+   return {employeeId:x.employeeId||employee.id||'',employeeName:x.employeeName||employee.name||'',productName:x.productName||card.productName||'',used,remain,gross,discount,net,vat,per};
+ }).filter(x=>x.employeeId||x.employeeName);
+ const grouped={};
+ rows.forEach(x=>{const k=x.employeeId+'|'+x.productName;if(!grouped[k])grouped[k]={...x};else{grouped[k].used=Math.max(grouped[k].used,x.used);grouped[k].remain=Math.min(grouped[k].remain,x.remain);grouped[k].per+=x.per;}});
+ const data=Object.values(grouped);
+ const q=String(c.dataset.commissionSearch||'').trim().toLowerCase();
+ const filtered=q?data.filter(x=>String(x.employeeId).toLowerCase().includes(q)||String(x.employeeName).toLowerCase().includes(q)):data;
+ c.innerHTML='<div class="page-title">Hoa hồng</div><div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input id="commissionSearch" class="input" style="max-width:420px" placeholder="Tìm tên nhân viên hoặc mã nhân viên" value="'+esc(q)+'"><button class="btn btn-secondary" onclick="commissionSearchNow()">Tìm kiếm</button></div><div class="table-wrap"><table><thead><tr><th>Mã nhân viên</th><th>Tên nhân viên</th><th>Liệu trình đã bán</th><th>Số buổi đã sử dụng</th><th>Số buổi còn lại</th><th>Tổng tiền</th><th>Giảm giá</th><th>Tổng tiền sau giảm giá</th><th>VAT</th><th>Hoa hồng/buổi</th></tr></thead><tbody>'+(filtered.length?filtered.map(x=>'<tr><td>'+esc(x.employeeId)+'</td><td>'+esc(x.employeeName)+'</td><td>'+esc(x.productName)+'</td><td>'+x.used+'</td><td>'+x.remain+'</td><td>'+money(x.gross)+'</td><td>'+money(x.discount)+'</td><td>'+money(x.net)+'</td><td>'+money(x.vat)+'</td><td><strong>'+money(x.per)+'</strong></td></tr>').join(''):'<tr><td colspan="10"><div class="empty">Chưa có dữ liệu hoa hồng</div></td></tr>')+'</tbody></table></div></div>';
+}
+function commissionSearchNow(){const c=document.getElementById('content');const input=document.getElementById('commissionSearch');if(!c||!input)return;c.dataset.commissionSearch=input.value||'';commissionPage(c);}
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
  const rows=cards.slice().reverse().map(x=>`<tr><td>${esc(x.productCode||'')}</td><td>${esc(x.customerName||x.customerCode||'')}</td><td>${esc(x.productName||'')}</td><td>${Number(x.totalSessions)||0}</td><td>${Number(x.remainingSessions)||0}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status||'')}</td></tr>`).join('');
