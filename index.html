@@ -1735,7 +1735,7 @@ function cashierPage(c){
   const employeeOptions='<option value="">Chọn nhân sự</option>'+employees.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===state.cashierEmployeeId?'selected':'')+'>'+esc(a.name)+' - '+esc(a.position||'')+'</option>').join('');
   c.innerHTML=
     '<div class="cashier-layout">'+
-      '<div class="cashier-shell-head"><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-secondary cashier-exit" type="button" onclick="exitCashier()">← Thoát</button><div class="cashier-shell-title">Thu ngân</div></div><div class="shift-badge">'+(getOpenShift()?'🟢 Ca đang mở':'🔴 Chưa mở ca')+'</div></div>'+
+      '<div class="cashier-shell-head"><div class="cashier-shell-left"><button class="btn btn-secondary cashier-exit" type="button" onclick="exitCashier()">← Thoát</button><div class="cashier-shell-title">Thu ngân</div><div id="cashierInvoiceTabs" class="cashier-invoice-tabs cashier-invoice-tabs-top"></div></div><div class="shift-badge">'+(getOpenShift()?'🟢 Ca đang mở':'🔴 Chưa mở ca')+'</div></div>'+
       '<div class="card cashier-products-panel">'+
         '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode..."><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+'<div class="cashier-category-bar">'+
 '<button type="button" class="cashier-category-btn active" onclick="setCashierCategory(\'Tất cả\')">Tất cả</button>'+
@@ -1745,7 +1745,7 @@ function cashierPage(c){
         '<div id="cashierProducts" class="cashier-products"></div>'+
       '</div>'+
       '<div class="card cashier-order-panel">'+
-        '<div class="cashier-order-head"><b>Hóa đơn</b><button class="btn btn-primary" type="button" onclick="startNewCashierInvoice()">＋ Hóa đơn mới</button></div>'+'<div id="cashierInvoiceTabs" class="cashier-invoice-tabs"></div>'+
+        '<div class="cashier-order-head"><b>Hóa đơn hiện tại</b></div>'+
         '<div class="cashier-meta">'+
           '<div><label>Khách hàng</label><div style="display:flex;gap:6px"><select id="cashierCustomer" class="field" style="flex:1">'+customerOptions+'</select><button class="btn btn-secondary" onclick="quickAddCashierCustomer()">＋</button></div></div>'+
           '<div><label>Nhân viên thực hiện</label><select id="cashierEmployee" class="field">'+employeeOptions+'</select></div>'+
