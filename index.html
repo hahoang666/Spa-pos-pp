@@ -653,8 +653,7 @@ const navigation=[
  ]},
  {id:'staff',label:'Nhân sự',icon:'👨‍💼',children:[
   {id:'staff-list',label:'Hồ sơ nhân sự',page:'Nhân viên',permission:'Xem khách hàng'},
-  {id:'attendance',label:'Chấm công',page:'Chấm công',permission:'Chấm công nhân viên'},
-  {id:'commission',label:'Hoa hồng',page:'Hoa hồng',permission:'Quản lý hoa hồng'}
+  {id:'attendance',label:'Chấm công',page:'Chấm công',permission:'Chấm công nhân viên'}
  ]},
  {id:'cashbook',label:'Sổ quỹ',icon:'💰',children:[
   {id:'shifts',label:'Ca',page:'Đóng ca / Chốt quỹ',permission:'Mở ca'},
@@ -686,7 +685,7 @@ const permissionCatalog={
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem sổ quỹ','Lập phiếu thu','Lập phiếu chi','Đảo phiếu','Chuyển quỹ','Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
   'Báo cáo':['Xem biểu đồ','Xuất Excel'],
-  'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ','Khóa kỳ sổ quỹ','Sửa số dư đầu kỳ','Phê duyệt'],
+  'Spa':['Chấm công nhân viên','Mở ca','Chốt quỹ','Khóa kỳ sổ quỹ','Sửa số dư đầu kỳ','Phê duyệt'],
   'Quản trị':['Quản lý tài khoản','Phân quyền User']
 };
 const allPermissions=Object.values(permissionCatalog).flat();
