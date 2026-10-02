@@ -683,7 +683,7 @@ const permissionCatalog={
   'Tổng quan':['Xem Dashboard','Xem doanh thu'],
   'Bán hàng':['Xem hóa đơn','Tạo hóa đơn','Hủy hóa đơn','Xem thanh toán','Sử dụng thu ngân','Tạo trả hàng','Xem thẻ liệu trình','Sử dụng liệu trình'],
   'Khách hàng':['Xem khách hàng','Thêm khách hàng','Sửa khách hàng','Xóa khách hàng','Xem lịch sử khách hàng'],
-  'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Thêm bảng giá','Cập nhật giá','Quản lý tồn kho'],
+  'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem sổ quỹ','Lập phiếu thu','Lập phiếu chi','Đảo phiếu','Chuyển quỹ','Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
   'Báo cáo':['Xem biểu đồ','Xuất Excel'],
   'Spa':['Chấm công nhân viên','Quản lý hoa hồng','Mở ca','Chốt quỹ','Khóa kỳ sổ quỹ','Sửa số dư đầu kỳ','Phê duyệt'],
@@ -1490,13 +1490,39 @@ function filterProductTable(){
 }
 function toggleAllProducts(checked){document.querySelectorAll('.product-check').forEach(x=>x.checked=checked);}
 function pricePage(c){
- const lists=Array.isArray(state.priceLists)?state.priceLists:[];
- const rows=lists.map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.status||'')+'</td><td>'+esc(x.createdAt?new Date(x.createdAt).toLocaleString('vi-VN'):'')+'</td></tr>').join('');
- c.innerHTML='<div class="page-title">Thiết lập giá</div><div class="toolbar"><input class="search" placeholder="🔍 Tìm bảng giá..." oninput="filterPriceTable(this.value)"><button class="btn btn-primary" onclick="openPrice()">＋ Tạo bảng giá</button></div><div class="card table-wrap"><table><thead><tr><th>Mã bảng giá</th><th>Tên bảng giá</th><th>Trạng thái</th><th>Ngày tạo</th></tr></thead><tbody id="priceTableBody">'+(rows||'<tr><td colspan="4"><div class="empty">Chưa có bảng giá</div></td></tr>')+'</tbody></table></div>';
+ const products=Array.isArray(state.products)?state.products:[];
+ const rows=products.map(p=>{
+  const history=Array.isArray(p.priceHistory)?p.priceHistory:[];
+  const last=history.length?history[history.length-1]:null;
+  const oldPrice=last?Number(last.oldPrice)||0:'—';
+  const newPrice=last?Number(last.newPrice)||0:Number(p.price)||0;
+  const applied=last?.appliedAt||p.priceUpdatedAt||'';
+  return '<tr><td>'+esc(p.code||'')+'</td><td>'+esc(p.name||'')+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.createdAt?new Date(p.createdAt).toLocaleDateString('vi-VN'):'—')+'</td><td>'+ (oldPrice==='—'?'—':money(oldPrice)+' ₫')+'</td><td>'+money(newPrice)+' ₫</td><td>'+esc(applied?new Date(applied).toLocaleDateString('vi-VN'):'—')+'</td><td><button class="btn btn-secondary" onclick="openPriceEditor(\\''+esc(p.code)+'\\')">Sửa giá</button></td></tr>';
+ }).join('');
+ c.innerHTML=header('Thiết lập giá')+'<div class="card table-wrap"><div style="padding:12px 16px"><input class="search" id="priceProductSearch" placeholder="🔍 Tìm mã, tên sản phẩm..." oninput="filterPriceProducts(this.value)"></div><table><thead><tr><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Loại</th><th>Ngày tạo</th><th>Giá cũ</th><th>Giá mới</th><th>Ngày áp dụng</th><th></th></tr></thead><tbody id="priceProductTableBody">'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có dịch vụ / hàng hóa</div></td></tr>')+'</tbody></table></div>';
 }
-function filterPriceTable(value){
+function filterPriceProducts(value){
  const q=(value||'').toLowerCase().trim();
- document.querySelectorAll('#priceTableBody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
+ document.querySelectorAll('#priceProductTableBody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
+}
+function openPriceEditor(code){
+ if(!hasPermission('Cập nhật giá'))return alert('Bạn không có quyền cập nhật giá.');
+ const p=state.products.find(x=>x.code===code);
+ if(!p)return alert('Không tìm thấy sản phẩm.');
+ openModal('Chỉnh sửa giá','<div class="form-grid"><div class="full"><label>Sản phẩm</label><input class="field" value="'+esc(p.code)+' - '+esc(p.name)+'" readonly></div><div class="full"><label>Giá hiện tại</label><input class="field" value="'+money(Number(p.price)||0)+' ₫" readonly></div><div class="full"><label>Giá mới *</label><input id="newProductPrice" class="field" type="number" min="0" step="1" value="'+(Number(p.price)||0)+'"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEditedPrice(\\''+esc(p.code)+'\\')">Lưu</button>');
+}
+function saveEditedPrice(code){
+ if(!hasPermission('Cập nhật giá'))return alert('Bạn không có quyền cập nhật giá.');
+ const p=state.products.find(x=>x.code===code); const input=document.getElementById('newProductPrice'); const newPrice=Number(input?.value);
+ if(!p||!input||!Number.isFinite(newPrice)||newPrice<0)return alert('Giá mới không hợp lệ.');
+ const oldPrice=Number(p.price)||0;
+ if(newPrice===oldPrice)return alert('Giá mới phải khác giá hiện tại.');
+ p.price=newPrice;
+ p.pre=Number((newPrice/(1+(Number(p.vat)||0)/100)).toFixed(3));
+ p.priceUpdatedAt=new Date().toISOString();
+ p.priceHistory=Array.isArray(p.priceHistory)?p.priceHistory:[];
+ p.priceHistory.push({oldPrice,newPrice,appliedAt:p.priceUpdatedAt,updatedBy:state.currentUser?.id||''});
+ saveState();closeModal();pricePage(document.getElementById('content'));
 }
 function saveInvoice(){
  const shift=requireOpenShift('tạo hóa đơn');if(!shift)return;
