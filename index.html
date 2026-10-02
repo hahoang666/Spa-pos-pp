@@ -1839,6 +1839,7 @@ function renderPage(){
   const c=document.getElementById('content');
   if(state.page==='Lịch hẹn') return appointmentsPage(c);
   if(state.page==='Chấm công') return attendancePage(c);
+  if(state.page==='Hoa hồng') return commissionPage(c);
   if(state.page==='Thu ngân' && !hasPermission('Sử dụng thu ngân')){state.section='Tổng quan';state.page='Tổng quan';return dashboard(c);} if(state.page==='Thu ngân') return cashierPage(c);
   if(state.page==='Hóa đơn') return invoicePage(c);
   if(state.page==='Phiếu thu') return cashBookPage(c,'thu');
