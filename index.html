@@ -1480,7 +1480,7 @@ function consumeMaterialsForService(serviceCode, multiplier=1, refId=''){
 }
 function servicePage(c){
  const products=(Array.isArray(state.products)?state.products:[]).filter(p=>p.type==='Dịch vụ');
- const rows=products.map(p=>'<tr><td><input type="checkbox" class="service-check" data-code="'+esc(p.code)+'"></td><td><b>'+esc(p.code)+'</b></td><td>'+esc(p.name||'')+'</td><td>'+esc(p.group||'')+'</td><td>'+esc(p.unit||'')+'</td><td>'+esc(p.duration||p.durationMinutes?((p.duration||p.durationMinutes)+' phút'):'—')+'</td><td>'+money(Number(p.price)||0)+' ₫</td><td>'+esc(p.vat==null?10:p.vat)+'%</td><td>'+esc(p.status||'Đang kinh doanh')+'</td><td><button class="btn btn-secondary" onclick="openProduct(\\''+esc(p.code)+'\\')">Sửa</button> <button class="btn btn-danger" onclick="deleteProduct(\\''+esc(p.code)+'\\')">Xóa</button></td></tr>').join('');
+ const rows=products.map(p=>'<tr><td><input type="checkbox" class="service-check" data-code="'+esc(p.code)+'"></td><td><b>'+esc(p.code)+'</b></td><td>'+esc(p.name||'')+'</td><td>'+esc(p.group||'')+'</td><td>'+esc(p.unit||'')+'</td><td>'+esc(p.duration||p.durationMinutes?((p.duration||p.durationMinutes)+' phút'):'—')+'</td><td>'+money(Number(p.price)||0)+' ₫</td><td>'+esc(p.vat==null?10:p.vat)+'%</td><td>'+esc(p.status||'Đang kinh doanh')+'</td><td><button class="btn btn-secondary" onclick="openService(\''+esc(p.code)+'\')">Sửa</button> <button class="btn btn-danger" onclick="deleteProduct(\''+esc(p.code)+'\')">Xóa</button></td></tr>').join('');
  c.innerHTML='<div class="page-title">Danh sách dịch vụ</div><div class="toolbar"><input class="search" id="serviceSearch" placeholder="🔍 Tìm mã, tên, barcode..." oninput="filterServiceTable()"><button class="btn btn-primary" onclick="openService()">＋ Thêm dịch vụ</button></div><div class="card table-wrap"><table><thead><tr><th><input type="checkbox" onchange="toggleAllServices(this.checked)"></th><th>Mã</th><th>Tên dịch vụ</th><th>Nhóm dịch vụ</th><th>Đơn vị</th><th>Thời lượng</th><th>Giá bán</th><th>VAT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="serviceTableBody">'+(rows||'<tr><td colspan="10"><div class="empty">Chưa có dịch vụ</div></td></tr>')+'</tbody></table></div>';
 }
 function filterServiceTable(){
@@ -1489,12 +1489,25 @@ function filterServiceTable(){
 }
 function toggleAllServices(checked){document.querySelectorAll('.service-check').forEach(x=>x.checked=checked);}
 function openService(code){
- if(code)return openProduct(code);
- const next=nextAutoCode('DV',6,'spa_next_service_id',state.products,'code');
- openProduct(next);
- const name=document.getElementById('productName');
- const type=document.getElementById('productType');
- if(type) type.value='Dịch vụ';
+ const editing=!!code;
+ const old=editing?state.products.find(x=>x.code===code):null;
+ if(editing&&!old)return;
+ const p=old||{code:nextAutoCode('DV',6,'spa_next_service_id',state.products,'code'),name:'',type:'Dịch vụ',group:'Dịch vụ',unit:'Lần',pre:0,vat:10,price:0,cost:0,status:'Đang kinh doanh',durationMinutes:60};
+ openModal(editing?'Sửa dịch vụ':'Thêm dịch vụ',
+ '<div class="form-grid"><div><label>Mã dịch vụ</label><input id="serviceCode" class="field" value="'+esc(p.code)+'" readonly></div><div><label>Nhóm dịch vụ</label><input id="serviceGroup" class="field" value="'+esc(p.group||'Dịch vụ')+'"></div><div><label>Đơn vị tính</label><select id="serviceUnit" class="field"><option>Lần</option><option>Gói</option><option>Buổi</option></select></div><div><label>Thời lượng (phút)</label><input id="serviceDuration" class="field" type="number" min="0" step="1" value="'+(Number(p.durationMinutes||p.duration)||0)+'"></div><div class="full"><label>Tên dịch vụ</label><input id="serviceName" class="field" value="'+esc(p.name||'')+'"></div><div><label>Barcode</label><input id="serviceBarcode" class="field" value="'+esc(p.barcode||'')+'"></div><div><label>VAT (%)</label><select id="serviceVat" class="field"><option value="0">0</option><option value="5">5</option><option value="8">8</option><option value="10">10</option></select></div><div><label>Giá bán sau thuế</label><input id="servicePrice" class="field" type="number" min="0" step="0.001" value="'+(Number(p.price)||0)+'"></div><div><label>Giá vốn</label><input id="serviceCost" class="field" type="number" min="0" step="0.001" value="'+(Number(p.cost)||0)+'"></div><div><label>Trạng thái</label><select id="serviceStatus" class="field"><option>Đang kinh doanh</option><option>Ngừng kinh doanh</option></select></div></div>',
+ '<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveService(\''+esc(p.code)+'\','+editing+')">Lưu</button>');
+ document.getElementById('serviceVat').value=String(Number(p.vat)||0);
+ document.getElementById('serviceStatus').value=p.status||'Đang kinh doanh';
+}
+function saveService(code,editing){
+ if(!hasPermission(editing?'Sửa sản phẩm':'Thêm sản phẩm'))return alert('Bạn không có quyền thực hiện thao tác này.');
+ const name=document.getElementById('serviceName').value.trim(); if(!name)return alert('Vui lòng nhập tên dịch vụ.');
+ const price=Number(document.getElementById('servicePrice').value)||0, vat=Number(document.getElementById('serviceVat').value)||0;
+ const duration=Math.max(0,Number(document.getElementById('serviceDuration').value)||0);
+ if(price<0)return alert('Giá bán không được âm.');
+ const data={name,barcode:(document.getElementById('serviceBarcode').value||'').trim(),type:'Dịch vụ',group:(document.getElementById('serviceGroup').value||'Dịch vụ').trim(),unit:document.getElementById('serviceUnit').value,durationMinutes:duration,pre:Number((price/(1+vat/100)).toFixed(3)),vat,price,cost:Number(document.getElementById('serviceCost').value)||0,status:document.getElementById('serviceStatus').value,stock:'---'};
+ if(editing){const p=state.products.find(x=>x.code===code);if(!p)return;Object.assign(p,data);}else state.products.push({code,...data,createdAt:new Date().toISOString()});
+ saveState();closeModal();servicePage(document.getElementById('content'));
 }
 function productPage(c){
   const products=Array.isArray(state.products)?state.products:[];
