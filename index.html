@@ -154,30 +154,43 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
  .mobile-nav button{border:0;background:#fff;color:#667085;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
  .mobile-nav button.active{color:var(--primary);font-weight:700}
 }
-.login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#f4f8f6 0%,#fbfcfb 48%,#f1f6f3 100%);display:flex;align-items:center;justify-content:flex-end;padding:42px 7vw;z-index:1000}
-.login-panel{width:min(470px,92vw);background:rgba(255,255,255,.96);border:1px solid #e6ece8;border-radius:20px;padding:38px 42px;box-shadow:0 18px 60px rgba(30,70,55,.12)}
-.login-brand{text-align:center;margin-bottom:24px}
-.login-logo{font-size:30px;font-weight:700;color:#174f4d;letter-spacing:-.6px}
-.login-subtitle{margin-top:8px;color:#64748b;font-size:17px}
-.login-form{display:flex;flex-direction:column;gap:15px}
-.login-label{font-size:13px;font-weight:600;color:#344054;margin-bottom:6px}
+.login-screen{position:fixed;inset:0;background:var(--bg);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(380px,.9fr);z-index:1000;overflow:auto}
+.login-brand-panel{display:flex;flex-direction:column;justify-content:center;padding:64px clamp(32px,8vw,120px);background:linear-gradient(135deg,var(--primary-soft),#fff);border-right:1px solid var(--border)}
+.login-brand-mark{font-size:34px;font-weight:800;letter-spacing:-1px;color:var(--primary)}
+.login-brand-slogan{font-size:32px;line-height:1.15;font-weight:800;max-width:560px;margin-top:20px;color:var(--text)}
+.login-brand-copy{max-width:520px;margin-top:16px;color:var(--muted);font-size:16px;line-height:1.65}
+.login-brand-points{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.login-brand-point{padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:#fff;color:#475467;font-size:13px}
+.login-form-panel{display:flex;align-items:center;justify-content:center;padding:40px 32px}
+.login-panel{width:min(440px,100%);background:var(--white);border:1px solid var(--border);border-radius:18px;padding:36px 38px;box-shadow:0 18px 60px rgba(15,23,42,.08)}
+.login-brand{text-align:left;margin-bottom:28px}
+.login-logo{font-size:26px;font-weight:800;color:var(--primary);letter-spacing:-.5px}
+.login-subtitle{margin-top:7px;color:var(--muted);font-size:14px}
+.login-form{display:flex;flex-direction:column;gap:16px}
+.login-field{display:flex;flex-direction:column}
+.login-label{font-size:13px;font-weight:700;color:#344054;margin-bottom:6px}
 .login-input-wrap{position:relative}
-.login-input{width:100%;height:52px;border:1px solid #d8e0dc;border-radius:10px;padding:0 44px 0 15px;outline:none;font-size:15px;background:#fff}
-.login-input:focus{border-color:#3c9b79;box-shadow:0 0 0 3px rgba(60,155,121,.12)}
-.login-icon{position:absolute;right:15px;top:50%;transform:translateY(-50%);color:#7a8790;cursor:pointer;font-size:18px}
-.login-options{display:flex;align-items:center;justify-content:space-between;margin:2px 0 4px;font-size:13px;color:#667085}
-.login-remember{display:flex;align-items:center;gap:8px}
-.login-remember input{accent-color:#2f8f70;width:16px;height:16px}
-.login-link{border:0;background:none;color:#238566;cursor:pointer;padding:0}
-.login-button{height:52px;border:0;border-radius:10px;background:linear-gradient(90deg,#2d8b6d,#379879);color:#fff;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 7px 18px rgba(45,139,109,.18)}
-.login-button:hover{filter:brightness(.97)}
-.login-divider{display:flex;align-items:center;gap:12px;margin:23px 0 18px;color:#98a2b3;font-size:13px}
-.login-divider:before,.login-divider:after{content:"";height:1px;background:#e5e7eb;flex:1}
-.login-security{text-align:center;color:#98a2b3;font-size:12px}
-.account-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#667085}
-
+.login-input{width:100%;height:50px;border:1px solid var(--border);border-radius:10px;padding:0 44px 0 14px;outline:none;font-size:15px;background:#fff}
+.login-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(8,117,229,.12)}
+.login-input[aria-invalid="true"]{border-color:var(--danger)}
+.login-input[aria-invalid="true"]:focus{box-shadow:0 0 0 3px rgba(229,72,77,.12)}
+.login-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#7a8790;cursor:pointer;font-size:18px;border:0;background:transparent;padding:4px}
+.login-field-error{display:none;margin-top:6px;color:#b42318;font-size:12px;line-height:1.4}
+.login-field-error.show{display:block}
+.login-error{display:none;color:#b42318;background:#fff1f1;border:1px solid #ffd4d4;border-radius:8px;padding:9px 11px;font-size:13px}
+.login-error.show{display:block}
+.login-button{height:50px;border:0;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 7px 18px rgba(8,117,229,.18)}
+.login-button:hover{background:var(--primary-hover)}
+.login-button:focus-visible,.login-icon:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.login-security{text-align:center;color:var(--muted);font-size:12px;margin-top:16px}
 .login-role{text-align:center;color:#667085;font-size:12px;margin-top:8px}
 .admin-note{font-size:12px;color:#667085;margin-top:8px}
+@media(max-width:800px){
+ .login-screen{grid-template-columns:1fr}
+ .login-brand-panel{display:none}
+ .login-form-panel{min-height:100vh;padding:24px 16px}
+ .login-panel{padding:30px 24px}
+}
 .settings-wrap{position:relative}
 .settings-menu{position:absolute;right:0;top:44px;width:240px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.14);padding:8px;display:none;z-index:50}
 .settings-menu.show{display:block}
@@ -214,31 +227,43 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 </head>
 <body>
 <div class="login-screen" id="loginScreen">
-  <div class="login-panel">
-    <div class="login-brand">
-      <div class="login-logo">🌿 POS🍀</div>
-      
+  <section class="login-brand-panel" aria-label="Giới thiệu POS">
+    <div class="login-brand-mark">🌿 POS🍀</div>
+    <div class="login-brand-slogan">Quản lý spa gọn gàng,<br>vận hành thông suốt.</div>
+    <div class="login-brand-copy">Bán hàng, khách hàng, liệu trình, kho, nhân sự và sổ quỹ trong một hệ thống thống nhất.</div>
+    <div class="login-brand-points">
+      <span class="login-brand-point">🛒 Bán hàng</span>
+      <span class="login-brand-point">👥 Khách hàng</span>
+      <span class="login-brand-point">📦 Kho</span>
+      <span class="login-brand-point">💰 Sổ quỹ</span>
     </div>
-    <form class="login-form" onsubmit="event.preventDefault();login()">
-      <div>
-        <div class="login-label">Tên đăng nhập</div>
-        <input class="login-input" id="loginUsername" autocomplete="username" placeholder="Nhập tên đăng nhập">
+  </section>
+  <section class="login-form-panel">
+    <div class="login-panel">
+      <div class="login-brand">
+        <div class="login-logo">POS🍀</div>
+        <div class="login-subtitle">Đăng nhập để tiếp tục</div>
       </div>
-      <div>
-        <div class="login-label">Mật khẩu</div>
-        <div class="login-input-wrap">
-          <input class="login-input" id="loginPassword" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu">
-          <span class="login-icon" onclick="togglePassword()" title="Hiện/ẩn mật khẩu">◉</span>
+      <form class="login-form" id="loginForm" onsubmit="event.preventDefault();login()">
+        <div class="login-field">
+          <label class="login-label" for="loginUsername">Tên đăng nhập</label>
+          <input class="login-input" id="loginUsername" autocomplete="username" placeholder="Nhập tên đăng nhập" aria-describedby="loginUsernameError">
+          <div class="login-field-error" id="loginUsernameError" role="alert"></div>
         </div>
-      </div>
-      <div class="login-error" id="loginError">Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.</div>
-      <div class="login-options">
-        <label class="login-remember"><input type="checkbox" id="rememberLogin"> Ghi nhớ đăng nhập <span style="font-size:11px;color:#8a959e">(không áp dụng trong bản demo)</span></label>
-        <button type="button" class="login-forgot" onclick="forgotPassword()">Quên mật khẩu?</button>
-      </div>
-      <button class="login-button" type="submit">↪ &nbsp; Đăng nhập</button>
-    </form>
-  </div>
+        <div class="login-field">
+          <label class="login-label" for="loginPassword">Mật khẩu</label>
+          <div class="login-input-wrap">
+            <input class="login-input" id="loginPassword" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" aria-describedby="loginPasswordError">
+            <button type="button" class="login-icon" onclick="togglePassword()" aria-label="Hiện hoặc ẩn mật khẩu" title="Hiện/ẩn mật khẩu">◉</button>
+          </div>
+          <div class="login-field-error" id="loginPasswordError" role="alert"></div>
+        </div>
+        <div class="login-error" id="loginError" role="alert"></div>
+        <button class="login-button" type="submit">Đăng nhập</button>
+        <div class="login-security">Bản demo · Không lưu thông tin đăng nhập trên thiết bị</div>
+      </form>
+    </div>
+  </section>
 </div>
 <div class="topbar">
   <button class="nav-toggle" id="navToggle" aria-label="Mở menu" title="Menu" onclick="toggleNavigation()">☰</button>
@@ -866,35 +891,63 @@ function forgotPassword(){
  if(!account){alert('Không tìm thấy tài khoản. Vui lòng kiểm tra lại Tên đăng nhập hoặc liên hệ Admin.');return;}
  alert('Vì đây là bản demo không có máy chủ gửi email/SMS, chức năng Quên mật khẩu yêu cầu Admin reset mật khẩu cho tài khoản này.');
 }
-function login(){
- const username=document.getElementById('loginUsername').value.trim();
- const password=document.getElementById('loginPassword').value;
+function clearLoginErrors(){
+ const usernameInput=document.getElementById('loginUsername');
+ const passwordInput=document.getElementById('loginPassword');
+ const usernameError=document.getElementById('loginUsernameError');
+ const passwordError=document.getElementById('loginPasswordError');
  const error=document.getElementById('loginError');
- if(!username||!password){error.textContent='Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.';error.classList.add('show');return;}
- const account=state.accounts.find(a=>a.username.toLowerCase()===username.toLowerCase());
- if(!account){error.textContent='Tên đăng nhập hoặc mật khẩu không đúng.';error.classList.add('show');return;}
+ [usernameInput,passwordInput].forEach(el=>{if(el)el.setAttribute('aria-invalid','false');});
+ [usernameError,passwordError,error].forEach(el=>{if(el){el.textContent='';el.classList.remove('show');}});
+}
+function showLoginFieldError(inputId,errorId,message){
+ const input=document.getElementById(inputId);
+ const error=document.getElementById(errorId);
+ if(input){input.setAttribute('aria-invalid','true');input.focus();}
+ if(error){error.textContent=message;error.classList.add('show');}
+}
+function login(){
+ clearLoginErrors();
+ const username=(document.getElementById('loginUsername')?.value||'').trim();
+ const password=document.getElementById('loginPassword')?.value||'';
+ const error=document.getElementById('loginError');
+ if(!username){
+   showLoginFieldError('loginUsername','loginUsernameError','Vui lòng nhập tên đăng nhập.');
+   return;
+ }
+ if(!password){
+   showLoginFieldError('loginPassword','loginPasswordError','Vui lòng nhập mật khẩu.');
+   return;
+ }
+ const account=state.accounts.find(a=>String(a.username||'').toLowerCase()===username.toLowerCase());
+ if(!account){
+   showLoginFieldError('loginUsername','loginUsernameError','Tên đăng nhập hoặc mật khẩu không đúng.');
+   return;
+ }
  const now=Date.now();
  if(account.lockedUntil && now<account.lockedUntil){
    const mins=Math.ceil((account.lockedUntil-now)/60000);
-   error.textContent='Tài khoản đang bị khóa tạm thời. Thử lại sau '+mins+' phút.';
-   error.classList.add('show');return;
+   showLoginFieldError('loginUsername','loginUsernameError','Tài khoản đang bị khóa tạm thời. Thử lại sau '+mins+' phút.');
+   return;
  }
- if(account.status!=='Hoạt động'){error.textContent='Tài khoản đã bị khóa. Vui lòng liên hệ Admin.';error.classList.add('show');return;}
+ if(account.status!=='Hoạt động'){
+   showLoginFieldError('loginUsername','loginUsernameError','Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.');
+   return;
+ }
  if(account.password!==password){
    account.failedLoginAttempts=(account.failedLoginAttempts||0)+1;
    if(account.failedLoginAttempts>=5){
      account.lockedUntil=Date.now()+15*60*1000;
      account.failedLoginAttempts=0;
      saveState();
-     error.textContent='Sai mật khẩu quá 5 lần. Tài khoản bị khóa tạm thời 15 phút.';
+     showLoginFieldError('loginPassword','loginPasswordError','Sai mật khẩu quá 5 lần. Tài khoản bị khóa tạm thời 15 phút.');
    }else{
      saveState();
-     error.textContent='Tên đăng nhập hoặc mật khẩu không đúng. Còn '+(5-account.failedLoginAttempts)+' lần thử.';
+     showLoginFieldError('loginPassword','loginPasswordError','Tên đăng nhập hoặc mật khẩu không đúng. Còn '+(5-account.failedLoginAttempts)+' lần thử.');
    }
-   error.classList.add('show');return;
+   return;
  }
  account.failedLoginAttempts=0; account.lockedUntil=null; saveState();
- error.classList.remove('show');
  ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
  document.getElementById('loginScreen').style.display='none';
  state.currentUser=account;state.section='Tổng quan';state.page='Tổng quan';renderAll();
@@ -904,9 +957,10 @@ function initLogin(){
   // bản production phải xác thực bằng session/token do server cấp.
   ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
   const input=document.getElementById('loginUsername');
-  const check=document.getElementById('rememberLogin');
   if(input) input.value='';
-  if(check) check.checked=false;
+  const password=document.getElementById('loginPassword');
+  if(password) password.value='';
+  clearLoginErrors();
   return false;
 }
 function money(n){return new Intl.NumberFormat('vi-VN').format(n||0)}
