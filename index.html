@@ -137,7 +137,13 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .chart-card canvas{width:100%;height:260px;display:block}
 .chart-empty{position:absolute;left:0;right:0;top:46px;height:260px;display:flex;align-items:center;justify-content:center;color:#8a8f98;pointer-events:none}
 .chip-expense{background:#fff0f0;color:#c53b40}
-.cashier-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(330px,1fr);gap:14px;height:calc(100vh - 130px)}.cashier-products-panel,.cashier-order-panel{display:flex;flex-direction:column;min-height:0}.cashier-toolbar{padding:12px;border-bottom:1px solid var(--border);display:flex;gap:8px}.cashier-products{padding:12px;overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.cashier-product{padding:12px;text-align:left;cursor:pointer;background:#fff;border:1px solid var(--border);min-height:105px}.cashier-product-code{font-size:11px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cashier-order-head{padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}.cashier-meta{padding:12px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr;gap:8px}.cashier-meta label,.cashier-order-discount label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:#667085}.cashier-cart{flex:1;overflow:auto;padding:8px}.cashier-line{padding:10px 4px;border-bottom:1px solid var(--border)}.cashier-line-main,.cashier-line-sub,.summary-row{display:flex;justify-content:space-between;align-items:center}.cashier-line-sub{font-size:11px;color:#667085;margin-top:5px}.cashier-line-discount{display:flex;gap:8px;align-items:center;margin-top:7px}.cashier-line-discount label{font-size:11px;color:#667085}.cashier-line-discount .field{width:120px}.cashier-summary{border-top:1px solid var(--border);padding:12px}.cashier-order-discount{margin:8px 0}.payment-box{border-top:1px solid var(--border);padding-top:9px;margin-top:8px}.cashier-payment-row{display:grid;grid-template-columns:1.1fr .9fr .9fr auto;gap:6px;margin-bottom:6px}.held-row{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border)}
+body.cashier-mode{overflow:hidden}
+body.cashier-mode .topbar,body.cashier-mode .sidebar,body.cashier-mode .mobile-nav,body.cashier-mode .nav-backdrop{display:none!important}
+body.cashier-mode .content{padding:0!important;margin:0!important;max-width:none!important;height:100dvh;overflow:hidden}
+.cashier-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(360px,1fr);gap:0;height:100dvh;min-height:0;background:var(--bg)}
+.cashier-shell-head{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--border);background:#fff;grid-column:1/-1}
+.cashier-shell-title{font-weight:800;font-size:17px}.cashier-exit{display:inline-flex;align-items:center;gap:6px}
+.cashier-products-panel,.cashier-order-panel{display:flex;flex-direction:column;min-height:0}.cashier-toolbar{padding:12px;border-bottom:1px solid var(--border);display:flex;gap:8px}.cashier-products{padding:12px;overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.cashier-product{padding:12px;text-align:left;cursor:pointer;background:#fff;border:1px solid var(--border);min-height:105px}.cashier-product-code{font-size:11px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cashier-order-head{padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}.cashier-meta{padding:12px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr;gap:8px}.cashier-meta label,.cashier-order-discount label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:#667085}.cashier-cart{flex:1;overflow:auto;padding:8px}.cashier-line{padding:10px 4px;border-bottom:1px solid var(--border)}.cashier-line-main,.cashier-line-sub,.summary-row{display:flex;justify-content:space-between;align-items:center}.cashier-line-sub{font-size:11px;color:#667085;margin-top:5px}.cashier-line-discount{display:flex;gap:8px;align-items:center;margin-top:7px}.cashier-line-discount label{font-size:11px;color:#667085}.cashier-line-discount .field{width:120px}.cashier-summary{border-top:1px solid var(--border);padding:12px}.cashier-order-discount{margin:8px 0}.payment-box{border-top:1px solid var(--border);padding-top:9px;margin-top:8px}.cashier-payment-row{display:grid;grid-template-columns:1.1fr .9fr .9fr auto;gap:6px;margin-bottom:6px}.held-row{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border)}
 @media(max-width:1100px){.charts-grid{grid-template-columns:1fr}.dashboard-section-head{flex-direction:column}.dashboard-controls{width:100%}.dashboard-controls .field{width:180px!important}}
 @media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}.cashier-layout{grid-template-columns:1fr;height:auto}.cashier-products-panel{min-height:360px}.cashier-order-panel{min-height:520px}.cashier-products{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){
@@ -149,10 +155,28 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
  .nav-backdrop{position:fixed;inset:58px 0 0;background:rgba(15,23,42,.35);z-index:45}.nav-backdrop.show{display:block}
  .content{padding:10px 10px 76px}.form-grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}
  .cashier-products{grid-template-columns:1fr 1fr}.cashier-payment-row{grid-template-columns:1fr 1fr}
+ body.cashier-mode .cashier-layout{height:100dvh}
+ body.cashier-mode .cashier-products-panel{border-radius:0;border:0;border-right:1px solid var(--border)}
+ body.cashier-mode .cashier-order-panel{border-radius:0;border:0}
+ body.cashier-mode .cashier-shell-head{position:sticky;top:0;z-index:5}
+ .cashier-payment-sticky{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--border);padding-top:10px;margin-top:8px}
+ .cashier-total-large{font-size:28px;line-height:1.1;color:var(--text);letter-spacing:-.5px}
+ .cashier-pay-btn{height:54px!important;font-size:17px!important;font-weight:800!important}
  .cashier-toolbar{position:sticky;top:0;background:#fff;z-index:2}
  .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(5,1fr);left:0;right:0;bottom:0;height:62px;background:#fff;border-top:1px solid var(--border);z-index:40;box-shadow:0 -4px 18px rgba(0,0,0,.08)}
  .mobile-nav button{border:0;background:#fff;color:#667085;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
  .mobile-nav button.active{color:var(--primary);font-weight:700}
+}
+@media(max-width:900px){
+ body.cashier-mode .cashier-layout{grid-template-columns:1fr;overflow:auto;height:100dvh}
+ body.cashier-mode .cashier-products-panel{min-height:45dvh;border-right:0;border-bottom:1px solid var(--border)}
+ body.cashier-mode .cashier-order-panel{min-height:55dvh}
+ body.cashier-mode .cashier-products{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+ body.cashier-mode .cashier-shell-head{padding:0 10px}
+ body.cashier-mode .cashier-products{grid-template-columns:1fr 1fr}
+ .cashier-total-large{font-size:24px}
 }
 .login-screen{position:fixed;inset:0;background:var(--bg);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(380px,.9fr);z-index:1000;overflow:auto}
 .login-brand-panel{display:flex;flex-direction:column;justify-content:center;padding:64px clamp(32px,8vw,120px);background:linear-gradient(135deg,var(--primary-soft),#fff);border-right:1px solid var(--border)}
@@ -1036,7 +1060,7 @@ function toggleNavigation(){
  else sidebar?.classList.toggle('collapsed');
 }
 function closeMobileNavigation(){document.getElementById('sidebar')?.classList.remove('mobile-open');document.getElementById('navBackdrop')?.classList.remove('show');}
-function renderAll(){saveState();renderNav();renderSidebar();renderAppContext();renderUserSession();renderPage()}
+function renderAll(){document.body.classList.toggle('cashier-mode',state.page==='Thu ngân');saveState();renderNav();renderSidebar();renderAppContext();renderUserSession();renderPage()}
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
  const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession(${JSON.stringify(x.id)})">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession('+JSON.stringify(x.id)+','+JSON.stringify(u.id)+')">Hoàn tác</button>').join('')}</td></tr>`).join('');
@@ -1662,8 +1686,8 @@ function cashierPage(c){
   const employees=(state.employees||[]).filter(e=>e.status==='Hoạt động');
   const employeeOptions='<option value="">Chọn nhân sự</option>'+employees.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===state.cashierEmployeeId?'selected':'')+'>'+esc(a.name)+' - '+esc(a.position||'')+'</option>').join('');
   c.innerHTML=
-    '<div class="page-title">Thu ngân</div>'+
     '<div class="cashier-layout">'+
+      '<div class="cashier-shell-head"><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-secondary cashier-exit" type="button" onclick="exitCashier()">← Thoát</button><div class="cashier-shell-title">Thu ngân</div></div><div class="shift-badge">'+(getOpenShift()?'🟢 Ca đang mở':'🔴 Chưa mở ca')+'</div></div>'+
       '<div class="card cashier-products-panel">'+
         '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode..."><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+
         '<div id="cashierProducts" class="cashier-products"></div>'+
@@ -1681,10 +1705,10 @@ function cashierPage(c){
           '<div class="summary-row"><span>Giảm theo dòng</span><b id="cashierLineDiscount">0 ₫</b></div>'+
           '<div class="cashier-order-discount"><label>Giảm giá theo đơn</label><input id="cashierOrderDiscount" class="field" type="number" min="0" value="'+state.cashierOrderDiscount+'"></div>'+
           '<div class="summary-row"><span>VAT</span><b id="cashierVat">0 ₫</b></div>'+
-          '<div class="summary-row total"><span>Tổng thanh toán</span><b id="cashierTotal">0 ₫</b></div>'+
+          '<div class="summary-row total"><span>Tổng thanh toán</span><b id="cashierTotal" class="cashier-total-large">0 ₫</b></div>'+
           '<div class="payment-box"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Thanh toán</b><button class="btn btn-secondary" onclick="addCashierPaymentRow()">＋ Thêm phương thức</button></div><div id="cashierPayments"></div>'+
           '<div class="summary-row"><span>Khách đưa</span><b id="cashierTendered">0 ₫</b></div><div class="summary-row"><span>Tiền thừa</span><b id="cashierChange">0 ₫</b></div><div class="summary-row"><span>Còn nợ</span><b id="cashierDebt">0 ₫</b></div><div id="cashierDebtDueWrap" style="display:none;margin-top:8px"><label>Ngày hẹn trả nợ *</label><input id="cashierDebtDueDate" class="field" type="date"></div></div>'+
-          '<button class="btn btn-primary" style="width:100%;height:42px" onclick="completeCashierSale()">Thanh toán</button><button class="btn btn-secondary" style="width:100%;margin-top:7px" onclick="printLastCashierInvoice()">🖨 In hóa đơn / PDF</button>'+
+          '<div class="cashier-payment-sticky"><button class="btn btn-primary cashier-pay-btn" style="width:100%" onclick="completeCashierSale()">Thanh toán</button><button class="btn btn-secondary" style="width:100%;margin-top:7px" onclick="printLastCashierInvoice()">🖨 In hóa đơn / PDF</button></div>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -2209,7 +2233,12 @@ function logout(){
 }
 function openCashierProtected(){
  if(!hasPermission('Sử dụng thu ngân')) return alert('Bạn không có quyền sử dụng Thu ngân.');
- state.section='Đơn hàng';state.page='Thu ngân';renderAll();
+ if(state.page!=='Thu ngân') state.cashierReturnPage=state.page||'Tổng quan';
+ state.section='Bán hàng';state.page='Thu ngân';renderAll();
+}
+function exitCashier(){
+ const target=state.cashierReturnPage&&state.cashierReturnPage!=='Thu ngân'?state.cashierReturnPage:'Tổng quan';
+ state.page=target;state.section='Bán hàng';renderAll();
 }
 function shiftTopbarAction(){if(getOpenShift())openCloseShift();else openShift();}
 function toggleNotifications(){document.getElementById('notificationMenu')?.classList.toggle('show');document.getElementById('settingsMenu')?.classList.remove('show');}
