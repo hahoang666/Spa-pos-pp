@@ -1677,6 +1677,7 @@ function runDataChecks(){
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
+  if(state.page==='Lịch hẹn'){ c.innerHTML=''; return; }
   if(state.page==='Thu ngân' && !hasPermission('Sử dụng thu ngân')){state.section='Tổng quan';state.page='Tổng quan';return dashboard(c);} if(state.page==='Thu ngân') return cashierPage(c);
   if(state.page==='Hóa đơn') return invoicePage(c);
   if(state.page==='Phiếu thu') return cashBookPage(c,'thu');
