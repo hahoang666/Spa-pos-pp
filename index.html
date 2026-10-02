@@ -137,6 +137,34 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .chart-card canvas{width:100%;height:260px;display:block}
 .chart-empty{position:absolute;left:0;right:0;top:46px;height:260px;display:flex;align-items:center;justify-content:center;color:#8a8f98;pointer-events:none}
 .chip-expense{background:#fff0f0;color:#c53b40}
+.cashier-products-panel,.cashier-order-panel{min-height:0;overflow:hidden}
+.cashier-products-panel{display:flex;flex-direction:column;background:#f8fafc}
+.cashier-order-panel{display:flex;flex-direction:column;background:#fff}
+.cashier-toolbar{padding:12px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:8px;position:sticky;top:0;z-index:2}
+.cashier-toolbar .search{height:44px}
+.cashier-category-bar{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--border);scrollbar-width:none}
+.cashier-category-bar::-webkit-scrollbar{display:none}
+.cashier-category-btn{white-space:nowrap;border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer}
+.cashier-category-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.cashier-products{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start}
+.cashier-product-card{display:flex;flex-direction:column;min-height:150px;text-align:left;padding:12px;cursor:pointer;border:1px solid var(--border);background:#fff;border-radius:12px;transition:.15s}
+.cashier-product-card:hover{border-color:var(--primary);box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.cashier-product-name{font-weight:700;line-height:1.35}
+.cashier-product-meta{font-size:12px;color:#667085;margin-top:5px}
+.cashier-product-bottom{display:flex;justify-content:space-between;align-items:end;gap:6px;margin-top:auto;padding-top:10px}
+.cashier-stock{font-size:11px;color:#667085}
+.cashier-order-head{padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cashier-meta{padding:10px 12px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr;gap:8px}
+.cashier-cart{flex:1;overflow:auto;padding:10px 12px;min-height:100px}
+.cashier-line{border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;background:#fff}
+.cashier-line-main{display:flex;justify-content:space-between;gap:8px}
+.cashier-line-sub{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#667085;font-size:12px;margin-top:6px}
+.cashier-line-sub button{min-width:30px;padding:4px 8px}
+.cashier-line-discount{margin-top:7px;display:flex;align-items:center;gap:8px}
+.cashier-line-discount label{font-size:12px;color:#667085;white-space:nowrap}
+.cashier-line-discount .field{height:32px}
+.cashier-summary{border-top:1px solid var(--border);padding:10px 12px;background:#fff}
+.cashier-empty{grid-column:1/-1;text-align:center;padding:48px 16px;color:#98a2b3}
 body.cashier-mode{overflow:hidden}
 body.cashier-mode .topbar,body.cashier-mode .sidebar,body.cashier-mode .mobile-nav,body.cashier-mode .nav-backdrop{display:none!important}
 body.cashier-mode .content{padding:0!important;margin:0!important;max-width:none!important;height:100dvh;overflow:hidden}
@@ -1689,7 +1717,11 @@ function cashierPage(c){
     '<div class="cashier-layout">'+
       '<div class="cashier-shell-head"><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-secondary cashier-exit" type="button" onclick="exitCashier()">← Thoát</button><div class="cashier-shell-title">Thu ngân</div></div><div class="shift-badge">'+(getOpenShift()?'🟢 Ca đang mở':'🔴 Chưa mở ca')+'</div></div>'+
       '<div class="card cashier-products-panel">'+
-        '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode..."><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+
+        '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode..."><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+'<div class="cashier-category-bar">'+
+'<button type="button" class="cashier-category-btn active" onclick="setCashierCategory(\'Tất cả\')">Tất cả</button>'+
+'<button type="button" class="cashier-category-btn" onclick="setCashierCategory(\'Sản phẩm\')">Sản phẩm</button>'+
+'<button type="button" class="cashier-category-btn" onclick="setCashierCategory(\'Dịch vụ\')">Dịch vụ</button>'+
+'</div>'+
         '<div id="cashierProducts" class="cashier-products"></div>'+
       '</div>'+
       '<div class="card cashier-order-panel">'+
@@ -1723,15 +1755,25 @@ function cashierPage(c){
   renderCashierCart();
 }
 function renderCashierProducts(keyword){
-  const box=document.getElementById('cashierProducts'); if(!box)return;
-  const q=(keyword||'').toLowerCase();
-  const products=state.products.filter(p=>(p.name+' '+p.code+' '+(p.barcode||'')).toLowerCase().includes(q));
-  box.innerHTML=products.map(p=>`
-    <button class="card" style="text-align:left;padding:12px;cursor:pointer;border:1px solid var(--border);background:#fff" onclick="addToCashierCart('${escJs(p.code)}')">
-      <div style="font-weight:700;margin-bottom:6px">${esc(p.name)}</div>
-      <div style="font-size:12px;color:#667085">${escJs(p.code)} · ${esc(p.type)}</div>
-      <div style="margin-top:8px;font-weight:700;color:var(--primary)">${money(p.price)}</div>
-    </button>`).join('')||'<div style="color:#667085">Không tìm thấy hàng hóa</div>';
+ const box=document.getElementById('cashierProducts');if(!box)return;
+ const q=(keyword||'').toLowerCase();
+ const active=state.cashierCategory||'Tất cả';
+ const products=state.products.filter(p=>{
+   const text=(p.name+' '+p.code+' '+(p.barcode||'')).toLowerCase();
+   const typeOk=active==='Tất cả'||String(p.type||'').toLowerCase()===active.toLowerCase();
+   return text.includes(q)&&typeOk;
+ });
+ box.innerHTML=products.map(p=>{
+   const stock=typeof p.stock==='number'?p.stock:null;
+   return '<button type="button" class="cashier-product-card" onclick="addToCashierCart(\''+escJs(p.code)+'\')">'+
+     '<div class="cashier-product-name">'+esc(p.name)+'</div>'+
+     '<div class="cashier-product-meta">'+esc(p.code)+' · '+esc(p.type||'Hàng hóa')+'</div>'+
+     '<div class="cashier-product-bottom"><span class="cashier-stock">'+(stock===null?'':('Tồn '+money(stock)))+'</span><b style="color:var(--primary)">'+money(p.price)+' ₫</b></div>'+
+   '</button>';
+ }).join('')||'<div class="cashier-empty">Không tìm thấy sản phẩm hoặc dịch vụ</div>';
+}
+function setCashierCategory(category){
+ state.cashierCategory=category||'Tất cả';renderCashierProducts(document.getElementById('cashierSearch')?.value||'');
 }
 function addToCashierCart(code){
   if(!hasPermission('Sử dụng thu ngân')) return alert('Bạn không có quyền sử dụng Thu ngân.');
