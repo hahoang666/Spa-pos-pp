@@ -1738,7 +1738,7 @@ function cashierPage(c){
     '<div class="cashier-layout">'+
       '<div class="cashier-shell-head"><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-secondary cashier-exit" type="button" onclick="exitCashier()">← Thoát</button><div class="cashier-shell-title">Thu ngân</div></div><div class="shift-badge">'+(getOpenShift()?'🟢 Ca đang mở':'🔴 Chưa mở ca')+'</div></div>'+
       '<div class="card cashier-products-panel">'+
-        '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode... (Enter để thêm)"><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+'<div class="cashier-category-bar">'+
+        '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode... (Enter để thêm)" onkeydown="handleCashierBarcodeEnter(event)"><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+'<div class="cashier-category-bar">'+
 '<button type="button" class="cashier-category-btn active" data-category="Tất cả" onclick="setCashierCategory(\'Tất cả\')">Tất cả</button>'+
 '<button type="button" class="cashier-category-btn" data-category="Dịch vụ" onclick="setCashierCategory(\'Dịch vụ\')">Dịch vụ</button>'+
 '<button type="button" class="cashier-category-btn" data-category="Gói liệu trình" onclick="setCashierCategory(\'Gói liệu trình\')">Gói liệu trình</button>'+
@@ -1769,7 +1769,6 @@ function cashierPage(c){
     '</div>';
   state.cashierPayments=Array.isArray(state.cashierPayments)&&state.cashierPayments.length?state.cashierPayments:[{method:'Tiền mặt',amount:0,tendered:0}];
   document.getElementById('cashierSearch').addEventListener('input',function(){renderCashierProducts(this.value)});
-  document.getElementById('cashierSearch').addEventListener('keydown',handleCashierBarcodeEnter);
   document.getElementById('cashierCustomer').addEventListener('change',function(){state.cashierCustomerCode=this.value;saveState()});
   document.getElementById('cashierEmployee').addEventListener('change',function(){state.cashierEmployeeId=this.value;saveState()});
   document.getElementById('cashierConsultant').addEventListener('change',function(){state.cashierConsultantId=this.value;saveState()});
