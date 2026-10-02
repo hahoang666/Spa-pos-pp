@@ -1497,7 +1497,7 @@ function pricePage(c){
   const oldPrice=last?Number(last.oldPrice)||0:'—';
   const newPrice=last?Number(last.newPrice)||0:Number(p.price)||0;
   const applied=last?.appliedAt||p.priceUpdatedAt||'';
-  return '<tr><td>'+esc(p.code||'')+'</td><td>'+esc(p.name||'')+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.createdAt?new Date(p.createdAt).toLocaleDateString('vi-VN'):'—')+'</td><td>'+ (oldPrice==='—'?'—':money(oldPrice)+' ₫')+'</td><td>'+money(newPrice)+' ₫</td><td>'+esc(applied?new Date(applied).toLocaleDateString('vi-VN'):'—')+'</td><td><button class="btn btn-secondary" onclick="openPriceEditor(''+esc(p.code)+'\\')">Sửa giá</button></td></tr>';
+  return '<tr><td>'+esc(p.code||'')+'</td><td>'+esc(p.name||'')+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.createdAt?new Date(p.createdAt).toLocaleDateString('vi-VN'):'—')+'</td><td>'+ (oldPrice==='—'?'—':money(oldPrice)+' ₫')+'</td><td>'+money(newPrice)+' ₫</td><td>'+esc(applied?new Date(applied).toLocaleDateString('vi-VN'):'—')+'</td><td><button class="btn btn-secondary" onclick="openPriceEditor(\''+esc(p.code)+'\')">Sửa giá</button></td></tr>';
  }).join('');
  c.innerHTML=header('Thiết lập giá')+'<div class="card table-wrap"><div style="padding:12px 16px"><input class="search" id="priceProductSearch" placeholder="🔍 Tìm mã, tên sản phẩm..." oninput="filterPriceProducts(this.value)"></div><table><thead><tr><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Loại</th><th>Ngày tạo</th><th>Giá cũ</th><th>Giá mới</th><th>Ngày áp dụng</th><th></th></tr></thead><tbody id="priceProductTableBody">'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có dịch vụ / hàng hóa</div></td></tr>')+'</tbody></table></div>';
 }
