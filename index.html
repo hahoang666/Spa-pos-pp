@@ -632,7 +632,7 @@ const navigation=[
  ]},
  {id:'customers',label:'Khách hàng',icon:'👥',children:[
   {id:'customer-list',label:'Hồ sơ khách hàng',page:'Khách hàng',permission:'Xem khách hàng'},
-  {id:'therapy-cards',label:'Thẻ liệu trình',page:'Thẻ liệu trình',permission:'Tạo thẻ liệu trình'},
+  {id:'therapy-cards',label:'Thẻ liệu trình',page:'Thẻ liệu trình',permission:'Xem thẻ liệu trình'},
  ]},
  {id:'catalog',label:'Dịch vụ & Hàng hóa',icon:'🧴',children:[
   {id:'services',label:'Dịch vụ',page:'Dịch vụ',permission:'Xem sản phẩm'},
@@ -681,7 +681,7 @@ state.navExpanded=state.navExpanded||{};
 
 const permissionCatalog={
   'Tổng quan':['Xem Dashboard','Xem doanh thu'],
-  'Bán hàng':['Xem hóa đơn','Tạo hóa đơn','Hủy hóa đơn','Xem thanh toán','Sử dụng thu ngân','Tạo trả hàng','Tạo thẻ liệu trình','Sử dụng liệu trình'],
+  'Bán hàng':['Xem hóa đơn','Tạo hóa đơn','Hủy hóa đơn','Xem thanh toán','Sử dụng thu ngân','Tạo trả hàng','Xem thẻ liệu trình','Sử dụng liệu trình'],
   'Khách hàng':['Xem khách hàng','Thêm khách hàng','Sửa khách hàng','Xóa khách hàng','Xem lịch sử khách hàng'],
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Thêm bảng giá','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem sổ quỹ','Lập phiếu thu','Lập phiếu chi','Đảo phiếu','Chuyển quỹ','Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
@@ -1105,8 +1105,8 @@ function closeMobileNavigation(){document.getElementById('sidebar')?.classList.r
 function renderAll(){document.body.classList.toggle('cashier-mode',state.page==='Thu ngân');saveState();renderNav();renderSidebar();renderAppContext();renderUserSession();renderPage()}
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession(${JSON.stringify(x.id)})">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession('+JSON.stringify(x.id)+','+JSON.stringify(u.id)+')">Hoàn tác</button>').join('')}</td></tr>`).join('');
- c.innerHTML=header('Thẻ liệu trình','Tạo thẻ liệu trình','openTherapyCard()')+'<div class="card table-wrap"><table><thead><tr><th>Mã thẻ</th><th>Khách hàng</th><th>Liệu trình</th><th>Tổng buổi</th><th>Còn lại</th><th>Hạn dùng</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có thẻ liệu trình</div></td></tr>')+'</tbody></table></div>';
+ const rows=cards.slice().reverse().map(x=>`<tr><td>${esc(x.productCode||'')}</td><td>${esc(x.customerName||x.customerCode||'')}</td><td>${esc(x.productName||'')}</td><td>${Number(x.totalSessions)||0}</td><td>${Number(x.remainingSessions)||0}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status||'')}</td></tr>`).join('');
+ c.innerHTML=header('Thẻ liệu trình')+'<div class="card table-wrap"><table><thead><tr><th>Mã sản phẩm</th><th>Khách hàng</th><th>Liệu trình</th><th>Tổng buổi</th><th>Còn lại</th><th>Hạn dùng</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có thẻ liệu trình đã bán</div></td></tr>')+'</tbody></table></div>';
 }
 function getPackageSessions(product){
  const explicit=Number(product?.sessions||product?.totalSessions||product?.sessionCount);
@@ -1144,37 +1144,6 @@ function restoreMaterialUsage(referenceId){
    if(m)m.stock=Number(m.stock||0)-Number(mv.quantity||0);
    mv.reversed=true;
  });
-}
-function openTherapyCard(){
- if(!hasPermission('Tạo thẻ liệu trình'))return alert('Bạn không có quyền tạo thẻ liệu trình.');
- const cs=state.customers.map(x=>'<option value="'+esc(x.code)+'">'+esc(x.name)+' - '+esc(x.code)+'</option>').join('');
- const ps=state.products.filter(x=>x.type==='Gói dịch vụ, liệu trình'||/gói|liệu trình/i.test(x.name||'')).map(x=>'<option value="'+esc(x.code)+'">'+esc(x.name)+'</option>').join('');
- const invs=(state.invoices||[]).filter(x=>x.status!=='Đã hủy').map(x=>'<option value="'+esc(x.id)+'">'+esc(x.id)+' - '+esc(x.customerName||x.customer||'')+' - '+money(x.total||0)+' ₫</option>').join('');
- openModal('Tạo thẻ liệu trình','<div class="form-grid"><div><label>Khách hàng *</label><select id="therapyCustomer" class="field"><option value="">Chọn khách hàng</option>'+cs+'</select></div><div><label>Gói liệu trình *</label><select id="therapyProduct" class="field"><option value="">Chọn gói</option>'+ps+'</select></div><div><label>Số buổi *</label><input id="therapySessions" class="field" type="number" min="1" step="1"></div><div><label>Hạn dùng</label><input id="therapyExpiry" class="field" type="date"></div><div class="full"><label>Hóa đơn liên quan (bắt buộc nếu không phải tặng kèm)</label><select id="therapyInvoice" class="field"><option value="">-- Chọn hóa đơn --</option>'+invs+'</select></div><div class="full"><label>Lý do tặng kèm</label><input id="therapyGiftReason" class="field" placeholder="Bắt buộc nếu không gắn hóa đơn"></div><div class="full"><small>Thẻ tạo tay phải có hóa đơn nguồn hoặc lý do tặng kèm kèm phê duyệt. Không tạo buổi miễn phí không có dấu vết.</small></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveTherapyCard()">Lưu</button>');
-}
-function saveTherapyCard(){
- if(!hasPermission('Tạo thẻ liệu trình'))return alert('Bạn không có quyền tạo thẻ liệu trình.');
- const cc=document.getElementById('therapyCustomer').value,pc=document.getElementById('therapyProduct').value,pr=state.products.find(x=>x.code===pc),inputN=Number(document.getElementById('therapySessions').value),n=Number.isInteger(inputN)&&inputN>0?inputN:getPackageSessions(pr);
- const sourceInvoiceId=(document.getElementById('therapyInvoice')?.value||'').trim();
- const giftReason=(document.getElementById('therapyGiftReason')?.value||'').trim();
- if(!cc||!pc||!Number.isInteger(n)||n<1)return alert('Vui lòng nhập đủ thông tin và số buổi hợp lệ.');
- if(!sourceInvoiceId&&!giftReason)return alert('Thẻ tạo tay phải gắn hóa đơn hoặc có lý do tặng kèm.');
- if(sourceInvoiceId){
-   const source=state.invoices.find(x=>x.id===sourceInvoiceId);
-   if(!source)return alert('Hóa đơn liên quan không tồn tại.');
-   if(source.customerCode&&source.customerCode!==cc)return alert('Khách hàng của thẻ phải trùng khách hàng trên hóa đơn.');
- }else{
-   const pin=prompt('Thẻ tặng kèm cần phê duyệt. Nhập PIN quản lý:');
-   if(!managerApprovalPinValid(pin))return alert('PIN phê duyệt không hợp lệ.');
-   state.approvalLogs=Array.isArray(state.approvalLogs)?state.approvalLogs:[];
-   state.approvalLogs.push({id:'APR'+Date.now(),action:'Tạo thẻ tặng kèm',amount:0,details:{giftReason,customerCode:cc,productCode:pc,sessions:n},approvedBy:'PIN quản lý',approvedAt:new Date().toISOString()});
- }
- const cu=state.customers.find(x=>x.code===cc);state.therapyCards=Array.isArray(state.therapyCards)?state.therapyCards:[];
- const source=sourceInvoiceId?state.invoices.find(x=>x.id===sourceInvoiceId):null;
- const sessionValue=source?Math.max(0,packageValueExVatFromInvoiceItem((source.items||[]).find(it=>it.code===pc)||{},pr)/Math.max(1,n)):Math.max(0,getPackageSessionValue(pr));
- const expiry=document.getElementById('therapyExpiry').value||packageExpiryDate(pr);
- state.therapyCards.push({id:nextAutoCode('LT',6,'spa_next_therapy_id',state.therapyCards,'id'),customerCode:cc,customerName:cu?.name||'',productCode:pc,productName:pr?.name||'',totalSessions:n,remainingSessions:n,sessionValue,vatRate:Number(pr?.vat)||0,unearnedRevenue:source?sessionValue*n:0,realizedRevenue:0,revenueLedger:[],expiresAt:expiry,status:'Đang sử dụng',createdAt:new Date().toISOString(),createdBy:state.currentUser?.id||'',sourceType:sourceInvoiceId?'invoice':'gift',sourceInvoiceId:sourceInvoiceId||'',giftReason:giftReason||'',approvalRequired:!sourceInvoiceId});
- saveState();closeModal();therapyCardsPage(document.getElementById('content'));alert('Đã tạo thẻ liệu trình có đầy đủ dấu vết nguồn.');
 }
 function openUseTherapySession(id){
  if(!hasPermission('Sử dụng liệu trình'))return alert('Bạn không có quyền sử dụng liệu trình.');
