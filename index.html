@@ -153,7 +153,12 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .cashier-product-meta{font-size:12px;color:#667085;margin-top:5px}
 .cashier-product-bottom{display:flex;justify-content:space-between;align-items:end;gap:6px;margin-top:auto;padding-top:10px}
 .cashier-stock{font-size:11px;color:#667085}
-.cashier-order-head{padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cashier-order-head{padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}.cashier-invoice-tabs{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:#f8fafc;overflow-x:auto}
+.cashier-invoice-tab{flex:0 0 auto;border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:700;font-size:13px}
+.cashier-invoice-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.cashier-invoice-tab .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#f79009;margin-right:6px}
+.cashier-invoice-tab.active .dot{background:#fff}
+
 .cashier-meta{padding:10px 12px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr;gap:8px}
 .cashier-cart{flex:1;overflow:auto;padding:10px 12px;min-height:100px}
 .cashier-line{border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;background:#fff}
@@ -599,6 +604,9 @@ if(!state.employees.length){
 
 state.suppliers=Array.isArray(state.suppliers)?state.suppliers:[];
 state.heldOrders=Array.isArray(state.heldOrders)?state.heldOrders:[];
+state.cashierInvoices=Array.isArray(state.cashierInvoices)?state.cashierInvoices:[];
+state.cashierActiveInvoice=Number.isInteger(state.cashierActiveInvoice)?state.cashierActiveInvoice:0;
+state.cashierNextInvoiceNo=Number(state.cashierNextInvoiceNo)||1;
 state.cashierCart=Array.isArray(state.cashierCart)?state.cashierCart:[];
 state.cashierPayments=Array.isArray(state.cashierPayments)?state.cashierPayments:[{method:'Tiền mặt',amount:0,tendered:0}];
 state.cashierOrderDiscount=Number(state.cashierOrderDiscount)||0;
@@ -1703,8 +1711,20 @@ function renderPage(){
   return genericPage(c,state.page,'Mã chứng từ','Đối tượng');
 }
 
+function cashierDraftDefaults(){return {id:'draft-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),number:state.cashierNextInvoiceNo++,cart:[],customerCode:'KH000001',employeeId:state.currentUser?.employeeId||state.currentUser?.id||'',consultantId:'',orderDiscount:0,debtDueDate:'',payments:[{method:'Tiền mặt',amount:0,tendered:0}]};}
+function ensureCashierInvoices(){
+ state.cashierInvoices=Array.isArray(state.cashierInvoices)?state.cashierInvoices:[];
+ if(!state.cashierInvoices.length)state.cashierInvoices.push({id:'draft-'+Date.now(),number:state.cashierNextInvoiceNo++,cart:JSON.parse(JSON.stringify(state.cashierCart||[])),customerCode:state.cashierCustomerCode||'KH000001',employeeId:state.cashierEmployeeId||state.currentUser?.id||'',consultantId:state.cashierConsultantId||'',orderDiscount:Number(state.cashierOrderDiscount)||0,debtDueDate:state.cashierDebtDueDate||'',payments:JSON.parse(JSON.stringify(state.cashierPayments?.length?state.cashierPayments:[{method:'Tiền mặt',amount:0,tendered:0}]))});
+ state.cashierActiveInvoice=Math.min(Math.max(0,Number(state.cashierActiveInvoice)||0),state.cashierInvoices.length-1);
+}
+function saveActiveCashierInvoice(){ensureCashierInvoices();const d=state.cashierInvoices[state.cashierActiveInvoice];if(!d)return;const due=document.getElementById('cashierDebtDueDate');d.cart=JSON.parse(JSON.stringify(state.cashierCart||[]));d.customerCode=state.cashierCustomerCode||'KH000001';d.employeeId=state.cashierEmployeeId||'';d.consultantId=state.cashierConsultantId||'';d.orderDiscount=Number(state.cashierOrderDiscount)||0;d.debtDueDate=due?due.value:(state.cashierDebtDueDate||'');d.payments=JSON.parse(JSON.stringify(state.cashierPayments||[{method:'Tiền mặt',amount:0,tendered:0}]));}
+function loadActiveCashierInvoice(){ensureCashierInvoices();const d=state.cashierInvoices[state.cashierActiveInvoice];if(!d)return;state.cashierCart=JSON.parse(JSON.stringify(d.cart||[]));state.cashierCustomerCode=d.customerCode||'KH000001';state.cashierEmployeeId=d.employeeId||state.currentUser?.employeeId||state.currentUser?.id||'';state.cashierConsultantId=d.consultantId||'';state.cashierOrderDiscount=Number(d.orderDiscount)||0;state.cashierDebtDueDate=d.debtDueDate||'';state.cashierPayments=JSON.parse(JSON.stringify(d.payments?.length?d.payments:[{method:'Tiền mặt',amount:0,tendered:0}]));}
+function switchCashierInvoice(index){saveActiveCashierInvoice();if(!state.cashierInvoices[index])return;state.cashierActiveInvoice=index;loadActiveCashierInvoice();saveState();renderAll();}
+function startNewCashierInvoice(){saveActiveCashierInvoice();state.cashierInvoices.push(cashierDraftDefaults());state.cashierActiveInvoice=state.cashierInvoices.length-1;loadActiveCashierInvoice();saveState();renderAll();const search=document.getElementById('cashierSearch');if(search)search.focus();}
+function renderCashierInvoiceTabs(){ensureCashierInvoices();const box=document.getElementById('cashierInvoiceTabs');if(!box)return;box.innerHTML=state.cashierInvoices.map((d,i)=>'<button type="button" class="cashier-invoice-tab '+(i===state.cashierActiveInvoice?'active':'')+'" onclick="switchCashierInvoice('+i+')"><span class="dot"></span>Hóa đơn '+d.number+((d.cart||[]).length?' · '+(d.cart||[]).reduce((s,x)=>s+Number(x.qty||0),0):'')+'</button>').join('');}
 function cashierPage(c){
   if(!hasPermission('Sử dụng thu ngân')){ alert('Bạn không có quyền sử dụng Thu ngân.'); state.page='Tổng quan'; return dashboard(c); }
+  ensureCashierInvoices(); loadActiveCashierInvoice();
   state.cashierCart=Array.isArray(state.cashierCart)?state.cashierCart:[];
   state.cashierOrderDiscount=Number(state.cashierOrderDiscount)||0;
   state.cashierCustomerCode=state.cashierCustomerCode||'KH000001';
@@ -1725,7 +1745,7 @@ function cashierPage(c){
         '<div id="cashierProducts" class="cashier-products"></div>'+
       '</div>'+
       '<div class="card cashier-order-panel">'+
-        '<div class="cashier-order-head"><b>Hóa đơn</b><button class="btn btn-primary" type="button" onclick="startNewCashierInvoice()">＋ Hóa đơn mới</button></div>'+
+        '<div class="cashier-order-head"><b>Hóa đơn</b><button class="btn btn-primary" type="button" onclick="startNewCashierInvoice()">＋ Hóa đơn mới</button></div>'+'<div id="cashierInvoiceTabs" class="cashier-invoice-tabs"></div>'+
         '<div class="cashier-meta">'+
           '<div><label>Khách hàng</label><div style="display:flex;gap:6px"><select id="cashierCustomer" class="field" style="flex:1">'+customerOptions+'</select><button class="btn btn-secondary" onclick="quickAddCashierCustomer()">＋</button></div></div>'+
           '<div><label>Nhân viên thực hiện</label><select id="cashierEmployee" class="field">'+employeeOptions+'</select></div>'+
@@ -1751,6 +1771,7 @@ function cashierPage(c){
   document.getElementById('cashierConsultant').addEventListener('change',function(){state.cashierConsultantId=this.value;saveState()});
   document.getElementById('cashierOrderDiscount').addEventListener('input',function(){state.cashierOrderDiscount=Math.max(0,Number(this.value)||0);renderCashierCart()});
   document.getElementById('cashierDebtDueDate')?.addEventListener('change',function(){state.cashierDebtDueDate=this.value;saveState();});
+  renderCashierInvoiceTabs();
   renderCashierProducts('');
   renderCashierCart();
 }
@@ -1886,20 +1907,6 @@ function updateCashierPayment(i,field,value){
  state.cashierPayments[i][field]=field==='method'?value:Number(value)||0;
  if(field==='method'){const remaining=Math.max(0,cashierTotals().total-state.cashierPayments.reduce((s,p,j)=>s+(j===i?0:Number(p.amount)||0),0));state.cashierPayments[i].amount=remaining;if(value==='Tiền mặt')state.cashierPayments[i].tendered=remaining;renderCashierPayments();} else refreshCashierPaymentSummary();
 }
-function startNewCashierInvoice(){
- const hasData=(state.cashierCart||[]).length>0;
- if(hasData && !confirm('Hóa đơn hiện tại chưa thanh toán. Tạo hóa đơn mới sẽ xóa đơn đang nhập. Bạn có muốn tiếp tục?'))return;
- state.cashierCart=[];
- state.cashierCustomerCode='KH000001';
- state.cashierEmployeeId=state.currentUser?.employeeId||state.currentUser?.id||'';
- state.cashierConsultantId='';
- state.cashierOrderDiscount=0;
- state.cashierDebtDueDate='';
- state.cashierPayments=[{method:'Tiền mặt',amount:0,tendered:0}];
- saveState();
- renderAll();
- const search=document.getElementById('cashierSearch'); if(search){search.value='';search.focus();}
-}
 function holdCashierOrder(){
  if(!state.cashierCart?.length)return alert('Chưa có sản phẩm để giữ đơn.');
  state.heldOrders=Array.isArray(state.heldOrders)?state.heldOrders:[];
@@ -1966,7 +1973,12 @@ function completeCashierSale(){
  payments.forEach(p=>addCashMovement({type:'thu',amount:p.amount,paymentMethod:p.method,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id}));
  const commissionRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
  cart.forEach(x=>{const product=state.products.find(p=>p.code===x.code);if(product?.type==='Gói dịch vụ, liệu trình')return;const rule=commissionRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0));state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
- state.lastCashierInvoiceId=invoice.id;state.cashierCart=[];state.cashierOrderDiscount=0;state.cashierDebtDueDate='';state.cashierPayments=[{method:'Tiền mặt',amount:0,tendered:0}];
+ state.lastCashierInvoiceId=invoice.id;
+saveActiveCashierInvoice();
+state.cashierInvoices.splice(state.cashierActiveInvoice,1);
+if(!state.cashierInvoices.length){state.cashierInvoices.push(cashierDraftDefaults());state.cashierActiveInvoice=0;}
+else state.cashierActiveInvoice=Math.min(state.cashierActiveInvoice,state.cashierInvoices.length-1);
+loadActiveCashierInvoice();
  saveState();alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận là Còn nợ.':''));renderAll();
 }
 function eInvoiceStatusLabel(inv){return inv?.eInvoiceStatus||'Chưa xuất';}
