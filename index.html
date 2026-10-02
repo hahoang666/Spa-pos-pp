@@ -1768,7 +1768,8 @@ function cashierPage(c){
       '</div>'+
     '</div>';
   state.cashierPayments=Array.isArray(state.cashierPayments)&&state.cashierPayments.length?state.cashierPayments:[{method:'Tiền mặt',amount:0,tendered:0}];
-  document.getElementById('cashierSearch').addEventListener('input',function(){renderCashierProducts(this.value)});\n  document.getElementById('cashierSearch').addEventListener('keydown',handleCashierBarcodeEnter);
+  document.getElementById('cashierSearch').addEventListener('input',function(){renderCashierProducts(this.value)});
+  document.getElementById('cashierSearch').addEventListener('keydown',handleCashierBarcodeEnter);
   document.getElementById('cashierCustomer').addEventListener('change',function(){state.cashierCustomerCode=this.value;saveState()});
   document.getElementById('cashierEmployee').addEventListener('change',function(){state.cashierEmployeeId=this.value;saveState()});
   document.getElementById('cashierConsultant').addEventListener('change',function(){state.cashierConsultantId=this.value;saveState()});
