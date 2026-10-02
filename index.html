@@ -510,6 +510,7 @@ function resetDemoData(){
   if(!RESET_DEMO_DATA)return;
   const keepAccounts=[{id:'ADMIN001',name:'Quản trị viên',username:'admin',password:'1111',role:'Admin',status:'Hoạt động',permissions:[],isDemo:true}];
   state.invoices=[];
+  state.notifications=[];
   state.customers=[];
   state.products=[];
   state.therapyCards=[];
@@ -530,6 +531,8 @@ function resetDemoData(){
   state.priceLists=[];
   state.employees=[];
   state.accounts=keepAccounts;
+  // Lịch hẹn là dữ liệu vận hành, không xóa khi reset dữ liệu demo.
+  if(!Array.isArray(state.appointments))state.appointments=[];
   Object.keys(localStorage).filter(k=>k.startsWith('spa_next_')).forEach(k=>localStorage.removeItem(k));
   saveState();
 }
