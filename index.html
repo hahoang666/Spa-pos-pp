@@ -1780,10 +1780,32 @@ function appointmentsPage(c){
  c.innerHTML='<div class="appointments-page"><div class="appt-titlebar"><h2>Lịch hẹn</h2><button class="btn appt-add" onclick="openAppointmentCreate()">＋ Thêm</button></div><div class="appt-body"><aside class="appt-sidebar"><div class="appt-big-day">2</div><div class="appt-mini"><div class="appt-mini-head"><button>‹</button><b>Tháng 10 2026</b><button>›</button></div><div class="appt-week mini">'+miniNames.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="appt-mini-grid">'+mini+'</div></div></aside><main class="appt-main"><div class="appt-main-head"><h3>tháng 10 năm 2026</h3><div class="appt-views"><button>Ngày</button><button>Tuần</button><button class="active">Tháng</button></div><div class="appt-nav"><button class="today-btn">Hôm nay</button><button>‹</button><button>›</button></div></div><div class="appt-calendar"><div class="appt-week main">'+dayNames.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="appt-grid">'+cells+'</div></div></main></div></div>';
  updateAppointmentNotifications();
 }
+function attendancePage(c){
+ const emp=state.currentUser?.employeeId?state.employees.find(e=>e.id===state.currentUser.employeeId):state.employees.find(e=>e.accountId===state.currentUser?.id);
+ const name=emp?.name||state.currentUser?.name||'Nhân viên';
+ const today=localDateKey(new Date());
+ const recs=(state.attendance||[]).filter(x=>(x.employeeId===emp?.id||x.accountId===state.currentUser?.id)).slice(-7).reverse();
+ const todayRec=(state.attendance||[]).find(x=>x.employeeId===emp?.id&&x.date===today);
+ const status=todayRec?.outAt?'Đã ra ca':todayRec?.inAt?'Đang làm việc':'Chưa vào ca';
+ const rows=recs.map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.inAt||'—')+'</td><td>'+esc(x.outAt||'—')+'</td><td>'+esc(x.status||'—')+'</td></tr>').join('');
+ c.innerHTML='<div class="attendance-wrap"><div class="page-title">Chấm công <span style="float:right">'+esc(name)+'</span></div><div class="attendance-clock"><div id="attendanceClock"></div><div>'+new Date().toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})+'</div></div><div class="card attendance-shift"><b>Ca hành chính 08:00 – 17:30</b><div>'+status+'</div></div><button class="attendance-punch '+(todayRec?.inAt&&!todayRec?.outAt?'out':'in')+'" onclick="punchAttendance()">'+(todayRec?.inAt&&!todayRec?.outAt?'Ra ca':'Vào ca')+'</button><div class="attendance-verify">✓ Đang ở trong phạm vi: Văn phòng</div><div class="attendance-summary"><div>Giờ vào<br><b>'+(todayRec?.inAt||'—')+'</b></div><div>Giờ ra<br><b>'+(todayRec?.outAt||'—')+'</b></div><div>Tổng giờ làm<br><b>'+(todayRec?.hours||'—')+'</b></div></div><div class="card"><h3>Lịch sử gần đây</h3><div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Giờ vào</th><th>Giờ ra</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4">Chưa có dữ liệu</td></tr>')+'</tbody></table></div></div></div>';
+ setInterval(()=>{const el=document.getElementById('attendanceClock');if(el)el.textContent=new Date().toLocaleTimeString('vi-VN')},1000);
+}
+function punchAttendance(){
+ const emp=state.currentUser?.employeeId?state.employees.find(e=>e.id===state.currentUser.employeeId):state.employees.find(e=>e.accountId===state.currentUser?.id);
+ if(!emp)return alert('Tài khoản chưa liên kết hồ sơ nhân viên.');
+ const date=localDateKey(new Date()), now=new Date(), time=now.toLocaleTimeString('vi-VN');
+ let rec=state.attendance.find(x=>x.employeeId===emp.id&&x.date===date);
+ if(!rec){rec={id:'ATT'+Date.now(),employeeId:emp.id,date,inAt:time,status:'Đúng giờ'};state.attendance.push(rec);}
+ else if(rec.inAt&&!rec.outAt){rec.outAt=time;const a=rec.inAt.split(':').map(Number),b=time.split(':').map(Number);rec.hours=(((b[0]*60+b[1])-(a[0]*60+a[1]))/60).toFixed(2);rec.status='Đủ công';}
+ else return alert('Hôm nay đã chấm công đủ.');
+ saveState();renderPage();
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
   if(state.page==='Lịch hẹn') return appointmentsPage(c);
+  if(state.page==='Chấm công') return attendancePage(c);
   if(state.page==='Thu ngân' && !hasPermission('Sử dụng thu ngân')){state.section='Tổng quan';state.page='Tổng quan';return dashboard(c);} if(state.page==='Thu ngân') return cashierPage(c);
   if(state.page==='Hóa đơn') return invoicePage(c);
   if(state.page==='Phiếu thu') return cashBookPage(c,'thu');
