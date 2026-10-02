@@ -1509,7 +1509,7 @@ function openPriceEditor(code){
  if(!hasPermission('Cập nhật giá'))return alert('Bạn không có quyền cập nhật giá.');
  const p=state.products.find(x=>x.code===code);
  if(!p)return alert('Không tìm thấy sản phẩm.');
- openModal('Chỉnh sửa giá','<div class="form-grid"><div class="full"><label>Sản phẩm</label><input class="field" value="'+esc(p.code)+' - '+esc(p.name)+'" readonly></div><div class="full"><label>Giá hiện tại</label><input class="field" value="'+money(Number(p.price)||0)+' ₫" readonly></div><div class="full"><label>Giá mới *</label><input id="newProductPrice" class="field" type="number" min="0" step="1" value="'+(Number(p.price)||0)+'"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEditedPrice(''+esc(p.code)+'\\')">Lưu</button>');
+ openModal('Chỉnh sửa giá','<div class="form-grid"><div class="full"><label>Sản phẩm</label><input class="field" value="'+esc(p.code)+' - '+esc(p.name)+'" readonly></div><div class="full"><label>Giá hiện tại</label><input class="field" value="'+money(Number(p.price)||0)+' ₫" readonly></div><div class="full"><label>Giá mới *</label><input id="newProductPrice" class="field" type="number" min="0" step="1" value="'+(Number(p.price)||0)+'"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEditedPrice(\''+esc(p.code)+'\')">Lưu</button>');
 }
 function saveEditedPrice(code){
  if(!hasPermission('Cập nhật giá'))return alert('Bạn không có quyền cập nhật giá.');
