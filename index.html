@@ -427,6 +427,8 @@ const state={
   section:'Tổng quan',
   page:'Tổng quan',
   invoices:[],
+  appointments:[],
+  notifications:[],
   sellerProfile:{name:'',taxCode:'',address:'',invoiceTemplate:'',invoiceSeries:''},
   customers:[
     {code:'KH000001',name:'Khách lẻ',phone:''},
@@ -1676,29 +1678,58 @@ function runDataChecks(){
  const check5={name:'5. Trường bắt buộc của cashbook',ok:missingDetails.length===0,diffText:missingDetails.length+' dòng lỗi',details:missingDetails};
  return [check1,check2,check3,check4,check5];
 }
-function appointmentsPage(c){
- const events={
-  5:['Check-in lúc 09:04 SA','Tư vấn sản p… 04:00 CH'],
-  14:['Tập huấn sử… 12:00 SA'],
-  17:['Gặp gỡ khác… 12:00 SA']
- };
- const miniDays=['29','30','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','1','2'];
- const monthDays=['28','29','30','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','1'];
- const dayNames=['CN','Th 2','Th 3','Th 4','Th 5','Th 6','Th 7'];
- const miniNames=['T2','T3','T4','T5','T6','T7','CN'];
- const mini=miniDays.map((d,i)=>{const other=(i<2||i>32);const cls=(d==='6'&&i===9?' today':'')+(d==='5'&&i===8?' selected':'')+(other?' other':'');return '<button class="appt-mini-day'+cls+'" data-day="'+d+'">'+d+'</button>';}).join('');
- const cells=monthDays.map((d,i)=>{
-  const num=Number(d), other=(i<3||i>30), col=i%7;
-  const ev=(!other&&events[num])?events[num].map(x=>'<div class="appt-event">'+esc(x)+'</div>').join(''):'';
-  return '<div class="appt-cell '+(other?'other':'')+(num===6&&!other?' today-col':'')+'"><div class="appt-num">'+d+'</div><div class="appt-events">'+ev+'</div></div>';
- }).join('');
- c.innerHTML='<div class="appointments-page"><div class="appt-titlebar"><h2>Lịch hẹn</h2><button class="btn appt-add" onclick="openAppointmentCreate()">＋ Thêm</button></div><div class="appt-body"><aside class="appt-sidebar"><div class="appt-big-day">2</div><div class="appt-mini"><div class="appt-mini-head"><button onclick="appointmentMiniMonth(-1)">‹</button><b>Tháng 10 2026</b><button onclick="appointmentMiniMonth(1)">›</button></div><div class="appt-week mini">'+miniNames.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="appt-mini-grid">'+mini+'</div></div></aside><main class="appt-main"><div class="appt-main-head"><h3>tháng 10 năm 2026</h3><div class="appt-views"><button>Ngày</button><button>Tuần</button><button class="active">Tháng</button></div><div class="appt-nav"><button class="today-btn" onclick="appointmentToday()">Hôm nay</button><button onclick="appointmentMonth(-1)">‹</button><button onclick="appointmentMonth(1)">›</button></div></div><div class="appt-calendar"><div class="appt-week main">'+dayNames.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="appt-grid">'+cells+'</div></div></main></div></div>';
+function appointmentDateKey(y,m,d){return String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+function appointmentEventsForMonth(){
+ const a=Array.isArray(state.appointments)?state.appointments:[];
+ return a.filter(x=>x.status!=='Đã hủy');
 }
-function openAppointmentCreate(){alert('Chức năng tạo lịch hẹn sẽ được bổ sung theo thiết kế tiếp theo.');}
+function openAppointmentCreate(){
+ const customers=(state.customers||[]).map(x=>'<option value="'+esc(x.code)+'">'+esc(x.name)+' - '+esc(x.code)+'</option>').join('');
+ const staff=(state.accounts||[]).filter(x=>x.status==='Hoạt động').map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+' - '+esc(x.role)+'</option>').join('');
+ const today=localDateKey(new Date());
+ openModal('Tạo lịch hẹn','<div class="form-grid">'+
+  '<div><label>Khách hàng *</label><select id="apptCustomer" class="field"><option value="">Chọn khách hàng</option>'+customers+'</select></div>'+
+  '<div><label>Nhân viên thực hiện *</label><select id="apptStaff" class="field"><option value="">Chọn nhân viên</option>'+staff+'</select></div>'+
+  '<div><label>Ngày *</label><input id="apptDate" class="field" type="date" value="'+today+'"></div>'+
+  '<div><label>Giờ bắt đầu *</label><input id="apptStart" class="field" type="time" value="09:00"></div>'+
+  '<div><label>Giờ kết thúc</label><input id="apptEnd" class="field" type="time" value="10:00"></div>'+
+  '<div><label>Tên lịch hẹn *</label><input id="apptTitle" class="field" placeholder="VD: Chăm sóc da"></div>'+
+  '<div class="full"><label>Ghi chú</label><textarea id="apptNote" class="field" rows="3" placeholder="Ghi chú cho lịch hẹn"></textarea></div>'+
+  '</div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveAppointment()">Lưu lịch hẹn</button>');
+}
+function saveAppointment(){
+ const customerCode=document.getElementById('apptCustomer')?.value||'',staffId=document.getElementById('apptStaff')?.value||'',date=document.getElementById('apptDate')?.value||'',start=document.getElementById('apptStart')?.value||'',end=document.getElementById('apptEnd')?.value||'',title=document.getElementById('apptTitle')?.value.trim()||'',note=document.getElementById('apptNote')?.value.trim()||'';
+ if(!customerCode||!date||!start||!title)return alert('Vui lòng nhập khách hàng, ngày, giờ bắt đầu và tên lịch hẹn.');
+ if(end&&end<=start)return alert('Giờ kết thúc phải sau giờ bắt đầu.');
+ const c=(state.customers||[]).find(x=>x.code===customerCode),st=(state.accounts||[]).find(x=>x.id===staffId);
+ const appt={id:'APT'+Date.now(),customerCode,customerName:c?.name||'',staffId,staffName:st?.name||'',date,start,end,title,note,status:'Đã đặt',createdAt:new Date().toISOString()};
+ state.appointments=Array.isArray(state.appointments)?state.appointments:[];state.appointments.push(appt);saveState();closeModal();renderPage();updateAppointmentNotifications();alert('Đã tạo lịch hẹn.');
+}
+function updateAppointmentNotifications(){
+ const now=new Date(),today=localDateKey(now),minute=now.getHours()*60+now.getMinutes();
+ const appointments=appointmentEventsForMonth();
+ const due=appointments.filter(a=>a.date===today).filter(a=>{const [h,m]=String(a.start||'00:00').split(':').map(Number);return h*60+m<=minute;});
+ state.notifications=(state.notifications||[]).filter(n=>n.type!=='appointment');
+ due.forEach(a=>state.notifications.push({id:'APN-'+a.id,type:'appointment',title:'Nhắc lịch hẹn',message:a.title+' · '+a.start+' · '+a.customerName,createdAt:new Date().toISOString(),read:false}));
+ saveState();
+ const badge=document.getElementById('notificationBadge'),list=document.getElementById('notificationList');
+ const unread=(state.notifications||[]).filter(n=>!n.read).length;if(badge)badge.textContent=String(unread);
+ if(list)list.innerHTML=state.notifications.length?state.notifications.slice(-10).reverse().map(n=>'<div style="padding:10px 12px;border-bottom:1px solid #eee"><b>'+esc(n.title)+'</b><div style="font-size:12px;color:#667085;margin-top:3px">'+esc(n.message)+'</div></div>').join(''):'<div style="padding:12px;color:#667085">Không có thông báo.</div>';
+}
 function appointmentMiniMonth(delta){ }
 function appointmentMonth(delta){ }
 function appointmentToday(){ }
-
+function appointmentsPage(c){
+ const events={};
+ appointmentEventsForMonth().forEach(a=>{const d=Number(String(a.date).slice(8,10));if(!events[d])events[d]=[];events[d].push((a.title||'')+' '+(a.start||''));});
+ const miniDays=['29','30','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','1','2'];
+ const monthDays=['28','29','30','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','1'];
+ const dayNames=['CN','Th 2','Th 3','Th 4','Th 5','Th 6','Th 7'],miniNames=['T2','T3','T4','T5','T6','T7','CN'];
+ const mini=miniDays.map((d,i)=>{const other=(i<2||i>32),cls=(d==='6'&&i===9?' today':'')+(d==='5'&&i===8?' selected':'')+(other?' other':'');return '<button class="appt-mini-day'+cls+'" data-day="'+d+'">'+d+'</button>';}).join('');
+ const cells=monthDays.map((d,i)=>{const num=Number(d),other=(i<3||i>30),ev=(!other&&events[num])?events[num].map(x=>'<div class="appt-event">'+esc(x)+'</div>').join(''):'';return '<div class="appt-cell '+(other?'other':'')+(num===6&&!other?' today-col':'')+'"><div class="appt-num">'+d+'</div><div class="appt-events">'+ev+'</div></div>';}).join('');
+ c.innerHTML='<div class="appointments-page"><div class="appt-titlebar"><h2>Lịch hẹn</h2><button class="btn appt-add" onclick="openAppointmentCreate()">＋ Thêm</button></div><div class="appt-body"><aside class="appt-sidebar"><div class="appt-big-day">2</div><div class="appt-mini"><div class="appt-mini-head"><button>‹</button><b>Tháng 10 2026</b><button>›</button></div><div class="appt-week mini">'+miniNames.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="appt-mini-grid">'+mini+'</div></div></aside><main class="appt-main"><div class="appt-main-head"><h3>tháng 10 năm 2026</h3><div class="appt-views"><button>Ngày</button><button>Tuần</button><button class="active">Tháng</button></div><div class="appt-nav"><button class="today-btn">Hôm nay</button><button>‹</button><button>›</button></div></div><div class="appt-calendar"><div class="appt-week main">'+dayNames.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="appt-grid">'+cells+'</div></div></main></div></div>';
+ updateAppointmentNotifications();
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
