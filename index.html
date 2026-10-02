@@ -657,14 +657,10 @@ const navigation=[
   {id:'commission',label:'Hoa hồng',page:'Hoa hồng'},
  ]},
  {id:'cashbook',label:'Sổ quỹ',icon:'💰',children:[
-  {id:'shifts',label:'Ca',page:'Đóng ca / Chốt quỹ',permission:'Mở ca'},
-  {id:'receipts',label:'Phiếu thu',page:'Phiếu thu',permission:'Xem phiếu thu'},
-  {id:'payments',label:'Phiếu chi',page:'Phiếu chi',permission:'Xem phiếu chi'},
-  {id:'cashbook-detail',label:'Sổ chi tiết theo quỹ',page:'Sổ chi tiết theo quỹ',permission:'Xem sổ quỹ'},
-  {id:'cashbook-summary',label:'Báo cáo tổng hợp các quỹ',page:'Báo cáo tổng hợp các quỹ',permission:'Xem sổ quỹ'},
-  {id:'cashbook-transfer',label:'Chuyển quỹ nội bộ',page:'Chuyển quỹ nội bộ',permission:'Chuyển quỹ'},
-  {id:'cashbook-lock',label:'Khóa kỳ sổ quỹ',page:'Khóa kỳ sổ quỹ',permission:'Khóa kỳ sổ quỹ'},
-  {id:'cashbook-audit',label:'Nhật ký sổ quỹ',page:'Nhật ký sổ quỹ',permission:'Xem sổ quỹ'}
+  {id:'cash',label:'Tiền mặt',page:'Tiền mặt',permission:'Xem sổ quỹ'},
+  {id:'bank',label:'Ngân hàng',page:'Ngân hàng',permission:'Xem sổ quỹ'},
+  {id:'wallet',label:'Ví điện tử',page:'Ví điện tử',permission:'Xem sổ quỹ'},
+  {id:'cashbook-total',label:'Tổng quỹ',page:'Tổng quỹ',permission:'Xem sổ quỹ'}
  ]},
  {id:'reports',label:'Báo cáo',icon:'📊',page:'Bộ báo cáo chuẩn',permission:'Xem doanh thu'},
  {id:'settings',label:'Cài đặt',icon:'⚙️',children:[
@@ -1834,6 +1830,21 @@ function punchAttendance(){
  else return alert('Hôm nay đã chấm công đủ.');
  saveState();renderPage();
 }
+function fundSummaryForType(type){
+ const funds=(state.funds||[]).filter(f=>f.active!==false);
+ const ids=type==='cash'?['FUND-CASH']:type==='bank'?['FUND-BANK']:type==='wallet'?['FUND-WALLET']:['FUND-CASH','FUND-BANK','FUND-WALLET'];
+ const selected=funds.filter(f=>ids.includes(f.id));
+ const opening=selected.reduce((s,f)=>s+fundOpening(f),0);
+ const tx=(state.cashbook||[]).filter(x=>ids.includes(x.fundId));
+ const thu=tx.filter(x=>x.type==='thu').reduce((s,x)=>s+Number(x.amount||0),0);
+ const chi=tx.filter(x=>x.type==='chi').reduce((s,x)=>s+Number(x.amount||0),0);
+ return {opening,thu,chi,closing:opening+thu-chi};
+}
+function fundSummaryPage(c,type){
+ if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem sổ quỹ.</div>';return;}
+ const labels={cash:'Tiền mặt',bank:'Ngân hàng',wallet:'Ví điện tử',total:'Tổng quỹ'},s=fundSummaryForType(type),tabs=Object.entries(labels).map(([k,v])=>'<button class="btn '+(k===type?'btn-primary':'btn-secondary')+'" onclick="selectPage(\''+v+'\')">'+v+'</button>').join('');
+ c.innerHTML='<div class="page-title">Sổ quỹ</div><div class="card report"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">'+tabs+'</div><h3>'+labels[type]+'</h3><table><thead><tr><th>Quỹ đầu kỳ</th><th>Tổng thu</th><th>Tổng chi</th><th>Cuối kỳ</th></tr></thead><tbody><tr><td style="text-align:right">'+money(s.opening)+' ₫</td><td style="text-align:right">'+money(s.thu)+' ₫</td><td style="text-align:right">'+money(s.chi)+' ₫</td><td style="text-align:right;font-weight:700">'+money(s.closing)+' ₫</td></tr></tbody></table><p class="dashboard-note" style="margin-top:12px">Cuối kỳ = Đầu kỳ + Tổng thu − Tổng chi.</p>'+(type==='total'?'<p class="dashboard-note">Tổng quỹ = Tiền mặt + Ngân hàng (chuyển khoản) + Ví điện tử.</p>':'')+'</div>';
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
@@ -1843,6 +1854,10 @@ function renderPage(){
   if(state.page==='Thu ngân' && !hasPermission('Sử dụng thu ngân')){state.section='Tổng quan';state.page='Tổng quan';return dashboard(c);} if(state.page==='Thu ngân') return cashierPage(c);
   if(state.page==='Hóa đơn') return invoicePage(c);
   if(state.page==='Phiếu thu') return cashBookPage(c,'thu');
+  if(state.page==='Tiền mặt') return fundSummaryPage(c,'cash');
+  if(state.page==='Ngân hàng') return fundSummaryPage(c,'bank');
+  if(state.page==='Ví điện tử') return fundSummaryPage(c,'wallet');
+  if(state.page==='Tổng quỹ') return fundSummaryPage(c,'total');
   if(state.page==='Phiếu chi') return cashBookPage(c,'chi');
   if(state.page==='Dịch vụ') return servicePage(c);
   if(state.page==='Danh sách hàng hóa') return productPage(c);
