@@ -927,7 +927,7 @@ function renderMobileNav(groups=navigationGroups()){
 }
 function activateNavigationGroup(id){
  const group=navigation.find(x=>x.id===id);if(!group)return;
- if(group.children){state.navExpanded[id]=!state.navExpanded[id];if(!state.navExpanded[id])state.navExpanded[id]=true;renderAll();}
+ if(group.children){state.navExpanded[id]=!state.navExpanded[id];renderAll();}
  else selectNavigationPage(group.page,id);
 }
 function selectNavigationPage(page,groupId){
