@@ -147,10 +147,10 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .cashier-category-btn{white-space:nowrap;border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer}
 .cashier-category-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
 .cashier-products{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start}
-.cashier-product-card{display:flex;flex-direction:column;min-height:150px;text-align:left;padding:12px;cursor:pointer;border:1px solid var(--border);background:#fff;border-radius:12px;transition:.15s}
+.cashier-product-card{display:flex;flex-direction:column;min-height:160px;text-align:left;padding:12px;cursor:pointer;border:1px solid var(--border);background:#fff;border-radius:12px;transition:.15s;position:relative;overflow:hidden}.cashier-product-card.service{border-top:3px solid #7c3aed}.cashier-product-card.package{border-top:3px solid #d97706}.cashier-product-card.cosmetic{border-top:3px solid #db2777}
 .cashier-product-card:hover{border-color:var(--primary);box-shadow:0 4px 14px rgba(15,23,42,.08)}
-.cashier-product-name{font-weight:700;line-height:1.35}
-.cashier-product-meta{font-size:12px;color:#667085;margin-top:5px}
+.cashier-product-group{font-size:11px;font-weight:700;opacity:.72;margin-bottom:6px;text-transform:uppercase}.cashier-product-name{font-weight:700;line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:38px}
+.cashier-product-meta{font-size:12px;color:#667085;margin-top:5px}.cashier-product-duration{font-size:12px;color:#667085;margin-top:4px}.cashier-product-price{font-size:16px;font-weight:800;color:var(--primary)}.cashier-product-badge{position:absolute;right:8px;top:8px;font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;background:#fff3df;color:#9a5b00}
 .cashier-product-bottom{display:flex;justify-content:space-between;align-items:end;gap:6px;margin-top:auto;padding-top:10px}
 .cashier-stock{font-size:11px;color:#667085}
 .cashier-order-head{padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}.cashier-invoice-tabs{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:#f8fafc;overflow-x:auto}
@@ -1730,7 +1730,7 @@ function cashierPage(c){
   state.cashierOrderDiscount=Number(state.cashierOrderDiscount)||0;
   state.cashierCustomerCode=state.cashierCustomerCode||'KH000001';
   state.cashierEmployeeId=state.cashierEmployeeId||(state.currentUser?.id||'');
-  state.cashierConsultantId=state.cashierConsultantId||'';
+  state.cashierConsultantId=state.cashierConsultantId||'';  state.cashierCategory=state.cashierCategory||'Tất cả';
   const customerOptions=state.customers.map(x=>'<option value="'+esc(x.code)+'" '+(x.code===state.cashierCustomerCode?'selected':'')+'>'+esc(x.name)+' - '+esc(x.code)+'</option>').join('');
   const employees=(state.employees||[]).filter(e=>e.status==='Hoạt động');
   const employeeOptions='<option value="">Chọn nhân sự</option>'+employees.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===state.cashierEmployeeId?'selected':'')+'>'+esc(a.name)+' - '+esc(a.position||'')+'</option>').join('');
@@ -1738,10 +1738,12 @@ function cashierPage(c){
     '<div class="cashier-layout">'+
       '<div class="cashier-shell-head"><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-secondary cashier-exit" type="button" onclick="exitCashier()">← Thoát</button><div class="cashier-shell-title">Thu ngân</div></div><div class="shift-badge">'+(getOpenShift()?'🟢 Ca đang mở':'🔴 Chưa mở ca')+'</div></div>'+
       '<div class="card cashier-products-panel">'+
-        '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode..."><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+'<div class="cashier-category-bar">'+
-'<button type="button" class="cashier-category-btn active" onclick="setCashierCategory(\'Tất cả\')">Tất cả</button>'+
-'<button type="button" class="cashier-category-btn" onclick="setCashierCategory(\'Sản phẩm\')">Sản phẩm</button>'+
-'<button type="button" class="cashier-category-btn" onclick="setCashierCategory(\'Dịch vụ\')">Dịch vụ</button>'+
+        '<div class="cashier-toolbar"><input id="cashierSearch" class="search" style="flex:1" placeholder="🔍 Tìm tên, mã hàng hoặc barcode... (Enter để thêm)"><button class="btn btn-secondary" onclick="renderCashierProducts(\'\')">Tất cả</button></div>'+'<div class="cashier-category-bar">'+
+'<button type="button" class="cashier-category-btn active" data-category="Tất cả" onclick="setCashierCategory(\'Tất cả\')">Tất cả</button>'+
+'<button type="button" class="cashier-category-btn" data-category="Dịch vụ" onclick="setCashierCategory(\'Dịch vụ\')">Dịch vụ</button>'+
+'<button type="button" class="cashier-category-btn" data-category="Gói liệu trình" onclick="setCashierCategory(\'Gói liệu trình\')">Gói liệu trình</button>'+
+'<button type="button" class="cashier-category-btn" data-category="Mỹ phẩm" onclick="setCashierCategory(\'Mỹ phẩm\')">Mỹ phẩm</button>'+
+'<button type="button" class="cashier-category-btn" data-category="Hay dùng" onclick="setCashierCategory(\'Hay dùng\')">Hay dùng</button>'+
 '</div>'+
         '<div id="cashierProducts" class="cashier-products"></div>'+
       '</div>'+
@@ -1776,27 +1778,11 @@ function cashierPage(c){
   renderCashierProducts('');
   renderCashierCart();
 }
-function renderCashierProducts(keyword){
- const box=document.getElementById('cashierProducts');if(!box)return;
- const q=(keyword||'').toLowerCase();
- const active=state.cashierCategory||'Tất cả';
- const products=state.products.filter(p=>{
-   const text=(p.name+' '+p.code+' '+(p.barcode||'')).toLowerCase();
-   const typeOk=active==='Tất cả'||String(p.type||'').toLowerCase()===active.toLowerCase();
-   return text.includes(q)&&typeOk;
- });
- box.innerHTML=products.map(p=>{
-   const stock=typeof p.stock==='number'?p.stock:null;
-   return '<button type="button" class="cashier-product-card" onclick="addToCashierCart(\''+escJs(p.code)+'\')">'+
-     '<div class="cashier-product-name">'+esc(p.name)+'</div>'+
-     '<div class="cashier-product-meta">'+esc(p.code)+' · '+esc(p.type||'Hàng hóa')+'</div>'+
-     '<div class="cashier-product-bottom"><span class="cashier-stock">'+(stock===null?'':('Tồn '+money(stock)))+'</span><b style="color:var(--primary)">'+money(p.price)+' ₫</b></div>'+
-   '</button>';
- }).join('')||'<div class="cashier-empty">Không tìm thấy sản phẩm hoặc dịch vụ</div>';
-}
-function setCashierCategory(category){
- state.cashierCategory=category||'Tất cả';renderCashierProducts(document.getElementById('cashierSearch')?.value||'');
-}
+function getCashierProductGroup(p){const t=String(p.type||'').toLowerCase();if(t.includes('gói')||t.includes('liệu trình')||t.includes('package'))return 'Gói liệu trình';if(t.includes('dịch vụ')||t.includes('service'))return 'Dịch vụ';if(t.includes('mỹ phẩm')||t.includes('cosmetic'))return 'Mỹ phẩm';return 'Sản phẩm';}
+function isCashierFavorite(p){return !!p.favorite||!!p.isFavorite||Number(p.saleCount||p.soldCount||0)>=5;}
+function renderCashierProducts(keyword){const box=document.getElementById('cashierProducts');if(!box)return;const q=(keyword||'').toLowerCase();const active=state.cashierCategory||'Tất cả';const products=state.products.filter(p=>{const text=(p.name+' '+p.code+' '+(p.barcode||'')).toLowerCase();const group=getCashierProductGroup(p);return text.includes(q)&&(active==='Tất cả'||active===group||(active==='Hay dùng'&&isCashierFavorite(p)));});box.innerHTML=products.map(p=>{const stock=typeof p.stock==='number'?p.stock:null,group=getCashierProductGroup(p),cls=group==='Dịch vụ'?'service':group==='Gói liệu trình'?'package':group==='Mỹ phẩm'?'cosmetic':'';const duration=p.duration||p.durationMinutes||p.minutes;return '<button type="button" class="cashier-product-card '+cls+'" onclick="addToCashierCart(\''+escJs(p.code)+'\')">'+(group==='Gói liệu trình'?'<span class="cashier-product-badge">Gói</span>':'')+'<div class="cashier-product-group">'+esc(group)+'</div><div class="cashier-product-name" title="'+esc(p.name)+'">'+esc(p.name)+'</div><div class="cashier-product-meta">'+esc(p.code)+(p.barcode?' · '+esc(p.barcode):'')+'</div>'+(group==='Dịch vụ'&&duration?'<div class="cashier-product-duration">⏱ '+esc(String(duration).replace('minutes',' phút'))+'</div>':'')+'<div class="cashier-product-bottom"><span class="cashier-stock">'+(stock===null||stock==='---'?'':('Tồn '+money(stock)))+'</span><b class="cashier-product-price">'+money(p.price)+' ₫</b></div></button>';}).join('')||'<div class="cashier-empty">Không tìm thấy sản phẩm, dịch vụ hoặc gói phù hợp</div>';}
+function setCashierCategory(category){state.cashierCategory=category||'Tất cả';document.querySelectorAll('.cashier-category-btn').forEach(b=>b.classList.toggle('active',b.dataset.category===state.cashierCategory));renderCashierProducts(document.getElementById('cashierSearch')?.value||'');}
+function handleCashierBarcodeEnter(e){if(e.key!=='Enter')return;const value=String(e.target.value||'').trim();if(!value)return;const p=state.products.find(x=>String(x.barcode||'')===value||String(x.code||'')===value);if(!p){alert('Không tìm thấy mã barcode/mã hàng: '+value);return;}addToCashierCart(p.code);e.target.value='';e.preventDefault();}
 function addToCashierCart(code){
   if(!hasPermission('Sử dụng thu ngân')) return alert('Bạn không có quyền sử dụng Thu ngân.');
   const p=state.products.find(x=>x.code===code); if(!p)return;
