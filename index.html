@@ -16,7 +16,14 @@
 body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
 button,input,select{font:inherit}
 .topbar{height:58px;background:linear-gradient(90deg,var(--primary),var(--primary-hover));color:white;display:flex;align-items:center;padding:0 14px;gap:10px;position:sticky;top:0;z-index:40}
-.logo{font-size:20px;font-weight:700;min-width:110px}
+.logo{font-size:20px;font-weight:700;min-width:92px;cursor:pointer}
+.app-context{min-width:0;display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.96);padding-left:6px}
+.app-context-title{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+.app-context-sep{opacity:.45}
+.app-context-crumb{font-size:12px;opacity:.78;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.shift-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;background:rgba(255,255,255,.12);font-size:12px;white-space:nowrap}
+.shift-dot{width:7px;height:7px;border-radius:50%;background:#98a2b3}
+.shift-badge.open .shift-dot{background:#86efac}
 .nav{display:none}
 .nav-toggle{width:40px;height:40px;border:0;border-radius:9px;background:rgba(255,255,255,.12);color:#fff;font-size:20px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .nav-toggle:hover{background:rgba(255,255,255,.2)}
@@ -44,7 +51,13 @@ button,input,select{font:inherit}
 .nav-child:hover,.nav-child.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
 .mobile-nav{display:none}
 .nav-backdrop{display:none}
-.content{flex:1;padding:18px 14px;min-width:0}
+.content{flex:1;padding:18px 18px 30px;min-width:0}
+.page-context{display:flex;align-items:center;gap:8px;margin:0 0 4px;color:#667085;font-size:12px}
+.page-context .current{color:#344054;font-weight:600}
+.page-intro{margin-bottom:16px}
+.page-title{font-size:23px;font-weight:750;margin:0 0 4px;letter-spacing:-.01em}
+.page-subtitle{font-size:13px;color:#667085;margin:0 0 12px}
+.toolbar{position:relative}
 .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .page-title{font-size:22px;font-weight:700;margin:0 0 12px}
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
@@ -113,7 +126,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 @media(max-width:1100px){.charts-grid{grid-template-columns:1fr}.dashboard-section-head{flex-direction:column}.dashboard-controls{width:100%}.dashboard-controls .field{width:180px!important}}
 @media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}.cashier-layout{grid-template-columns:1fr;height:auto}.cashier-products-panel{min-height:360px}.cashier-order-panel{min-height:520px}.cashier-products{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){
- .topbar{padding:0 10px}.logo{min-width:auto;font-size:18px}.top-actions>button:first-child{display:none}.user-session-info{display:none}
+ .topbar{padding:0 8px;gap:6px}.logo{min-width:auto;font-size:18px}.app-context{display:none}.shift-badge{padding:5px 7px}.shift-badge .shift-label{display:none}.top-actions{gap:4px}.top-actions>button:first-child{display:none}.user-session-info{display:none}
  .sidebar{position:fixed;left:0;top:58px;bottom:0;width:280px;z-index:50;transform:translateX(-105%);box-shadow:8px 0 30px rgba(0,0,0,.12)}
  .sidebar.mobile-open{transform:translateX(0)}.sidebar.collapsed{width:280px}
  .sidebar.collapsed .nav-group-label,.sidebar.collapsed .nav-child-label,.sidebar.collapsed .nav-chevron,.sidebar.collapsed .nav-section-title{display:block}
@@ -214,12 +227,14 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 </div>
 <div class="topbar">
   <button class="nav-toggle" id="navToggle" aria-label="Mở menu" title="Menu" onclick="toggleNavigation()">☰</button>
-  <div class="logo">POS🍀</div>
+  <div class="logo" onclick="selectPage('Tổng quan')" title="Tổng quan">POS🍀</div>
+  <div class="app-context" id="appContext"></div>
   <div class="nav" id="nav"></div>
   <div class="top-actions">
     <button onclick="openCashierProtected()">🛒 Thu ngân</button>
     <button class="iconbtn" title="Thông báo">🔔</button>
     <button class="iconbtn" title="Trợ giúp">?</button>
+    <div class="shift-badge" id="shiftBadge"><span class="shift-dot"></span><span class="shift-label">Ca đã đóng</span></div>
     <div class="user-session" id="userSession"></div>
     <div class="settings-wrap">
     <button class="iconbtn" title="Cài đặt" onclick="toggleSettingsMenu()">⚙</button>
@@ -944,7 +959,7 @@ function toggleNavigation(){
  else sidebar?.classList.toggle('collapsed');
 }
 function closeMobileNavigation(){document.getElementById('sidebar')?.classList.remove('mobile-open');document.getElementById('navBackdrop')?.classList.remove('show');}
-function renderAll(){saveState();renderNav();renderSidebar();renderUserSession();renderPage()}
+function renderAll(){saveState();renderNav();renderSidebar();renderAppContext();renderUserSession();renderPage()}
 function therapyCardsPage(c){
  const cards=Array.isArray(state.therapyCards)?state.therapyCards:[];
  const rows=cards.slice().reverse().map(x=>`<tr><td>${escJs(x.id)}</td><td>${esc(x.customerName||x.customerCode)}</td><td>${esc(x.productName||'')}</td><td>${x.totalSessions}</td><td>${x.remainingSessions}</td><td>${esc(x.expiresAt||'Không')}</td><td>${esc(x.status)}</td><td><button class="btn btn-secondary" onclick="openUseTherapySession(${JSON.stringify(x.id)})">Sử dụng 1 buổi</button> ${(x.usageHistory||[]).filter(u=>u.status==='Đã thực hiện').slice(-1).map(u=>'<button class="btn btn-danger" onclick="undoTherapySession('+JSON.stringify(x.id)+','+JSON.stringify(u.id)+')">Hoàn tác</button>').join('')}</td></tr>`).join('');
@@ -1844,18 +1859,25 @@ function printInvoice(id){
  w.document.write('<!doctype html><html><head><title>'+esc(inv.id)+'</title><style>body{font-family:Arial;padding:20px;max-width:460px;margin:auto}h2{text-align:center;margin-bottom:8px}.seller{border:1px solid #ddd;padding:12px;margin-bottom:14px}.seller b{font-size:16px}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #eee}.r{text-align:right}.total{font-size:18px;font-weight:700}</style></head><body><h2>HÓA ĐƠN ĐIỆN TỬ MÔ PHỎNG</h2><div class="seller"><b>'+esc(seller.name)+'</b><br>MST: '+esc(seller.taxCode)+'<br>Địa chỉ: '+esc(seller.address)+'<br>Mẫu số: '+esc(seller.invoiceTemplate)+' &nbsp; Ký hiệu: '+esc(seller.invoiceSeries)+'</div><div>Mã hóa đơn: '+esc(inv.id)+'</div><div>Thời gian: '+esc(inv.time||'')+'</div><div class="seller"><b>THÔNG TIN NGƯỜI MUA</b><br>'+esc((inv.buyerInfo?.companyName||inv.customerName||'Khách lẻ'))+'<br>'+((inv.buyerInfo?.taxCode)?'MST: '+esc(inv.buyerInfo.taxCode)+'<br>':'')+((inv.buyerInfo?.address)?'Địa chỉ: '+esc(inv.buyerInfo.address)+'<br>':'')+((inv.buyerInfo?.email)?'Email: '+esc(inv.buyerInfo.email):'')+'</div><hr><table>'+items.map(x=>'<tr><td>'+esc(x.name)+' × '+x.qty+'<br><small>VAT '+Number(x.vat||0)+'%</small></td><td class="r">'+money((Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0))+' ₫</td></tr>').join('')+'</table><hr><div>Tiền hàng: <span class="r">'+money(inv.amount||0)+' ₫</span></div><div>VAT: <span class="r">'+money(inv.tax||0)+' ₫</span></div><div>Giảm giá: <span class="r">'+money(inv.discount||0)+' ₫</span></div><div class="total">Tổng: <span class="r">'+money(inv.total||0)+' ₫</span></div><div>Trạng thái: '+esc(inv.status||'')+'</div><script>window.onload=function(){window.print();}<\\/script></body></html>');
  w.document.close();
 }function header(title,buttonText,action){
- return `<div class="page-title">${title}</div>
- <div class="toolbar">
-  <input id="commonSearch" class="search" placeholder="🔍 Tìm theo mã, tên, điện thoại..." oninput="applyInvoiceFilters()">
-  <div style="margin-left:auto"></div>
-  ${buttonText?`<button class="btn btn-primary" data-action="toolbar-action" data-action-name="${esc(action)}">＋ ${buttonText}</button>`:''}
-  <button class="btn btn-secondary" onclick="toggleColumns()">☷</button>
- </div>
- <div class="columns-panel" id="columnsPanel">
-   <div style="font-weight:700;margin-bottom:12px">Tùy chọn cột hiển thị</div>
-   <div class="columns-grid">${['Mã','Thời gian','Khách hàng','Số điện thoại','Tổng tiền hàng','Giảm giá','Tổng sau giảm giá','VAT','Khách cần trả','Khách đã trả','Trạng thái','Ghi chú'].map((x,i)=>`<label class="check"><input class="column-toggle" type="checkbox" data-col="${i}" ${[0,1,2,3,4,6,8,9,10].includes(i)?'checked':''} onchange="applyInvoiceFilters()">${x}</label>`).join('')}</div>
- </div>`;
+ const trail=getNavigationTrail();
+ const safeTitle=title||trail.page;
+ const safeGroup=trail.group;
+ return '<div class="page-intro">'+
+  '<div class="page-context"><span>'+esc(safeGroup)+'</span><span>/</span><span class="current">'+esc(safeTitle)+'</span></div>'+
+  '<div class="page-title">'+esc(safeTitle)+'</div>'+
+  '</div>'+
+  '<div class="toolbar">'+
+  '<input id="commonSearch" class="search" placeholder="🔍 Tìm theo mã, tên, điện thoại..." oninput="applyInvoiceFilters()">'+
+  '<div style="margin-left:auto"></div>'+
+  (buttonText?'<button class="btn btn-primary" data-action="toolbar-action" data-action-name="'+esc(action||'')+'">＋ '+esc(buttonText)+'</button>':'')+
+  '<button class="btn btn-secondary" onclick="toggleColumns()">☷</button>'+
+  '</div>'+
+  '<div class="columns-panel" id="columnsPanel">'+
+   '<div style="font-weight:700;margin-bottom:12px">Tùy chọn cột hiển thị</div>'+
+   '<div class="columns-grid">'+['Mã','Thời gian','Khách hàng','Số điện thoại','Tổng tiền hàng','Giảm giá','Tổng sau giảm giá','VAT','Khách cần trả','Khách đã trả','Trạng thái','Ghi chú'].map((x,i)=>'<label class="check"><input class="column-toggle" type="checkbox" data-col="'+i+'" '+([0,1,2,3,4,6,8,9,10].includes(i)?'checked':'')+' onchange="applyInvoiceFilters()">'+x+'</label>').join('')+'</div>'+
+  '</div>';
 }
+
 function toggleColumns(){document.getElementById('columnsPanel')?.classList.toggle('show')}
 function filterRows(v){if(document.getElementById('commonSearch')){document.getElementById('commonSearch').value=v;applyInvoiceFilters();}}
 function applyInvoiceFilters(){
@@ -2038,6 +2060,23 @@ function setTheme(theme){
 }
 function loadTheme(){
   setTheme(localStorage.getItem('spa_pos_theme')||'green');
+}
+function getNavigationTrail(){
+ const group=activeNavigationGroup();
+ const item=group?.children?.find(x=>x.page===state.page);
+ return {group:group?.label||'Tổng quan',page:state.page||'Tổng quan',item};
+}
+function renderAppContext(){
+ const ctx=document.getElementById('appContext');
+ const badge=document.getElementById('shiftBadge');
+ const trail=getNavigationTrail();
+ if(ctx)ctx.innerHTML='<span class="app-context-title">'+esc(trail.page)+'</span>'+(trail.item?'<span class="app-context-sep">/</span><span class="app-context-crumb">'+esc(trail.group)+'</span>':'');
+ const open=!!getOpenShift();
+ if(badge){
+  badge.classList.toggle('open',open);
+  badge.innerHTML='<span class="shift-dot"></span><span class="shift-label">'+(open?'Ca đang mở':'Ca đã đóng')+'</span>';
+  badge.title=open?'Ca hiện tại đang mở':'Hôm nay chưa có ca đang mở';
+ }
 }
 function renderUserSession(){
  const el=document.getElementById('userSession');
