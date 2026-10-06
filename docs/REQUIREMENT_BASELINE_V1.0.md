@@ -1,6 +1,6 @@
 # SPA POS — REQUIREMENT BASELINE V1.0
 
-> **Trạng thái:** Draft — chờ chủ dự án chốt
+> **Trạng thái:** Approved
 > **Mục đích:** Đây là bộ requirement nguồn chính thức dùng để xây dựng RTM, Test Scenario, Test Case và đối soát kết quả kiểm thử.
 > **Phạm vi:** Demo Spa POS
 > **Timezone:** Việt Nam (UTC+7)
@@ -1296,3 +1296,12 @@ Sau khi được phê duyệt, tài liệu này là **Requirement Source of Trut
 Các thay đổi sau đó phải tạo version mới, ví dụ:
 
 `Baseline v1.1`, `Baseline v1.2`...
+
+
+---
+
+# 11. Trạng thái Baseline
+
+**BASELINE V1.0 — APPROVED**
+
+Requirement Baseline v1.0 đã được chủ dự án phê duyệt và là Requirement Source of Truth chính thức cho hoạt động QA của Spa POS.
