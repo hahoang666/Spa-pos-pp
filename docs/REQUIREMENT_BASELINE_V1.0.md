@@ -1289,19 +1289,10 @@ Sau khi Baseline v1.0 được phê duyệt:
 
 # 11. Trạng thái Baseline
 
-**BASELINE V1.0 — CHỜ CHỦ DỰ ÁN PHÊ DUYỆT**
+**BASELINE V1.0 — APPROVED**
 
-Sau khi được phê duyệt, tài liệu này là **Requirement Source of Truth** cho hoạt động QA của Spa POS.
+Requirement Baseline v1.0 đã được chủ dự án phê duyệt và là Requirement Source of Truth chính thức cho hoạt động QA của Spa POS.
 
 Các thay đổi sau đó phải tạo version mới, ví dụ:
 
 `Baseline v1.1`, `Baseline v1.2`...
-
-
----
-
-# 11. Trạng thái Baseline
-
-**BASELINE V1.0 — APPROVED**
-
-Requirement Baseline v1.0 đã được chủ dự án phê duyệt và là Requirement Source of Truth chính thức cho hoạt động QA của Spa POS.
