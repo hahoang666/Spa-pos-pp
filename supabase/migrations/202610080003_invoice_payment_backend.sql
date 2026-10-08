@@ -320,8 +320,8 @@ grant execute on function public.create_invoice(
 -- The OPEN shift is resolved from auth.uid(); clients cannot
 -- choose another user's shift.
 -- The existing payment trigger recalculates invoice status.
--- Cashbook integration will be added after the exact
--- cashbook_transactions write contract is finalized.
+-- A successful payment also creates the corresponding
+-- cashbook SALE transaction in the mapped fund and shift.
 -- =========================================================
 
 create or replace function public.create_payment(
@@ -502,6 +502,45 @@ begin
         v_shift.id
     )
     returning * into v_payment;
+
+
+    -- =====================================================
+    -- Create cashbook transaction
+    -- A successful payment is an IN / SALE transaction in
+    -- the fund mapped to the payment method.
+    -- =====================================================
+
+    insert into public.cashbook_transactions (
+        fund_id,
+        shift_id,
+        transaction_type,
+        category,
+        direction,
+        amount,
+        payment_id,
+        reference_type,
+        reference_id,
+        txn_at,
+        created_by,
+        note
+    )
+    values (
+        v_fund.id,
+        v_shift.id,
+        'SALE',
+        'SALE',
+        'IN',
+        p_amount,
+        v_payment.id,
+        'INVOICE',
+        p_invoice_id,
+        coalesce(v_payment.paid_at, now()),
+        auth.uid(),
+        coalesce(
+            p_notes,
+            'Payment for invoice ' || v_invoice.code
+        )
+    );
 
 
     return v_payment;
