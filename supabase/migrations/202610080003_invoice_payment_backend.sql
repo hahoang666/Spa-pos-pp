@@ -312,4 +312,224 @@ grant execute on function public.create_invoice(
     text
 ) to authenticated;
 
+
+-- =========================================================
+-- 3. CREATE PAYMENT
+--
+-- Payment is created only by a user with PAYMENT_CREATE.
+-- The OPEN shift is resolved from auth.uid(); clients cannot
+-- choose another user's shift.
+-- The existing payment trigger recalculates invoice status.
+-- Cashbook integration will be added after the exact
+-- cashbook_transactions write contract is finalized.
+-- =========================================================
+
+create or replace function public.create_payment(
+    p_invoice_id bigint,
+    p_payment_method_id bigint,
+    p_amount numeric,
+    p_reference_no text default null,
+    p_notes text default null
+)
+returns public.payments
+language plpgsql
+security definer
+set search_path = public
+as $function$
+
+declare
+    v_invoice public.invoices;
+    v_method public.payment_methods;
+    v_shift public.shifts;
+    v_fund public.funds;
+    v_payment public.payments;
+
+    v_due numeric(18,3);
+
+begin
+
+    -- =====================================================
+    -- Authorization
+    -- =====================================================
+
+    if not public.has_permission('PAYMENT_CREATE') then
+        raise exception using
+            errcode = '42501',
+            message = 'FORBIDDEN: missing permission PAYMENT_CREATE';
+    end if;
+
+
+    -- =====================================================
+    -- Validate amount
+    -- =====================================================
+
+    if p_amount is null or p_amount <= 0 then
+        raise exception using
+            errcode = '22023',
+            message = 'Payment amount must be greater than 0';
+    end if;
+
+
+    -- =====================================================
+    -- Lock invoice
+    -- =====================================================
+
+    select *
+    into v_invoice
+    from public.invoices
+    where id = p_invoice_id
+    for update;
+
+    if not found then
+        raise exception using
+            errcode = '23503',
+            message = 'Invoice does not exist';
+    end if;
+
+
+    if v_invoice.status = 'CANCELLED' then
+        raise exception using
+            errcode = '22023',
+            message = 'Cannot pay a cancelled invoice';
+    end if;
+
+
+    v_due :=
+        greatest(
+            v_invoice.total_amount
+            - coalesce(v_invoice.paid_amount, 0),
+            0
+        );
+
+
+    if v_due <= 0 then
+        raise exception using
+            errcode = '22023',
+            message = 'Invoice is already fully paid';
+    end if;
+
+
+    if p_amount > v_due then
+        raise exception using
+            errcode = '22003',
+            message = 'Payment amount exceeds invoice due amount';
+    end if;
+
+
+    -- =====================================================
+    -- Validate payment method
+    -- =====================================================
+
+    select *
+    into v_method
+    from public.payment_methods
+    where id = p_payment_method_id
+      and is_active = true;
+
+    if not found then
+        raise exception using
+            errcode = '23503',
+            message = 'Payment method does not exist or is inactive';
+    end if;
+
+
+    -- =====================================================
+    -- Resolve current user's OPEN SHIFT
+    -- =====================================================
+
+    select *
+    into v_shift
+    from public.shifts
+    where opened_by = auth.uid()
+      and status = 'OPEN'
+    order by opened_at desc
+    limit 1
+    for update;
+
+    if not found then
+        raise exception using
+            errcode = '42501',
+            message = 'FORBIDDEN: no open shift for current user';
+    end if;
+
+
+    -- =====================================================
+    -- Validate corresponding fund
+    -- Payment method codes and fund codes are intentionally
+    -- aligned: CASH / BANK_TRANSFER / E_WALLET / CARD.
+    -- =====================================================
+
+    select *
+    into v_fund
+    from public.funds
+    where code = v_method.code
+      and is_active = true;
+
+    if not found then
+        raise exception using
+            errcode = 'P0001',
+            message =
+                'Fund is not configured for payment method '
+                || v_method.code;
+    end if;
+
+
+    -- =====================================================
+    -- Create payment
+    -- The existing AFTER INSERT trigger
+    -- payment_change_invoice_status calls
+    -- recalculate_invoice_payment_status().
+    -- =====================================================
+
+    insert into public.payments (
+        invoice_id,
+        payment_method_id,
+        amount,
+        reference_no,
+        notes,
+        paid_at,
+        created_by,
+        shift_id
+    )
+    values (
+        p_invoice_id,
+        p_payment_method_id,
+        p_amount,
+        p_reference_no,
+        p_notes,
+        now(),
+        auth.uid(),
+        v_shift.id
+    )
+    returning * into v_payment;
+
+
+    return v_payment;
+
+end;
+
+$function$;
+
+
+-- =========================================================
+-- 4. Execute permission
+-- =========================================================
+
+revoke all on function public.create_payment(
+    bigint,
+    bigint,
+    numeric,
+    text,
+    text
+) from public;
+
+grant execute on function public.create_payment(
+    bigint,
+    bigint,
+    numeric,
+    text,
+    text
+) to authenticated;
+
+
 commit;
