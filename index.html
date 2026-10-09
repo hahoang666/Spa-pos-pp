@@ -2791,7 +2791,7 @@ async function adminAccountPage(c){
   try{
    const [{data:profiles,error:profilesError},{data:employeeRows,error:employeeError}]=await Promise.all([
     supabaseClient.from('profiles').select('id,employee_id,full_name,username,role_id,is_active'),
-    supabaseClient.from('employees').select('id,code,employee_code,full_name,name,is_active')
+    supabaseClient.from('employees').select('*')
    ]);
    if(profilesError)throw profilesError;
    if(employeeError)throw employeeError;
