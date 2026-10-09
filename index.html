@@ -2828,17 +2828,27 @@ async function saveAccountEmployeeLink(profileId){
  const select=document.getElementById('accountEmployeeLink_'+profileId);
  if(!select)return;
  const raw=select.value;
- const employeeId=raw===''?null:Number(raw);
- if(raw!==''&&(!Number.isInteger(employeeId)||employeeId<=0))return alert('ID hồ sơ nhân viên không hợp lệ.');
- const selected=raw===''?null:(state.employees||[]).find(e=>String(e.id)===String(raw)||String(e.backendId)===String(raw));
- if(raw!==''&&!selected)return alert('Không tìm thấy hồ sơ nhân viên đã chọn.');
- const {error}=await supabaseClient.from('profiles').update({employee_id:employeeId}).eq('id',profileId);
- if(error){alert('Không thể lưu liên kết hồ sơ nhân viên: '+error.message);return;}
- const {data:check,error:checkError}=await supabaseClient.from('profiles').select('id,employee_id').eq('id',profileId).maybeSingle();
- if(checkError){alert('Đã gửi cập nhật nhưng không thể xác minh: '+checkError.message);return;}
- if(!check||String(check.employee_id??'')!==String(employeeId??'')){alert('Chưa xác minh được liên kết sau khi lưu. Kiểm tra quyền RLS và dữ liệu profiles.');return;}
- alert('Đã lưu và xác minh liên kết hồ sơ nhân viên.');
- await adminAccountPage(document.getElementById('content'));
+ if(raw==='')return alert('Bạn chưa chọn hồ sơ nhân viên. Hãy chọn một nhân viên trước khi lưu liên kết.');
+ const employeeId=Number(raw);
+ if(!Number.isInteger(employeeId)||employeeId<=0)return alert('ID hồ sơ nhân viên không hợp lệ.');
+ const selected=(state.employees||[]).find(e=>String(e.id)===String(raw)||String(e.backendId)===String(raw));
+ if(!selected)return alert('Không tìm thấy hồ sơ nhân viên đã chọn.');
+ try{
+  const {data:updated,error:updateError}=await supabaseClient.from('profiles').update({employee_id:employeeId}).eq('id',profileId).select('id,employee_id');
+  if(updateError){alert('Không thể lưu liên kết hồ sơ nhân viên: '+updateError.message);return;}
+  if(!Array.isArray(updated)||updated.length!==1){
+   alert('Không có bản ghi profiles nào được cập nhật. Kiểm tra profile ID và chính sách RLS cho phép UPDATE/SELECT.');
+   return;
+  }
+  const {data:check,error:checkError}=await supabaseClient.from('profiles').select('id,employee_id').eq('id',profileId).maybeSingle();
+  if(checkError){alert('Đã gửi cập nhật nhưng không thể xác minh: '+checkError.message);return;}
+  if(!check||String(check.employee_id??'')!==String(employeeId)){
+   alert('Dữ liệu sau khi lưu không khớp hồ sơ đã chọn. Liên kết chưa được xác minh; kiểm tra chính sách RLS và kiểu khóa.');
+   return;
+  }
+  alert('Đã lưu và xác minh liên kết hồ sơ nhân viên.');
+  await adminAccountPage(document.getElementById('content'));
+ }catch(error){alert('Lỗi khi lưu liên kết: '+(error?.message||String(error)));}
 }
 function openCreateAccount(){
   openModal('Tạo tài khoản',`
