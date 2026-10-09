@@ -966,9 +966,17 @@ function activateLoggedInUser(account){
  refreshBackendReferenceData().then(result=>{if(result.ok){renderAll();console.info('Đã đồng bộ dữ liệu nền từ Supabase.');}}).catch(e=>console.warn('Đồng bộ dữ liệu nền thất bại:',e));
  refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
 }
-function backendRoleName(roleId, roleName){
- // Role IDs are database-owned and may differ between environments.
- return String(roleName||'Nhân viên').trim()||'Nhân viên';
+function backendRoleName(roleId, roleName, roleCode){
+ // Map by the role's stable database code, never by its numeric/UUID ID.
+ const code=String(roleCode||'').trim().toUpperCase();
+ const byCode={ADMIN:'Admin',MANAGER:'Quản lý',CASHIER:'Thu ngân',EMPLOYEE:'Nhân viên'};
+ if(byCode[code])return byCode[code];
+ const name=String(roleName||'').trim();
+ if(/admin|quản trị/i.test(name))return 'Admin';
+ if(/quản lý/i.test(name))return 'Quản lý';
+ if(/thu ngân/i.test(name))return 'Thu ngân';
+ if(/nhân viên/i.test(name))return 'Nhân viên';
+ return name||'Nhân viên';
 }
 async function accountFromSupabaseAuth(authUser, typedUsername){
  const {data:profile,error:profileError}=await supabaseClient
@@ -982,11 +990,11 @@ async function accountFromSupabaseAuth(authUser, typedUsername){
  let roleName='';
  const {data:roleData,error:roleError}=await supabaseClient
    .from('roles')
-   .select('name')
+   .select('code,name')
    .eq('id',profile.role_id)
    .maybeSingle();
  if(!roleError&&roleData)roleName=roleData.name||'';
- const role=backendRoleName(profile.role_id,roleName);
+ const role=backendRoleName(profile.role_id,roleName,roleData?.code);
  const account={
    id:profile.id,
    authUserId:authUser.id,
@@ -2700,11 +2708,11 @@ async function adminAccountPage(c){
    if(employeeError)throw employeeError;
    employees=employeeRows||[];
    state.employees=employees.map(mapBackendEmployee);
-   const rolesResult=await supabaseClient.from('roles').select('id,name');
+   const rolesResult=await supabaseClient.from('roles').select('id,code,name');
    const roles=rolesResult.error?[]:(rolesResult.data||[]);
    accounts=(profiles||[]).map(p=>{
     const roleRow=roles.find(r=>String(r.id)===String(p.role_id));
-    const role=backendRoleName(p.role_id,roleRow?.name||'');
+    const role=backendRoleName(p.role_id,roleRow?.name||'',roleRow?.code);
     return {id:p.id,name:p.full_name||p.username||'',username:p.username||'',role,status:p.is_active===true?'Hoạt động':'Đã khóa',employeeId:p.employee_id,isSupabaseAuth:true,roleId:p.role_id};
    });
    state.accounts=state.accounts.filter(a=>a.isDemo||!a.isSupabaseAuth).concat(accounts);
