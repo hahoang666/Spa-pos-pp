@@ -2782,16 +2782,63 @@ function savePermissions(id){
   closeModal();
   adminPermissionsPage(document.getElementById('content'));
 }
-function adminAccountPage(c){
+async function adminAccountPage(c){
  if(!hasPermission('Quản lý tài khoản')) return;
- const employees=state.accounts.filter(a=>a.role!=='Admin');
+ let accounts=state.accounts.filter(a=>a.role!=='Admin');
+ let employees=Array.isArray(state.employees)?state.employees:[];
+ let loadMessage='';
+ if(state.currentUser?.isSupabaseAuth){
+  try{
+   const [{data:profiles,error:profilesError},{data:employeeRows,error:employeeError}]=await Promise.all([
+    supabaseClient.from('profiles').select('id,employee_id,full_name,username,role_id,is_active'),
+    supabaseClient.from('employees').select('id,code,employee_code,full_name,name,is_active')
+   ]);
+   if(profilesError)throw profilesError;
+   if(employeeError)throw employeeError;
+   employees=employeeRows||[];
+   state.employees=employees.map(mapBackendEmployee);
+   const rolesResult=await supabaseClient.from('roles').select('id,name');
+   const roles=rolesResult.error?[]:(rolesResult.data||[]);
+   accounts=(profiles||[]).map(p=>{
+    const roleRow=roles.find(r=>String(r.id)===String(p.role_id));
+    const role=backendRoleName(p.role_id,roleRow?.name||'');
+    return {id:p.id,name:p.full_name||p.username||'',username:p.username||'',role,status:p.is_active===true?'Hoạt động':'Đã khóa',employeeId:p.employee_id,isSupabaseAuth:true,roleId:p.role_id};
+   });
+   state.accounts=state.accounts.filter(a=>a.isDemo||!a.isSupabaseAuth).concat(accounts);
+   saveState();
+  }catch(error){
+   loadMessage='Không thể tải tài khoản/hồ sơ nhân viên từ Supabase: '+(error.message||String(error));
+  }
+ }
+ const employeeOptions=(selected)=>'<option value="">— Chưa liên kết —</option>'+employees.map(e=>{
+  const id=e.id??e.backendId;const code=e.code||e.employee_code||'';const name=e.full_name||e.name||e.display_name||code;
+  return '<option value="'+escJs(String(id))+'" '+(String(selected??'')===String(id)?'selected':'')+'>'+esc(code+' — '+name)+'</option>';
+ }).join('');
  c.innerHTML=`
   <div class="page-title">Quản lý tài khoản</div>
-  <div class="account-toolbar"><div><div style="font-size:13px;color:#667085">Quản lý tài khoản nhân viên và quản lý</div></div><button class="btn btn-primary" onclick="openCreateAccount()">＋ Tạo tài khoản</button></div>
-  <div class="card table-wrap"><table class="account-table"><thead><tr><th>ID</th><th>Họ và tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th>Phân quyền</th><th>Thao tác</th></tr></thead><tbody>
-   <tr><td><span class="account-id">ADMIN001</span></td><td>Quản trị viên</td><td>admin</td><td>Admin</td><td><span class="status-active">Hoạt động</span></td><td><button class="btn btn-secondary" onclick="openPermissions('ADMIN001')">Xem quyền</button></td><td><button class="btn btn-secondary" onclick="openResetPassword('ADMIN001')">Reset mật khẩu</button></td></tr>
-   ${employees.length?employees.map(a=>`<tr><td><span class="account-id">${escJs(a.id)}</span></td><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.role)}</td><td><span class="${a.status==='Hoạt động'?'status-active':'status-locked'}">${esc(a.status)}</span>${a.lockedUntil&&Date.now()<a.lockedUntil?' <small>(khóa tạm)</small>':''}</td><td><button class="btn btn-secondary" onclick="openPermissions('${escJs(a.id)}')">Phân quyền</button></td><td><button class="btn btn-secondary" onclick="openEditAccount('${escJs(a.id)}')">Sửa</button> <button class="btn btn-secondary" onclick="openResetPassword('${escJs(a.id)}')">Reset MK</button> <button class="btn btn-secondary" onclick="toggleAccountStatus('${escJs(a.id)}')">${a.status==='Hoạt động'?'Khóa':'Mở khóa'}</button> <button class="btn btn-danger" onclick="deleteAccount('${escJs(a.id)}')">Xóa</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty">Chưa có tài khoản nhân viên hoặc quản lý</div></td></tr>'}
+  <div class="account-toolbar"><div><div style="font-size:13px;color:#667085">Quản lý tài khoản nhân viên và quản lý; liên kết tài khoản với hồ sơ nhân viên tại cột tương ứng.</div></div><button class="btn btn-primary" onclick="openCreateAccount()">＋ Tạo tài khoản</button></div>
+  ${loadMessage?'<div class="empty" style="color:#b42318">'+esc(loadMessage)+'</div>':''}
+  <div class="card table-wrap"><table class="account-table"><thead><tr><th>ID</th><th>Họ và tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th>Hồ sơ nhân viên liên kết</th><th>Phân quyền</th><th>Thao tác</th></tr></thead><tbody>
+   <tr><td><span class="account-id">ADMIN001</span></td><td>Quản trị viên</td><td>admin</td><td>Admin</td><td><span class="status-active">Hoạt động</span></td><td>Không áp dụng</td><td><button class="btn btn-secondary" onclick="openPermissions('ADMIN001')">Xem quyền</button></td><td><button class="btn btn-secondary" onclick="openResetPassword('ADMIN001')">Reset mật khẩu</button></td></tr>
+   ${accounts.length?accounts.map(a=>`<tr><td><span class="account-id">${escJs(a.id)}</span></td><td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.role)}</td><td><span class="${a.status==='Hoạt động'?'status-active':'status-locked'}">${esc(a.status)}</span></td><td>${a.isSupabaseAuth?'<select class="field" id="accountEmployeeLink_'+escJs(a.id)+'" style="min-width:220px">'+employeeOptions(a.employeeId)+'</select> <button class="btn btn-secondary" onclick="saveAccountEmployeeLink(\''+escJs(a.id)+'\')">Lưu liên kết</button>':esc(a.employeeId||'—')}</td><td><button class="btn btn-secondary" onclick="openPermissions('${escJs(a.id)}')">Phân quyền</button></td><td><button class="btn btn-secondary" onclick="openResetPassword('${escJs(a.id)}')">Reset MK</button></td></tr>`).join(''):'<tr><td colspan="8"><div class="empty">Không tìm thấy tài khoản trong profiles trên Supabase.</div></td></tr>'}
   </tbody></table></div>`;
+}
+async function saveAccountEmployeeLink(profileId){
+ if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
+ const select=document.getElementById('accountEmployeeLink_'+profileId);
+ if(!select)return;
+ const raw=select.value;
+ const employeeId=raw===''?null:Number(raw);
+ if(raw!==''&&(!Number.isInteger(employeeId)||employeeId<=0))return alert('ID hồ sơ nhân viên không hợp lệ.');
+ const selected=raw===''?null:(state.employees||[]).find(e=>String(e.id)===String(raw)||String(e.backendId)===String(raw));
+ if(raw!==''&&!selected)return alert('Không tìm thấy hồ sơ nhân viên đã chọn.');
+ const {error}=await supabaseClient.from('profiles').update({employee_id:employeeId}).eq('id',profileId);
+ if(error){alert('Không thể lưu liên kết hồ sơ nhân viên: '+error.message);return;}
+ const {data:check,error:checkError}=await supabaseClient.from('profiles').select('id,employee_id').eq('id',profileId).maybeSingle();
+ if(checkError){alert('Đã gửi cập nhật nhưng không thể xác minh: '+checkError.message);return;}
+ if(!check||String(check.employee_id??'')!==String(employeeId??'')){alert('Chưa xác minh được liên kết sau khi lưu. Kiểm tra quyền RLS và dữ liệu profiles.');return;}
+ alert('Đã lưu và xác minh liên kết hồ sơ nhân viên.');
+ await adminAccountPage(document.getElementById('content'));
 }
 function openCreateAccount(){
   openModal('Tạo tài khoản',`
