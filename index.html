@@ -1684,7 +1684,8 @@ function saveService(code,editing){
  saveState();closeModal();servicePage(document.getElementById('content'));
 }
 function productPage(c){
-  const products=Array.isArray(state.products)?state.products:[];
+  // The goods list must exclude service and therapy-package records; those have their own screens.
+  const products=(Array.isArray(state.products)?state.products:[]).filter(p=>!['Dịch vụ','Gói dịch vụ, liệu trình'].includes(String(p.type||'').trim()));
   const groups=[...new Set(products.map(x=>x.group||'').filter(Boolean))];
   const rows=products.map(p=>'<tr><td><input type="checkbox" class="product-check" data-code="'+esc(p.code)+'"></td><td><b>'+esc(p.code)+'</b></td><td>'+esc(p.name||'')+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.group||'')+'</td><td>'+esc(p.unit||'')+'</td><td>'+((p.type==='Dịch vụ'||p.type==='Gói dịch vụ, liệu trình')?'—':Number(p.stock||0))+'</td><td>'+money(Number(p.price)||0)+' ₫</td><td>'+esc(p.vat==null?10:p.vat)+'%</td><td>'+esc(p.status||'Đang kinh doanh')+'</td><td><button class="btn btn-secondary" onclick="openProduct(\''+esc(p.code)+'\')">Sửa</button> <button class="btn btn-danger" onclick="deleteProduct(\''+esc(p.code)+'\')">Xóa</button></td></tr>').join('');
   c.innerHTML='<div class="page-title">Danh sách hàng hóa</div><div class="toolbar"><input class="search" id="productSearch" placeholder="🔍 Tìm mã, tên, barcode..." oninput="filterProductTable()"><button class="btn btn-primary" onclick="openProduct()">＋ Thêm hàng hóa</button></div><div class="card table-wrap"><table><thead><tr><th><input type="checkbox" id="productCheckAll" onchange="toggleAllProducts(this.checked)"></th><th>Mã</th><th>Tên hàng hóa</th><th>Loại</th><th>Nhóm hàng</th><th>Đơn vị</th><th>Tồn kho</th><th>Giá bán</th><th>VAT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="productTableBody">'+(rows||'<tr><td colspan="11"><div class="empty">Chưa có hàng hóa</div></td></tr>')+'</tbody></table></div>';
@@ -3668,7 +3669,7 @@ function openProduct(code){
  const editing=!!code;
  const p=editing?state.products.find(x=>x.code===code):null;
  if(editing&&!p)return;
- const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Dịch vụ',group:'Mỹ phẩm',unit:'Cái',pre:0,vat:10,price:0,cost:0,stock:'---',status:'Đang kinh doanh'};
+ const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Hàng hóa',group:'Mỹ phẩm',unit:'Cái',pre:0,vat:10,price:0,cost:0,stock:0,status:'Đang kinh doanh'};
  document.getElementById('productGroup')&&(document.getElementById('productGroup').value=product.group||'Mỹ phẩm');
  openModal(editing?'Sửa hàng hóa':'Thêm hàng hóa',`
    <div class="form-grid">
@@ -3682,6 +3683,10 @@ function openProduct(code){
    </div>`,
    `<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProduct('${escJs(product.code)}',${editing})">Lưu</button>`
  );
+ const typeEl=document.getElementById('productType'); if(typeEl) typeEl.value=product.type||'Hàng hóa';
+ const groupEl=document.getElementById('productGroup'); if(groupEl) groupEl.value=product.group||'Mỹ phẩm';
+ const unitEl=document.getElementById('productUnit'); if(unitEl) unitEl.value=product.unit||'Cái';
+ const statusEl=document.getElementById('productStatus'); if(statusEl) statusEl.value=product.status||'Đang kinh doanh';
  const vatEl=document.getElementById('productVat'); if(vatEl) vatEl.value=String(Number(product.vat)||0);
  calculateProductPreTax();
 }
