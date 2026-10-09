@@ -967,11 +967,61 @@ function showLoginFieldError(inputId,errorId,message){
  if(input){input.setAttribute('aria-invalid','true');input.focus();}
  if(error){error.textContent=message;error.classList.add('show');}
 }
-function login(){
+function activateLoggedInUser(account){
+ ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
+ state.currentUser=account;
+ state.section='Tổng quan';
+ state.page='Tổng quan';
+ const screen=document.getElementById('loginScreen');
+ if(screen)screen.style.display='none';
+ renderAll();
+}
+function backendRoleName(roleId, roleName){
+ const names={1:'Admin',2:'Thu ngân',3:'Nhân viên'};
+ if(names[Number(roleId)])return names[Number(roleId)];
+ if(/quản trị/i.test(String(roleName||'')))return 'Admin';
+ if(/quản lý/i.test(String(roleName||'')))return 'Quản lý';
+ if(/thu ngân/i.test(String(roleName||'')))return 'Thu ngân';
+ return 'Nhân viên';
+}
+async function accountFromSupabaseAuth(authUser, typedUsername){
+ const {data:profile,error:profileError}=await supabaseClient
+   .from('profiles')
+   .select('id,employee_id,full_name,username,role_id,is_active')
+   .eq('id',authUser.id)
+   .maybeSingle();
+ if(profileError)throw new Error('Không đọc được hồ sơ profiles: '+profileError.message);
+ if(!profile)throw new Error('Tài khoản đã xác thực nhưng chưa có hồ sơ trong profiles.');
+ if(profile.is_active!==true)throw new Error('Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.');
+ let roleName='';
+ const {data:roleData,error:roleError}=await supabaseClient
+   .from('roles')
+   .select('name')
+   .eq('id',profile.role_id)
+   .maybeSingle();
+ if(!roleError&&roleData)roleName=roleData.name||'';
+ const role=backendRoleName(profile.role_id,roleName);
+ const account={
+   id:profile.id,
+   authUserId:authUser.id,
+   employeeId:profile.employee_id,
+   name:profile.full_name||profile.username||typedUsername,
+   username:profile.username||typedUsername,
+   role,
+   roleId:profile.role_id,
+   status:'Hoạt động',
+   permissions:defaultPermissions(role),
+   isSupabaseAuth:true
+ };
+ const idx=state.accounts.findIndex(a=>String(a.id)===String(account.id));
+ if(idx>=0)state.accounts[idx]={...state.accounts[idx],...account};
+ else state.accounts.push(account);
+ return account;
+}
+async function login(){
  clearLoginErrors();
  const username=(document.getElementById('loginUsername')?.value||'').trim();
  const password=document.getElementById('loginPassword')?.value||'';
- const error=document.getElementById('loginError');
  if(!username){
    showLoginFieldError('loginUsername','loginUsernameError','Vui lòng nhập tên đăng nhập.');
    return;
@@ -980,49 +1030,57 @@ function login(){
    showLoginFieldError('loginPassword','loginPasswordError','Vui lòng nhập mật khẩu.');
    return;
  }
- const account=state.accounts.find(a=>String(a.username||'').toLowerCase()===username.toLowerCase());
- if(!account){
-   showLoginFieldError('loginUsername','loginUsernameError','Tên đăng nhập hoặc mật khẩu không đúng.');
-   return;
- }
- const now=Date.now();
- if(account.lockedUntil && now<account.lockedUntil){
-   const mins=Math.ceil((account.lockedUntil-now)/60000);
-   showLoginFieldError('loginUsername','loginUsernameError','Tài khoản đang bị khóa tạm thời. Thử lại sau '+mins+' phút.');
-   return;
- }
- if(account.status!=='Hoạt động'){
-   showLoginFieldError('loginUsername','loginUsernameError','Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.');
-   return;
- }
- if(account.password!==password){
-   account.failedLoginAttempts=(account.failedLoginAttempts||0)+1;
-   if(account.failedLoginAttempts>=5){
-     account.lockedUntil=Date.now()+15*60*1000;
-     account.failedLoginAttempts=0;
-     saveState();
-     showLoginFieldError('loginPassword','loginPasswordError','Sai mật khẩu quá 5 lần. Tài khoản bị khóa tạm thời 15 phút.');
-   }else{
-     saveState();
-     showLoginFieldError('loginPassword','loginPasswordError','Tên đăng nhập hoặc mật khẩu không đúng. Còn '+(5-account.failedLoginAttempts)+' lần thử.');
+ const submit=document.querySelector('#loginForm button[type="submit"]');
+ if(submit){submit.disabled=true;submit.textContent='Đang xác thực...';}
+ try{
+   const {data,error}=await supabaseClient.auth.signInWithPassword({email:username,password});
+   if(!error&&data?.user){
+     try{
+       const account=await accountFromSupabaseAuth(data.user,username);
+       activateLoggedInUser(account);
+       return;
+     }catch(profileError){
+       await supabaseClient.auth.signOut();
+       showLoginFieldError('loginUsername','loginUsernameError',profileError.message||'Không thể tải hồ sơ người dùng.');
+       return;
+     }
    }
-   return;
+   const demoAdmin=state.accounts.find(a=>a.isDemo&&String(a.username||'').toLowerCase()==='admin');
+   if(username.toLowerCase()==='admin'&&demoAdmin&&demoAdmin.password===password){
+     activateLoggedInUser(demoAdmin);
+     return;
+   }
+   showLoginFieldError('loginPassword','loginPasswordError','Tên đăng nhập hoặc mật khẩu không đúng.');
+ }catch(e){
+   showLoginFieldError('loginPassword','loginPasswordError','Không thể kết nối dịch vụ đăng nhập. Vui lòng thử lại.');
+   console.error('Supabase login error:',e);
+ }finally{
+   if(submit){submit.disabled=false;submit.textContent='Đăng nhập';}
  }
- account.failedLoginAttempts=0; account.lockedUntil=null; saveState();
- ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
- document.getElementById('loginScreen').style.display='none';
- state.currentUser=account;state.section='Tổng quan';state.page='Tổng quan';renderAll();
+}
+async function restoreSupabaseSession(){
+ try{
+   const {data,error}=await supabaseClient.auth.getSession();
+   if(error||!data?.session?.user)return false;
+   const account=await accountFromSupabaseAuth(data.session.user,data.session.user.email||'');
+   activateLoggedInUser(account);
+   return true;
+ }catch(e){
+   console.warn('Không khôi phục được phiên đăng nhập Supabase:',e);
+   await supabaseClient.auth.signOut();
+   return false;
+ }
 }
 function initLogin(){
-  // Không tự đăng nhập từ localStorage. Đây là bản demo client-side;
-  // bản production phải xác thực bằng session/token do server cấp.
-  ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
-  const input=document.getElementById('loginUsername');
-  if(input) input.value='';
-  const password=document.getElementById('loginPassword');
-  if(password) password.value='';
-  clearLoginErrors();
-  return false;
+ ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
+ state.currentUser=null;
+ const input=document.getElementById('loginUsername');
+ if(input)input.value='';
+ const password=document.getElementById('loginPassword');
+ if(password)password.value='';
+ clearLoginErrors();
+ restoreSupabaseSession();
+ return false;
 }
 function money(n){return new Intl.NumberFormat('vi-VN').format(n||0)}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
@@ -2439,7 +2497,8 @@ function renderUserSession(){
  el.innerHTML='<div class="user-session-avatar">'+esc(initial)+'</div><div class="user-session-info"><span class="user-session-name">'+esc(name)+'</span><span class="user-session-role">'+esc(role)+'</span></div>';
  const title=document.getElementById('userMenuTitle');if(title)title.textContent=name+' · '+role;
 }
-function logout(){
+async function logout(){
+ try{await supabaseClient.auth.signOut();}catch(e){console.warn('Supabase sign-out error:',e);}
  localStorage.removeItem('spa_pos_username');
  localStorage.removeItem('spa_pos_remember_username');
  localStorage.removeItem('spa_pos_role');
