@@ -613,7 +613,6 @@ const navigation=[
   {id:'seller-profile',label:'Hồ sơ đơn vị bán',page:'Hồ sơ đơn vị bán'},
   {id:'accounts',label:'Quản lý tài khoản',page:'Quản lý tài khoản',permission:'Quản lý tài khoản'},
   {id:'permissions',label:'Phân quyền User',page:'Phân quyền User',permission:'Phân quyền User'},
-  {id:'demo-data',label:'Dữ liệu mẫu',page:'Dữ liệu mẫu'},
   {id:'transaction-lock',label:'Khóa kỳ giao dịch',page:'Khóa kỳ giao dịch',permission:'Khóa kỳ sổ quỹ'},
   {id:'audit',label:'Nhật ký thao tác',page:'Nhật ký thao tác',permission:'Khóa kỳ sổ quỹ'}
  ]}
@@ -1945,7 +1944,6 @@ function renderPage(){
   if(state.page==='Kiểm tra dữ liệu') return dataCheckPage(c);
   if(state.page==='Kho hàng') return inventoryPage(c);
   if(state.page==='Bộ báo cáo chuẩn') return standardReportsPage(c);
-  if(state.page==='Dữ liệu mẫu') return demoDataPage(c);
   if(state.page==='Khóa kỳ giao dịch') return transactionLockPage(c);
   if(state.page==='Nhật ký thao tác') return auditLogPage(c);
   if(state.page.startsWith('Báo cáo')) return reportPage(c);
