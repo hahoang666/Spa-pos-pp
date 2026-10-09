@@ -725,7 +725,8 @@ async function refreshCurrentShift(){
   state.backendShiftLoaded=true;
   return state.currentBackendShift;
  }catch(e){
-  state.backendShiftLoaded=false;
+  state.currentBackendShift=null;
+  state.backendShiftLoaded=true;
   console.error('Không tải được ca hiện tại từ backend:',e);
   return null;
  }
