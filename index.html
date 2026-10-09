@@ -339,6 +339,7 @@ body.cashier-mode .content{padding:0!important;margin:0!important;max-width:none
       <span class="global-search-kbd">Ctrl K</span>
       <div id="globalSearchResults" class="global-search-results"></div>
     </div>
+    <button class="topbar-action-primary" id="shiftActionButton" onclick="handleShiftAction()">🔓 Mở ca</button>
     <button class="topbar-action-primary" onclick="openCashierProtected()">🛒 Bán hàng</button>
     <div class="notification-wrap">
       <button class="iconbtn" title="Thông báo" onclick="toggleNotifications()">🔔<span class="notification-badge" id="notificationBadge">0</span></button>
@@ -704,9 +705,55 @@ function defaultPermissions(role){
   if(role==='Quản lý') return allPermissions.filter(p=>!['Quản lý tài khoản','Phân quyền User'].includes(p));
   return ['Xem Dashboard','Xem hóa đơn','Tạo hóa đơn','Xem thanh toán','Sử dụng thu ngân','Xem khách hàng','Thêm khách hàng','Xem sản phẩm','Xem sổ quỹ'];
 }
+function mapBackendShift(row){
+ if(!row||typeof row!=='object')return null;
+ return {
+  id:row.id,code:row.code||('CA-'+row.id),date:localDateKey(row.opened_at||new Date()),
+  openedAt:row.opened_at||'',openedBy:row.opened_by||'',openedByName:state.currentUser?.name||state.currentUser?.username||'',
+  openingCash:Number(row.opening_cash)||0,expectedCash:Number(row.expected_cash)||0,
+  actualCash:row.actual_cash==null?undefined:Number(row.actual_cash),difference:Number(row.difference)||0,
+  closedAt:row.closed_at||'',closedBy:row.closed_by||'',status:row.status==='OPEN'?'Đang mở':row.status==='CLOSED'?'Đã chốt':String(row.status||'')
+ };
+}
+async function refreshCurrentShift(){
+ if(!state.currentUser||!state.currentUser.isSupabaseAuth){state.currentBackendShift=null;state.backendShiftLoaded=false;return null;}
+ try{
+  const {data,error}=await supabaseClient.rpc('get_current_shift');
+  if(error)throw error;
+  const row=Array.isArray(data)?data[0]:data;
+  state.currentBackendShift=mapBackendShift(row);
+  state.backendShiftLoaded=true;
+  return state.currentBackendShift;
+ }catch(e){
+  state.backendShiftLoaded=false;
+  console.error('Không tải được ca hiện tại từ backend:',e);
+  return null;
+ }
+}
 function getOpenShift(){
+ if(state.backendShiftLoaded)return state.currentBackendShift?.status==='Đang mở'?state.currentBackendShift:null;
  const today=localDateKey(new Date());
  return (state.shifts||[]).find(x=>x.date===today&&x.status==='Đang mở')||null;
+}
+function shiftRpcErrorMessage(error){
+ const msg=String(error?.message||error?.details||error||'');
+ const known={
+  'AUTH_REQUIRED':'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
+  'FORBIDDEN':'Tài khoản chưa được cấp quyền mở hoặc chốt ca.',
+  'SHIFT_ALREADY_OPEN':'Bạn đã có ca đang mở.',
+  'INVALID_OPENING_CASH':'Tiền đầu ca không hợp lệ.',
+  'INVALID_ACTUAL_CASH':'Tiền mặt thực tế không hợp lệ.',
+  'SHIFT_NOT_FOUND':'Không tìm thấy ca trên hệ thống.',
+  'SHIFT_NOT_OPEN':'Ca này đã được chốt hoặc không còn mở.'
+ };
+ const key=Object.keys(known).find(k=>msg.includes(k));
+ return key?known[key]:'Không thể thực hiện thao tác ca: '+msg;
+}
+async function handleShiftAction(){
+ if(!state.currentUser)return alert('Vui lòng đăng nhập trước.');
+ await refreshCurrentShift();
+ renderAppContext();
+ if(getOpenShift())openCloseShift();else openShift();
 }
 function requireOpenShift(action='thực hiện giao dịch'){
  const sh=getOpenShift();
@@ -975,9 +1022,12 @@ function activateLoggedInUser(account){
  state.currentUser=account;
  state.section='Tổng quan';
  state.page='Tổng quan';
+ state.currentBackendShift=null;
+ state.backendShiftLoaded=false;
  const screen=document.getElementById('loginScreen');
  if(screen)screen.style.display='none';
  renderAll();
+ refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
 }
 function backendRoleName(roleId, roleName){
  const names={1:'Admin',2:'Thu ngân',3:'Nhân viên'};
@@ -1360,33 +1410,38 @@ function saveCommissionRules(){
 
 function shiftClosePage(c){
  const shifts=Array.isArray(state.shifts)?state.shifts:[];
- const today=localDateKey(new Date());
- const open=shifts.find(x=>x.date===today&&x.status==='Đang mở');
- const rows=shifts.slice().reverse().map(x=>'<tr><td>'+esc(x.id)+'</td><td>'+esc(x.date)+'</td><td>'+esc(x.openedByName||x.openedBy||'')+'</td><td>'+money(x.openingCash||0)+' ₫</td><td>'+money(x.totalIncome||0)+' ₫</td><td>'+money(x.totalExpense||0)+' ₫</td><td>'+money(x.expectedCash||0)+' ₫</td><td>'+money(x.actualCash||0)+' ₫</td><td>'+money(x.difference||0)+' ₫</td><td>'+esc(x.status)+'</td></tr>').join('');
- c.innerHTML=header('Đóng ca / Chốt quỹ',open?'Chốt ca':'Mở ca',open?'openCloseShift()':'openShift()')+'<div class="card" style="margin-bottom:12px;padding:16px"><b>'+ (open?'Ca hiện tại đang mở':'Hôm nay chưa có ca đang mở') +'</b>'+(open?'<div style="margin-top:8px">Tiền đầu ca: <b>'+money(open.openingCash||0)+' ₫</b> · Thu: <b>'+money(open.totalIncome||0)+' ₫</b> · Chi: <b>'+money(open.totalExpense||0)+' ₫</b></div>':'')+'</div><div class="card table-wrap"><table><thead><tr><th>Mã ca</th><th>Ngày</th><th>Người mở</th><th>Đầu ca</th><th>Tổng thu</th><th>Tổng chi</th><th>Tiền mặt dự kiến</th><th>Tiền mặt thực tế</th><th>Chênh lệch</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="10"><div class="empty">Chưa có ca</div></td></tr>')+'</tbody></table></div>';
+ const open=getOpenShift();
+ const rows=[...shifts.filter(x=>x.status!=='Đang mở'),...(open?[open]:[])].slice().reverse().map(x=>'<tr><td>'+esc(x.code||x.id)+'</td><td>'+esc(x.date||'')+'</td><td>'+esc(x.openedByName||x.openedBy||'')+'</td><td>'+money(x.openingCash||0)+' ₫</td><td>'+money(x.totalIncome||0)+' ₫</td><td>'+money(x.totalExpense||0)+' ₫</td><td>'+money(x.expectedCash||0)+' ₫</td><td>'+money(x.actualCash||0)+' ₫</td><td>'+money(x.difference||0)+' ₫</td><td>'+esc(x.status)+'</td></tr>').join('');
+ c.innerHTML=header('Đóng ca / Chốt quỹ',open?'Chốt ca':'Mở ca',open?'openCloseShift()':'openShift()')+'<div class="card" style="margin-bottom:12px;padding:16px"><b>'+ (open?'Ca hiện tại đang mở':'Hôm nay chưa có ca đang mở') +'</b>'+(open?'<div style="margin-top:8px">Mã ca: <b>'+esc(open.code||open.id)+'</b> · Tiền đầu ca: <b>'+money(open.openingCash||0)+' ₫</b> · Tiền mặt dự kiến từ backend: <b>'+money(open.expectedCash||0)+' ₫</b></div>':'')+'</div><div class="card table-wrap"><table><thead><tr><th>Mã ca</th><th>Ngày</th><th>Người mở</th><th>Đầu ca</th><th>Tổng thu</th><th>Tổng chi</th><th>Tiền mặt dự kiến</th><th>Tiền mặt thực tế</th><th>Chênh lệch</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="10"><div class="empty">Chưa có ca</div></td></tr>')+'</tbody></table></div>';
 }
 function openShift(){
- if(!hasPermission('Mở ca'))return alert('Bạn không có quyền mở ca.');
- state.shifts=Array.isArray(state.shifts)?state.shifts:[];const today=localDateKey(new Date());
- if(state.shifts.some(x=>x.date===today&&x.status==='Đang mở'))return alert('Đã có ca đang mở hôm nay.');
- const prev=([...state.shifts].filter(x=>x.status==='Đã chốt'&&x.actualCash!==undefined).sort((a,b)=>new Date(b.closedAt||0)-new Date(a.closedAt||0))[0]); const inherited=prev?Number(prev.actualCash||0):0;
- openModal('Mở ca','<div class="form-grid"><div><label>Tiền đầu ca</label><input id="openingCash" class="field" type="number" min="0" placeholder="'+money(inherited)+'" value="'+inherited+'"><small>Đầu ca mặc định kế thừa tiền thực tế cuối ca trước: '+money(inherited)+' ₫</small></div><div class="full"><label>Lý do nếu sửa đầu ca</label><textarea id="shiftNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveOpenShift()">Mở ca</button>');
-}
-function saveOpenShift(){
- if(!hasPermission('Mở ca'))return alert('Bạn không có quyền mở ca.');
- state.shifts=Array.isArray(state.shifts)?state.shifts:[];
- const prev=[...state.shifts].filter(x=>x.status==='Đã chốt'&&x.actualCash!==undefined).sort((a,b)=>new Date(b.closedAt||0)-new Date(a.closedAt||0))[0];
+ if(!state.currentUser)return alert('Vui lòng đăng nhập trước.');
+ const prev=([...((state.shifts)||[])].filter(x=>x.status==='Đã chốt'&&x.actualCash!==undefined).sort((a,b)=>new Date(b.closedAt||0)-new Date(a.closedAt||0))[0]);
  const inherited=prev?Number(prev.actualCash||0):0;
- const raw=document.getElementById('openingCash').value.trim();
- const amount=raw===''?inherited:Number(raw);
+ openModal('Mở ca','<div class="form-grid"><div><label>Tiền đầu ca (₫)</label><input id="openingCash" class="field" type="number" min="0" step="1" value="'+inherited+'"><small>Backend sẽ kiểm tra quyền và lưu ca. Nếu tài khoản chưa được cấp quyền, hệ thống sẽ báo lỗi.</small></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="saveOpenShiftButton" onclick="saveOpenShift()">Mở ca</button>');
+}
+async function saveOpenShift(){
+ if(!state.currentUser)return alert('Vui lòng đăng nhập lại.');
+ const button=document.getElementById('saveOpenShiftButton');
+ const raw=document.getElementById('openingCash')?.value.trim()||'';
+ const amount=raw===''?0:Number(raw);
  if(!Number.isFinite(amount)||amount<0)return alert('Tiền đầu ca không hợp lệ.');
- const note=document.getElementById('shiftNote').value.trim();
- const manual=raw!==''&&amount!==inherited;
- if(manual&&!note)return alert('Sửa tiền đầu ca phải nhập lý do.');
- if(manual&&!hasPermission('Phê duyệt'))return alert('Sửa tiền đầu ca phải được phê duyệt.');
- const today=localDateKey(new Date());
- state.shifts.push({id:nextAutoCode('CA',6,'spa_next_shift_id',state.shifts,'id'),date:today,openedAt:new Date().toISOString(),openedBy:state.currentUser?.id||'',openedByName:state.currentUser?.name||state.currentUser?.username||'',openingCash:amount,inheritedOpeningCash:inherited,openingCashOverride:manual,openingCashReason:manual?note:'',openingCashApprovedBy:manual?(state.currentUser?.id||''):'',status:'Đang mở',note,totalIncome:0,totalExpense:0});
- auditCashbook('Mở ca',null,{openingCash:amount,inheritedOpeningCash:inherited,openingCashOverride:manual},manual?note:'Kế thừa cuối ca trước'); saveState();closeModal();shiftClosePage(document.getElementById('content'));alert('Đã mở ca. Tiền đầu ca: '+money(amount)+' ₫.');
+ if(button){button.disabled=true;button.textContent='Đang mở ca...';}
+ try{
+  const {data,error}=await supabaseClient.rpc('open_shift',{p_opening_cash:amount});
+  if(error)throw error;
+  const row=Array.isArray(data)?data[0]:data;
+  if(row)state.currentBackendShift=mapBackendShift(row);
+  state.backendShiftLoaded=true;
+  closeModal();
+  await refreshCurrentShift();
+  renderAppContext();
+  shiftClosePage(document.getElementById('content'));
+  alert('Đã mở ca thành công trên hệ thống.');
+ }catch(e){
+  alert(shiftRpcErrorMessage(e));
+  if(button){button.disabled=false;button.textContent='Mở ca';}
+ }
 }
 function cashbookPeriodRange(mode,from,to){
  const now=new Date(), today=localDateKey(now);
@@ -1480,17 +1535,14 @@ function cashbookPage(c){
  c.innerHTML=`<div class="page-title">Sổ quỹ & tiền gửi</div><div class="card report"><h3>Theo quỹ</h3><p class="dashboard-note">Số dư cuối = số dư đầu kỳ + phát sinh kể từ ngày bắt đầu sử dụng.</p><table><thead><tr><th>Quỹ</th><th>Đầu kỳ</th><th>Phát sinh</th><th>Cuối kỳ</th></tr></thead><tbody>${fundRows}</tbody></table></div><div class="card report" style="margin-top:15px"><h3>Theo category</h3><table><thead><tr><th>Category</th><th style="text-align:right">Thuần</th></tr></thead><tbody>${catRows}</tbody></table></div><div class="card report" style="margin-top:15px"><table><thead><tr><th>Số chứng từ</th><th>Ngày giao dịch</th><th>Loại</th><th>Category</th><th>Quỹ</th><th>Đối tượng</th><th>Số tiền</th><th>Ca</th><th>Ghi chú</th><th>Đảo</th><th>Thao tác</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function openCloseShift(){
- if(!hasPermission('Chốt quỹ'))return alert('Bạn không có quyền chốt quỹ.');
  const sh=getOpenShift();if(!sh)return alert('Không có ca đang mở.');
- const start=new Date(sh.openedAt),cash=(state.cashbook||[]).filter(x=>x.shiftId===sh.id||(new Date(x.createdAt||0)>=start&&!x.shiftId));
+ const start=new Date(sh.openedAt||Date.now()),cash=(state.cashbook||[]).filter(x=>x.shiftId===sh.id||(new Date(x.createdAt||0)>=start&&!x.shiftId));
  const income=cash.filter(x=>x.type==='thu').reduce((a,x)=>a+Number(x.amount||0),0);
  const expense=cash.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0);
- const cashIncome=cash.filter(x=>x.type==='thu'&&normalizePaymentMethod(x.paymentMethod||'Tiền mặt')==='Tiền mặt').reduce((a,x)=>a+Number(x.amount||0),0);
- const cashExpense=cash.filter(x=>x.type==='chi'&&normalizePaymentMethod(x.paymentMethod||'Tiền mặt')==='Tiền mặt').reduce((a,x)=>a+Number(x.amount||0),0);
- const expected=(Number(sh.openingCash)||0)+cashIncome-cashExpense;
+ const expected=Number(sh.expectedCash??sh.openingCash)||0;
  const denoms=[500000,200000,100000,50000,20000,10000,5000,2000,1000];
  const fields=denoms.map(v=>'<label>'+money(v)+' ₫<input id="denom_'+v+'" class="field" type="number" min="0" step="1" value="0" oninput="recalcDenomTotal()"></label>').join('');
- openModal('Chốt quỹ','<div class="form-grid"><div><label>Tiền mặt dự kiến</label><input class="field" value="'+money(expected)+' ₫" disabled></div><div><label>Tiền mặt thực tế</label><input id="actualCash" class="field" type="number" min="0" readonly></div><div class="full"><label>Số tờ theo mệnh giá</label><div class="form-grid">'+fields+'</div><div id="denomTotal" class="dashboard-note">Tiền thực tế: 0 ₫</div></div><div><label>Tổng thu</label><input class="field" value="'+money(income)+' ₫" disabled></div><div><label>Tổng chi</label><input class="field" value="'+money(expense)+' ₫" disabled></div><div class="full"><label>Ghi chú</label><textarea id="closeNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCloseShift()">Chốt quỹ</button>');
+ openModal('Đóng ca / Chốt quỹ','<div class="form-grid"><div><label>Tiền mặt dự kiến (backend)</label><input class="field" value="'+money(expected)+' ₫" disabled></div><div><label>Tiền mặt thực tế</label><input id="actualCash" class="field" type="number" min="0" readonly></div><div class="full"><label>Số tờ theo mệnh giá</label><div class="form-grid">'+fields+'</div><div id="denomTotal" class="dashboard-note">Tiền thực tế: 0 ₫</div></div><div><label>Tổng thu ghi nhận tại giao diện</label><input class="field" value="'+money(income)+' ₫" disabled></div><div><label>Tổng chi ghi nhận tại giao diện</label><input class="field" value="'+money(expense)+' ₫" disabled></div><div class="full"><label>Ghi chú</label><textarea id="closeNote" class="field"></textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="saveCloseShiftButton" onclick="saveCloseShift()">Đóng ca / Chốt quỹ</button>');
  window._closingShift={sh,income,expense,expected};
 }
 function recalcDenomTotal(){
@@ -1500,18 +1552,31 @@ function recalcDenomTotal(){
  const label=document.getElementById('denomTotal');if(label)label.textContent='Tiền thực tế: '+money(total)+' ₫';
  return total;
 }
-function saveCloseShift(){
- if(!hasPermission('Chốt quỹ'))return alert('Bạn không có quyền chốt quỹ.');
+async function saveCloseShift(){
  const x=window._closingShift;if(!x)return;
  const d=recalcDenomTotal();if(!Number.isFinite(d)||d<0)return alert('Tiền thực tế không hợp lệ.');
- const note=document.getElementById('closeNote').value.trim(); const diff=d-x.expected;
+ const note=document.getElementById('closeNote')?.value.trim()||'';
+ const diff=d-x.expected;
  if(Math.abs(diff)>0.000001&&!note)return alert('Bắt buộc ghi chú khi thừa hoặc thiếu quỹ.');
- if(Math.abs(diff)>0.000001){
-   const row=addCashMovement({type:diff>0?'thu':'chi',amount:Math.abs(diff),paymentMethod:'Tiền mặt',subject:diff>0?'Thừa quỹ':'Thiếu quỹ',referenceId:x.sh.id,note,category:diff>0?'Thừa quỹ':'Thiếu quỹ',txnDate:localTxnDate()});
-   if(!row)return;
+ const button=document.getElementById('saveCloseShiftButton');
+ if(button){button.disabled=true;button.textContent='Đang chốt ca...';}
+ try{
+  const {data,error}=await supabaseClient.rpc('close_shift',{p_shift_id:Number(x.sh.id),p_actual_cash:d});
+  if(error)throw error;
+  const row=Array.isArray(data)?data[0]:data;
+  state.lastBackendShift=row||null;
+  state.currentBackendShift=null;
+  state.backendShiftLoaded=true;
+  window._closingShift=null;
+  closeModal();
+  await refreshCurrentShift();
+  renderAppContext();
+  shiftClosePage(document.getElementById('content'));
+  alert('Đã đóng ca / chốt quỹ thành công trên backend.'+(row&&row.difference!=null?'\nChênh lệch theo backend: '+money(Number(row.difference))+' ₫':''));
+ }catch(e){
+  alert(shiftRpcErrorMessage(e));
+  if(button){button.disabled=false;button.textContent='Đóng ca / Chốt quỹ';}
  }
- Object.assign(x.sh,{closedAt:new Date().toISOString(),closedBy:state.currentUser?.id||'',totalIncome:x.income,totalExpense:x.expense,expectedCash:x.expected,actualCash:d,difference:d-x.expected,denominationCounts:Object.fromEntries([500000,200000,100000,50000,20000,10000,5000,2000,1000].map(v=>[v,Number(document.getElementById('denom_'+v)?.value)||0])),status:'Đã chốt',closeNote:note});
- auditCashbook('Chốt quỹ',x.sh,{...x.sh,actualCash:d,difference:d-x.expected},'Chốt ca'); saveState();window._closingShift=null;closeModal();shiftClosePage(document.getElementById('content'));alert('Đã chốt quỹ.');
 }
 
 function materialStockPage(c){
@@ -2480,6 +2545,7 @@ function getTopbarNotifications(){
 function renderAppContext(){
  const ctx=document.getElementById('appContext');
  const badge=document.getElementById('shiftBadge');
+ const shiftButton=document.getElementById('shiftActionButton');
  const trail=getNavigationTrail();
  if(ctx)ctx.innerHTML='<span class="app-context-title">'+esc(trail.page)+'</span>'+(trail.item?'<span class="app-context-sep">/</span><span class="app-context-crumb">'+esc(trail.group)+'</span>':'');
  const open=!!getOpenShift(), income=getCurrentShiftCashIncome();
@@ -2487,6 +2553,11 @@ function renderAppContext(){
   badge.classList.toggle('open',open);
   badge.innerHTML='<span class="shift-dot"></span><span class="shift-label">'+(open?'Ca đang mở · '+money(income/1000000)+'tr':'Ca đã đóng')+'</span>';
   badge.title=open?'Bấm để chốt ca':'Bấm để mở ca';
+ }
+ if(shiftButton){
+  shiftButton.textContent=open?'🔒 Đóng ca / Chốt quỹ':'🔓 Mở ca';
+  shiftButton.title=open?'Chốt ca hiện tại':'Mở ca thu ngân';
+  shiftButton.setAttribute('aria-label',shiftButton.textContent);
  }
  renderTopbarNotifications();
 }
@@ -2507,6 +2578,8 @@ function renderUserSession(){
  const title=document.getElementById('userMenuTitle');if(title)title.textContent=name+' · '+role;
 }
 async function logout(){
+ state.currentBackendShift=null;
+ state.backendShiftLoaded=false;
  const rememberLogin=document.getElementById('rememberLogin');
  const loginUsername=document.getElementById('loginUsername');
  const shouldRemember=!!rememberLogin?.checked;
