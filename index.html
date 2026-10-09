@@ -2663,7 +2663,7 @@ document.addEventListener('click',function(e){
   const actionEl=e.target.closest('[data-action="toolbar-action"]');
   if(actionEl){
     e.preventDefault();
-    const actionName=String(actionEl.dataset.actionName||'').trim().replace(/\\(\\)$/, '');
+    const actionName=String(actionEl.dataset.actionName||'').trim().replace('()', '');
     const actions={
       openInvoice: openInvoice,
       openMultiLineInvoice: openMultiLineInvoice,
