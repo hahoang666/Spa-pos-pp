@@ -967,12 +967,8 @@ function activateLoggedInUser(account){
  refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
 }
 function backendRoleName(roleId, roleName){
- const names={1:'Admin',2:'Thu ngân',3:'Nhân viên'};
- if(names[Number(roleId)])return names[Number(roleId)];
- if(/quản trị/i.test(String(roleName||'')))return 'Admin';
- if(/quản lý/i.test(String(roleName||'')))return 'Quản lý';
- if(/thu ngân/i.test(String(roleName||'')))return 'Thu ngân';
- return 'Nhân viên';
+ // Role IDs are database-owned and may differ between environments.
+ return String(roleName||'Nhân viên').trim()||'Nhân viên';
 }
 async function accountFromSupabaseAuth(authUser, typedUsername){
  const {data:profile,error:profileError}=await supabaseClient
@@ -1026,7 +1022,8 @@ async function login(){
  const submit=document.querySelector('#loginForm button[type="submit"]');
  if(submit){submit.disabled=true;submit.textContent='Đang xác thực...';}
  try{
-   const {data,error}=await supabaseClient.auth.signInWithPassword({email:username,password});
+   const loginIdentifier=username.includes('@')?username:`${username.toLowerCase()}@spa-pos.local`;
+   const {data,error}=await supabaseClient.auth.signInWithPassword({email:loginIdentifier,password});
    if(!error&&data?.user){
      try{
        const account=await accountFromSupabaseAuth(data.user,username);
@@ -2756,36 +2753,58 @@ async function saveAccountEmployeeLink(profileId){
   await adminAccountPage(document.getElementById('content'));
  }catch(error){alert('Lỗi khi lưu liên kết: '+(error?.message||String(error)));}
 }
-function openCreateAccount(){
-  openModal('Tạo tài khoản',`
-    <div class="form-grid">
-      <div><label>ID nhân viên</label><input id="accountId" class="field" value="${peekAutoCode('NV',4,'spa_next_employee_id',state.accounts,'id')}" readonly style="background:#f5f7f6;color:#667085"><div style="font-size:11px;color:#667085;margin-top:4px">Hệ thống tự sinh và không cho phép nhập/sửa.</div></div>
-      <div><label>Họ và tên <span style="color:#d92d20">*</span></label><input id="accountName" class="field" placeholder="Nhập họ và tên"></div>
-      <div><label>Tên đăng nhập <span style="color:#d92d20">*</span></label><input id="accountUsername" class="field" placeholder="Nhập tên đăng nhập"></div>
-      <div><label>Mật khẩu <span style="color:#d92d20">*</span></label><input id="accountPassword" class="field" type="password" placeholder="Nhập mật khẩu"></div>
-      <div><label>Vai trò <span style="color:#d92d20">*</span></label><select id="accountRole" class="field"><option>Nhân viên</option><option>Quản lý</option></select></div>
-      <div class="full"><div style="font-size:12px;color:#667085;background:#f8fafc;border:1px solid #eaecf0;border-radius:8px;padding:10px">ID là duy nhất và không được sửa sau khi tạo tài khoản.</div></div>
-    </div>
-  `,`
-    <button class="btn btn-secondary" onclick="closeModal()">Hủy</button>
-    <button class="btn btn-primary" onclick="createAccount()">Tạo tài khoản</button>
-  `);
+async function openCreateAccount(){
+ if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
+ const roleSelect='<option value="">Đang tải vai trò...</option>';
+ openModal('Tạo tài khoản',`
+  <div class="form-grid">
+   <div><label>Họ và tên <span style="color:#d92d20">*</span></label><input id="accountName" class="field" placeholder="Nhập họ và tên" maxlength="120"></div>
+   <div><label>Tên đăng nhập <span style="color:#d92d20">*</span></label><input id="accountUsername" class="field" placeholder="Ví dụ: nhanvien01" maxlength="32" autocomplete="off"></div>
+   <div><label>Mật khẩu <span style="color:#d92d20">*</span></label><input id="accountPassword" class="field" type="password" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password"></div>
+   <div><label>Vai trò <span style="color:#d92d20">*</span></label><select id="accountRole" class="field">${roleSelect}</select></div>
+   <div class="full"><div style="font-size:12px;color:#667085;background:#f8fafc;border:1px solid #eaecf0;border-radius:8px;padding:10px">Vai trò được tải trực tiếp từ Supabase. Tên đăng nhập ngắn được dùng để đăng nhập; không cần nhập email.</div></div>
+  </div>
+ `,`
+  <button class="btn btn-secondary" onclick="closeModal()">Hủy</button>
+  <button id="createAccountSubmit" class="btn btn-primary" onclick="createAccount()">Tạo tài khoản</button>
+ `);
+ const select=document.getElementById('accountRole');
+ try{
+  const {data,error}=await supabaseClient.from('roles').select('id,code,name').order('name');
+  if(error)throw error;
+  if(!select)return;
+  select.innerHTML='<option value="">Chọn vai trò</option>'+(data||[]).map(r=>'<option value="'+escJs(String(r.id))+'">'+esc(r.name)+' ('+esc(r.code)+')</option>').join('');
+  if(!(data||[]).length)select.innerHTML='<option value="">Chưa có vai trò trong Supabase</option>';
+ }catch(error){
+  if(select)select.innerHTML='<option value="">Không tải được vai trò</option>';
+  alert('Không thể tải danh sách vai trò từ Supabase: '+(error.message||String(error)));
+ }
 }
 
-function createAccount(){
-  if(!hasPermission('Quản lý tài khoản')) return alert('Bạn không có quyền quản lý tài khoản.');
-  const name=document.getElementById('accountName').value.trim();
-  const username=document.getElementById('accountUsername').value.trim();
-  const password=document.getElementById('accountPassword').value;
-  const role=document.getElementById('accountRole').value;
-  if(!name||!username||!password){alert('Vui lòng nhập đầy đủ thông tin bắt buộc.');return;}
-  if(!validatePassword(password)){alert(passwordPolicyMessage());return;}
-  if(state.accounts.some(a=>a.username.toLowerCase()===username.toLowerCase())){alert('Tên đăng nhập đã tồn tại.');return;}
-  const id=nextAutoCode('NV',4,'spa_next_employee_id',state.accounts,'id');
-  state.accounts.push({id,name,username,password,role,status:'Hoạt động',permissions:defaultPermissions(role)});
-  saveState();
+async function createAccount(){
+ if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
+ const name=(document.getElementById('accountName')?.value||'').trim();
+ const username=(document.getElementById('accountUsername')?.value||'').trim().toLowerCase();
+ const password=document.getElementById('accountPassword')?.value||'';
+ const roleId=document.getElementById('accountRole')?.value||'';
+ if(!name||!username||!password||!roleId){alert('Vui lòng nhập đầy đủ thông tin bắt buộc.');return;}
+ if(!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)){alert('Tên đăng nhập phải có 3–32 ký tự: chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang.');return;}
+ if(password.length<8){alert('Mật khẩu phải có ít nhất 8 ký tự.');return;}
+ const submit=document.getElementById('createAccountSubmit');
+ if(submit){submit.disabled=true;submit.textContent='Đang tạo...';}
+ try{
+  const {data,error}=await supabaseClient.functions.invoke('admin-create-user',{body:{full_name:name,username,password,role_id:roleId}});
+  if(error)throw error;
+  if(data?.error)throw new Error(data.detail||data.error);
+  alert('Đã tạo tài khoản Supabase cho '+username+'.');
   closeModal();
-  adminAccountPage(document.getElementById('content'));
+  await adminAccountPage(document.getElementById('content'));
+ }catch(error){
+  console.error('Supabase create account failed:',error);
+  alert('Không thể tạo tài khoản: '+(error.message||String(error))+'\\nKiểm tra Edge Function admin-create-user đã được deploy và cấu hình SUPABASE_SERVICE_ROLE_KEY.');
+ }finally{
+  if(submit){submit.disabled=false;submit.textContent='Tạo tài khoản';}
+ }
 }
 function openEditAccount(id){
  if(!hasPermission('Quản lý tài khoản'))return alert('Bạn không có quyền quản lý tài khoản.');
