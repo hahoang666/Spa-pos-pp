@@ -318,8 +318,11 @@ body.cashier-mode .content{padding:0!important;margin:0!important;max-width:none
           <div class="login-field-error" id="loginPasswordError" role="alert"></div>
         </div>
         <div class="login-error" id="loginError" role="alert"></div>
+        <label class="login-remember" style="display:flex;align-items:center;gap:8px;margin:0 0 16px;font-size:13px;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="rememberLogin" style="width:16px;height:16px;accent-color:var(--primary)">
+          Ghi nhớ tên đăng nhập
+        </label>
         <button class="login-button" type="submit">Đăng nhập</button>
-        
       </form>
     </div>
   </section>
@@ -1022,6 +1025,9 @@ async function login(){
  clearLoginErrors();
  const username=(document.getElementById('loginUsername')?.value||'').trim();
  const password=document.getElementById('loginPassword')?.value||'';
+ const rememberLogin=document.getElementById('rememberLogin');
+ if(rememberLogin?.checked&&username)localStorage.setItem('spa_pos_remember_username',username);
+ else localStorage.removeItem('spa_pos_remember_username');
  if(!username){
    showLoginFieldError('loginUsername','loginUsernameError','Vui lòng nhập tên đăng nhập.');
    return;
@@ -1072,12 +1078,15 @@ async function restoreSupabaseSession(){
  }
 }
 function initLogin(){
- ['spa_pos_username','spa_pos_remember_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
+ ['spa_pos_username','spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
  state.currentUser=null;
  const input=document.getElementById('loginUsername');
- if(input)input.value='';
+ const rememberedUsername=localStorage.getItem('spa_pos_remember_username')||'';
+ if(input)input.value=rememberedUsername;
  const password=document.getElementById('loginPassword');
  if(password)password.value='';
+ const rememberLogin=document.getElementById('rememberLogin');
+ if(rememberLogin)rememberLogin.checked=!!rememberedUsername;
  clearLoginErrors();
  restoreSupabaseSession();
  return false;
@@ -2498,25 +2507,26 @@ function renderUserSession(){
  const title=document.getElementById('userMenuTitle');if(title)title.textContent=name+' · '+role;
 }
 async function logout(){
+ const rememberLogin=document.getElementById('rememberLogin');
+ const loginUsername=document.getElementById('loginUsername');
+ const shouldRemember=!!rememberLogin?.checked;
+ const rememberedUsername=shouldRemember?(loginUsername?.value||state.currentUser?.username||'').trim():'';
  try{await supabaseClient.auth.signOut();}catch(e){console.warn('Supabase sign-out error:',e);}
+ ['spa_pos_role','spa_pos_user_id','spa_pos_user_name'].forEach(k=>localStorage.removeItem(k));
+ if(shouldRemember&&rememberedUsername)localStorage.setItem('spa_pos_remember_username',rememberedUsername);
+ else localStorage.removeItem('spa_pos_remember_username');
  localStorage.removeItem('spa_pos_username');
- localStorage.removeItem('spa_pos_remember_username');
- localStorage.removeItem('spa_pos_role');
- localStorage.removeItem('spa_pos_user_id');
- localStorage.removeItem('spa_pos_user_name');
  state.currentUser=null;
  state.section='Tổng quan';
  state.page='Tổng quan';
  const screen=document.getElementById('loginScreen');
- if(screen)screen.style.display='flex';
+ if(screen)screen.style.display='grid';
  const form=document.getElementById('loginForm');
  if(form)form.reset();
- const loginUsername=document.getElementById('loginUsername');
+ if(loginUsername)loginUsername.value=localStorage.getItem('spa_pos_remember_username')||'';
  const loginPassword=document.getElementById('loginPassword');
- const rememberLogin=document.getElementById('rememberLogin');
- if(loginUsername)loginUsername.value='';
  if(loginPassword)loginPassword.value='';
- if(rememberLogin)rememberLogin.checked=false;
+ if(rememberLogin)rememberLogin.checked=!!localStorage.getItem('spa_pos_remember_username');
  const error=document.getElementById('loginError');
  if(error)error.classList.remove('show');
  const session=document.getElementById('userSession');
