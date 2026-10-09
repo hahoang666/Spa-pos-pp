@@ -2505,17 +2505,50 @@ function openCustomer(code){
  const c=old||{code:nextAutoCode('KH',6,'spa_next_customer_id',state.customers,'code'),name:'',phone:'',dob:'',note:'',allergyNote:'',companyName:'',taxCode:'',address:'',email:''};
  openModal(old?'Sửa khách hàng':'Thêm khách hàng','<div class="form-grid"><div><label>Mã khách hàng</label><input id="customerCode" class="field" value="'+esc(c.code)+'" readonly></div><div><label>Tên khách hàng *</label><input id="customerName" class="field" value="'+esc(c.name||'')+'"></div><div><label>Số điện thoại</label><input id="customerPhone" class="field" value="'+esc(c.phone||'')+'"></div><div><label>Ngày sinh</label><input id="customerDob" class="field" type="date" value="'+esc(c.dob||'')+'"></div><div><label>Tên đơn vị</label><input id="customerCompanyName" class="field" value="'+esc(c.companyName||'')+'" placeholder="Tên công ty/đơn vị (nếu có)"></div><div><label>Mã số thuế</label><input id="customerTaxCode" class="field" value="'+esc(c.taxCode||'')+'" placeholder="10 hoặc 13 chữ số"></div><div class="full"><label>Địa chỉ</label><input id="customerAddress" class="field" value="'+esc(c.address||'')+'"></div><div><label>Email</label><input id="customerEmail" class="field" type="email" value="'+esc(c.email||'')+'"></div><div class="full"><label>Ghi chú da / dị ứng</label><textarea id="customerAllergy" class="field" rows="3">'+esc(c.allergyNote||'')+'</textarea></div><div class="full"><label>Ghi chú khác</label><textarea id="customerNote" class="field" rows="3">'+esc(c.note||'')+'</textarea></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveCustomer(\''+esc(c.code)+'\')">Lưu</button>');
 }
-function saveCustomer(code){
- const existing=state.customers.find(x=>x.code===code);
- if(existing&&!hasPermission('Sửa khách hàng'))return alert('Bạn không có quyền sửa khách hàng.');
- if(!existing&&!hasPermission('Thêm khách hàng'))return alert('Bạn không có quyền thêm khách hàng.');
- const name=document.getElementById('customerName').value.trim(),phone=document.getElementById('customerPhone').value.trim(),taxCode=document.getElementById('customerTaxCode')?.value.trim()||'';
- if(taxCode&&!/^\d{10}(\d{3})?$/.test(taxCode))return alert('Mã số thuế phải gồm 10 hoặc 13 chữ số.');
- if(!name)return alert('Vui lòng nhập Tên khách hàng.');
- if(phone&&state.customers.some(x=>x.phone===phone&&x.code!==code))return alert('Số điện thoại đã tồn tại.');
- const data={code,name,phone,dob:document.getElementById('customerDob').value,companyName:document.getElementById('customerCompanyName')?.value.trim()||'',taxCode,address:document.getElementById('customerAddress')?.value.trim()||'',email:document.getElementById('customerEmail')?.value.trim()||'',note:document.getElementById('customerNote').value.trim(),allergyNote:document.getElementById('customerAllergy').value.trim(),createdAt:existing?.createdAt||new Date().toISOString()};
- if(existing)Object.assign(existing,data);else state.customers.push({...data,debt:0});
- saveState();closeModal();customerPage(document.getElementById('content'));alert(existing?'Đã cập nhật khách hàng.':'Đã thêm khách hàng.');
+async function saveCustomer(code){
+  const existing=state.customers.find(x=>x.code===code);
+  if(existing&&!hasPermission('Sửa khách hàng'))return alert('Bạn không có quyền sửa khách hàng.');
+  if(!existing&&!hasPermission('Thêm khách hàng'))return alert('Bạn không có quyền thêm khách hàng.');
+  const name=document.getElementById('customerName').value.trim(),phone=document.getElementById('customerPhone').value.trim(),taxCode=document.getElementById('customerTaxCode')?.value.trim()||'';
+  if(taxCode&&!/^\d{10}(\d{3})?$/.test(taxCode))return alert('Mã số thuế phải gồm 10 hoặc 13 chữ số.');
+  if(!name)return alert('Vui lòng nhập Tên khách hàng.');
+  if(phone&&state.customers.some(x=>x.phone===phone&&x.code!==code))return alert('Số điện thoại đã tồn tại.');
+  const payload={
+    full_name:name,
+    phone:phone||null,
+    date_of_birth:document.getElementById('customerDob').value||null,
+    address:document.getElementById('customerAddress')?.value.trim()||null,
+    email:document.getElementById('customerEmail')?.value.trim()||null,
+    skin_notes:document.getElementById('customerAllergy').value.trim()||null,
+    allergy_notes:document.getElementById('customerAllergy').value.trim()||null,
+    general_notes:document.getElementById('customerNote').value.trim()||null
+  };
+  if(state.currentUser?.isSupabaseAuth){
+    if(!supabaseClient)return alert('Chưa kết nối Supabase. Vui lòng đăng nhập lại.');
+    try{
+      let savedRow;
+      if(existing?.backendSource==='supabase'&&existing.backendId!==undefined&&existing.backendId!==null){
+        const {data,error}=await supabaseClient.from('customers').update(payload).eq('id',existing.backendId).select('*').single();
+        if(error)throw error;
+        savedRow=data;
+      }else{
+        const {data,error}=await supabaseClient.from('customers').insert({...payload,is_active:true}).select('*').single();
+        if(error)throw error;
+        savedRow=data;
+      }
+      const mapped=mapBackendCustomer(savedRow);
+      if(existing){Object.assign(existing,mapped);}else{state.customers.push({...mapped,debt:0});}
+      saveState();closeModal();customerPage(document.getElementById('content'));
+      alert(existing?'Đã cập nhật khách hàng trên Supabase.':'Đã thêm khách hàng vào Supabase.');
+    }catch(error){
+      console.error('Lưu khách hàng lên Supabase thất bại:',error);
+      alert('Không thể lưu khách hàng lên Supabase: '+(error.message||'Lỗi không xác định')+'\nDữ liệu chưa được lưu.');
+    }
+    return;
+  }
+  const data={code,name,phone,dob:document.getElementById('customerDob').value,companyName:document.getElementById('customerCompanyName')?.value.trim()||'',taxCode,address:document.getElementById('customerAddress')?.value.trim()||'',email:document.getElementById('customerEmail')?.value.trim()||'',note:document.getElementById('customerNote').value.trim(),allergyNote:document.getElementById('customerAllergy').value.trim(),createdAt:existing?.createdAt||new Date().toISOString()};
+  if(existing)Object.assign(existing,data);else state.customers.push({...data,debt:0});
+  saveState();closeModal();customerPage(document.getElementById('content'));alert(existing?'Đã cập nhật khách hàng.':'Đã thêm khách hàng.');
 }
 function deleteCustomer(code){
  if(!hasPermission('Xóa khách hàng'))return alert('Bạn không có quyền xóa khách hàng.');
