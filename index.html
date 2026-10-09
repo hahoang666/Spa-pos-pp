@@ -411,7 +411,30 @@ async function testSupabaseConnection() {
 </script>
   
 <script>
-const PAYMENT_METHODS=['Tiền mặt','Chuyển khoản','Ví điện tử','Thẻ'];
+let PAYMENT_METHODS=['Tiền mặt','Chuyển khoản','Ví điện tử','Thẻ'];
+const BACKEND_PAYMENT_LABELS={CASH:'Tiền mặt',CASH_ON_HAND:'Tiền mặt',BANK:'Chuyển khoản',BANK_TRANSFER:'Chuyển khoản',TRANSFER:'Chuyển khoản',E_WALLET:'Ví điện tử',EWALLET:'Ví điện tử',WALLET:'Ví điện tử',CARD:'Thẻ',CARD_POS:'Thẻ',POS:'Thẻ'};
+function backendValue(row,keys,fallback=null){for(const key of keys){if(row&&row[key]!==undefined&&row[key]!==null&&row[key]!=='')return row[key];}return fallback;}
+function backendActive(row){const v=backendValue(row,['is_active','active','status'],true);return v===true||v===1||String(v).toLowerCase()==='active'||String(v).toLowerCase()==='true';}
+function backendProductType(row){const raw=String(backendValue(row,['product_type','type','category'],'other')).toLowerCase();if(raw.includes('package')||raw.includes('gói'))return 'Gói dịch vụ, liệu trình';if(raw.includes('service')||raw.includes('dịch vụ'))return 'Dịch vụ';if(raw.includes('cosmetic')||raw.includes('mỹ phẩm'))return 'Mỹ phẩm';if(raw.includes('material')||raw.includes('nguyên liệu'))return 'Nguyên liệu';return 'Hàng hóa';}
+function mapBackendProduct(row){const code=String(backendValue(row,['product_code','code','sku'],row.id));const pre=Number(backendValue(row,['price_before_vat','selling_price','price','unit_price'],0))||0;const vat=Number(backendValue(row,['vat_rate','vat','tax_rate'],0))||0;const price=Number(backendValue(row,['price_after_vat','selling_price_with_vat','sale_price'],pre*(1+vat/100)))||0;const stock=backendValue(row,['stock_quantity','stock_on_hand','quantity_on_hand','stock'],null);return {...row,id:String(row.id??code),backendId:row.id,code,name:String(backendValue(row,['name','product_name'],code)),type:backendProductType(row),pre,vat,price,cost:Number(backendValue(row,['cost_price','cost','purchase_price'],0))||0,stock:stock===null?'---':Number(stock)||0,status:backendActive(row)?'Đang kinh doanh':'Ngừng kinh doanh',unit:backendValue(row,['unit_name','unit','unit_of_measure'],''),backendSource:'supabase'};}
+function mapBackendCustomer(row){const code=String(backendValue(row,['customer_code','code'],row.id));return {...row,id:String(row.id??code),backendId:row.id,code,name:String(backendValue(row,['full_name','name','customer_name'],code)),phone:String(backendValue(row,['phone','phone_number'],'')),email:String(backendValue(row,['email'],'')),address:String(backendValue(row,['address'],'')),type:backendValue(row,['customer_type'],'new'),status:backendActive(row)?'Hoạt động':'Ngừng hoạt động',backendSource:'supabase'};}
+function mapBackendEmployee(row){const code=String(backendValue(row,['employee_code','code'],row.id));const status=String(backendValue(row,['status','employment_status'],'active')).toLowerCase();return {...row,id:String(row.id??code),backendId:row.id,code,name:String(backendValue(row,['full_name','name','display_name'],code)),phone:String(backendValue(row,['phone','phone_number'],'')),email:String(backendValue(row,['email'],'')),position:String(backendValue(row,['job_title','position','role','specialty'],'')),status:['active','hoạt động','working'].includes(status)?'Hoạt động':'Ngừng hoạt động',accountId:backendValue(row,['profile_id','account_id'],''),backendSource:'supabase'};}
+async function readBackendTable(table){const {data,error}=await supabaseClient.from(table).select('*');if(error)throw new Error(table+': '+error.message);return Array.isArray(data)?data:[];}
+async function refreshBackendReferenceData(){
+ if(!state.currentUser?.isSupabaseAuth)return {ok:false,reason:'no-auth'};
+ const report={};
+ const tasks=[
+  ['products',async()=>{const rows=await readBackendTable('products');state.products=rows.filter(backendActive).map(mapBackendProduct);report.products=state.products.length;}],
+  ['customers',async()=>{const rows=await readBackendTable('customers');const mapped=rows.filter(backendActive).map(mapBackendCustomer);if(!mapped.some(c=>c.code==='KH000001'||/khách lẻ/i.test(c.name)))mapped.unshift({id:'WALK_IN',backendId:null,code:'KH000001',name:'Khách lẻ',phone:'',backendSource:'synthetic'});state.customers=mapped;report.customers=rows.length;}],
+  ['payment_methods',async()=>{const rows=await readBackendTable('payment_methods');const active=rows.filter(backendActive);if(active.length){const ids={};const labels=[];active.forEach(row=>{const code=String(backendValue(row,['code','method_code'],'')).toUpperCase();const label=BACKEND_PAYMENT_LABELS[code]||String(backendValue(row,['name','label'],code));if(!labels.includes(label))labels.push(label);if(row.id!==undefined)ids[label]=row.id;});if(labels.length)PAYMENT_METHODS=labels;state.backendPaymentMethodIds=ids;}report.paymentMethods=active.length;}],
+  ['employees',async()=>{let rows=[];let source='employees';try{rows=await readBackendTable('employees');}catch(e){report.employeeTableError=e.message;}if(!rows.length){try{const profiles=await readBackendTable('employee_profiles');if(profiles.length){rows=profiles;source='employee_profiles';}}catch(e){report.employeeProfilesError=e.message;}}state.employees=rows.filter(backendActive).map(mapBackendEmployee);report.employees=state.employees.length;report.employeeSource=source;}]
+ ];
+ const results=await Promise.all(tasks.map(async([name,fn])=>{try{await fn();return {name,ok:true};}catch(error){report[name+'Error']=error.message;console.warn('Không thể đồng bộ dữ liệu nền '+name+':',error.message);return {name,ok:false,error:error.message};}}));
+ state.backendReferenceDataLoaded=results.some(x=>x.ok);state.backendReferenceDataAt=new Date().toISOString();
+ if(state.backendReferenceDataLoaded)saveState();
+ console.info('Supabase reference data sync:',report);
+ return {ok:results.some(x=>x.ok),report,results};
+}
 function localDateKey(date){
  const d=date instanceof Date?date:new Date(date);
  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
@@ -1028,6 +1051,7 @@ function activateLoggedInUser(account){
  const screen=document.getElementById('loginScreen');
  if(screen)screen.style.display='none';
  renderAll();
+ refreshBackendReferenceData().then(result=>{if(result.ok){renderAll();console.info('Đã đồng bộ dữ liệu nền từ Supabase.');}}).catch(e=>console.warn('Đồng bộ dữ liệu nền thất bại:',e));
  refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
 }
 function backendRoleName(roleId, roleName){
