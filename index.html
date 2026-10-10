@@ -1937,7 +1937,7 @@ function updateAppointmentNotifications(){
  if(list)list.innerHTML=state.notifications.length?state.notifications.slice(-10).reverse().map(n=>'<div style="padding:10px 12px;border-bottom:1px solid #eee"><b>'+esc(n.title)+'</b><div style="font-size:12px;color:#667085;margin-top:3px">'+esc(n.message)+'</div></div>').join(''):'<div style="padding:12px;color:#667085">Không có thông báo.</div>';
 }
 function appointmentViewDate(){
- if(!state.appointmentViewDate||!/\\d{4}-\\d{2}-\\d{2}/.test(state.appointmentViewDate))state.appointmentViewDate=localDateKey(new Date());
+ if(!state.appointmentViewDate||!/\d{4}-\d{2}-\d{2}/.test(state.appointmentViewDate))state.appointmentViewDate=localDateKey(new Date());
  const d=new Date(state.appointmentViewDate+'T12:00:00');return Number.isNaN(d.getTime())?new Date():d;
 }
 function appointmentMiniMonth(delta){const d=appointmentViewDate();d.setMonth(d.getMonth()+Number(delta||0),1);state.appointmentViewDate=localDateKey(d);appointmentsPage(document.getElementById('content'));}
@@ -1949,7 +1949,7 @@ function appointmentsPage(c){
  const from=document.getElementById('apptFilterFrom')?.value||'',to=document.getElementById('apptFilterTo')?.value||'';
  const all=appointmentEventsForMonth();
  const filtered=all.filter(a=>{const d=String(a.date||'');return (!from||d>=from)&&(!to||d<=to);});
- const events={};filtered.forEach(a=>{const d=String(a.date||'');if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(d))return;const key=d; (events[key]||(events[key]=[])).push(a);});
+ const events={};filtered.forEach(a=>{const d=String(a.date||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;const key=d; (events[key]||(events[key]=[])).push(a);});
  const monthName=new Intl.DateTimeFormat('vi-VN',{month:'long'}).format(viewDate);
  const monthStart=new Date(year,month,1),gridStart=new Date(year,month,1-monthStart.getDay());
  const dayNames=['CN','Th 2','Th 3','Th 4','Th 5','Th 6','Th 7'],miniNames=['T2','T3','T4','T5','T6','T7','CN'];
