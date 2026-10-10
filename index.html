@@ -455,7 +455,14 @@ async function refreshBackendSalesData(){
   return {id:row.code||('HD'+String(row.id).padStart(6,'0')),backendId:row.id,backendCode:row.code||'',backendSource:'supabase',createdAt:row.created_at||'',time:row.created_at?new Date(row.created_at).toLocaleString('vi-VN'):'',type:'Thu',customer:customer?.name||'Khách lẻ',customerName:customer?.name||'Khách lẻ',customerCode:customer?.code||'KH000001',phone:customer?.phone||'',productCode:its[0]?.code||'',productName:its.map(x=>x.name).join(', '),amount:Number(row.subtotal_before_vat)||total,discount:Number(row.discount_amount)||0,total,tax:Number(row.vat_amount)||0,paid,paymentMethod:pm[0]?.method||'Tiền mặt',payment:pm[0]?.method||'Tiền mặt',paymentBreakdown:pm,employeeId:row.employee_id||'',employeeName:'',items:its,status:row.status==='CANCELLED'?'Đã hủy':(paymentStatus==='PAID'?'Đã thanh toán':'Còn nợ'),dueAmount:Number(row.due_amount)||0,notes:row.notes||'',netRevenue:Math.max(0,Number(row.subtotal_before_vat||0)-Number(row.discount_amount||0))};
  });
  const backendIds=new Set(backendInvoices.map(x=>String(x.backendId)));
- state.invoices=[...(state.invoices||[]).filter(x=>!x.backendSource&&!backendIds.has(String(x.backendId||''))),...backendInvoices];
+ // Remove the three known frontend-only test invoices from local state; backend invoices are rebuilt from Supabase below.
+ const frontendOnlyTestCodes=new Set(['HD00000030','HD00000031','HD00000032']);
+ const removedFrontendInvoices=(state.invoices||[]).filter(x=>!x.backendSource&&frontendOnlyTestCodes.has(String(x.id||x.code||'')));
+ state.invoices=[...(state.invoices||[]).filter(x=>!frontendOnlyTestCodes.has(String(x.id||x.code||''))&&(!x.backendSource&&!backendIds.has(String(x.backendId||'')))),...backendInvoices];
+ if(removedFrontendInvoices.length){
+  const removedIds=new Set(removedFrontendInvoices.map(x=>String(x.id||x.code||'')));
+  state.cashbook=(state.cashbook||[]).filter(x=>x.backendSource||!removedIds.has(String(x.referenceId||'')));
+ }
  const paymentById=new Map(paymentRows.map(x=>[String(x.id),x]));
  const invoiceByBackendId=new Map(backendInvoices.map(x=>[String(x.backendId),x]));
  const backendBooks=bookRows.map(row=>{
@@ -2474,7 +2481,7 @@ function invoicePage(c){
  c.innerHTML=header('Danh sách hóa đơn','Tạo hóa đơn','openInvoice')+`
  <div style="display:flex;gap:14px">
   <div class="card" style="width:245px;padding:16px;flex-shrink:0">
-   <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option><option value="7days">7 ngày qua</option><option value="month">Tháng này</option><option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option><option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option></select></div>
+   <div class="filter-group"><div class="filter-title">Thời gian</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả thời gian</option><option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option><option value="7days">7 ngày qua</option><option value="month">Tháng này</option><option value="lastMonth">Tháng trước</option><option value="quarter">Quý này</option><option value="lastQuarter">Quý trước</option><option value="year">Năm nay</option></select></div>
    <div class="filter-group"><div class="filter-title">Trạng thái</div><select class="field invoice-filter" onchange="applyInvoiceFilters()"><option value="all">Tất cả</option><option>Đã thanh toán</option><option>Còn nợ</option><option>Đã hủy</option></select></div>
    <div class="filter-group"><div class="filter-title">Trạng thái HĐĐT</div><select class="field"><option>Tất cả</option></select></div>
    <div class="filter-group"><div class="filter-title">Còn nợ</div><div style="display:flex;gap:5px"><input class="field" placeholder="Từ"><input class="field" placeholder="Tới"></div></div>
@@ -3243,6 +3250,7 @@ function getDashboardPeriodRange(period){
 }
 
 function dashboardInvoices(period){
+  if(period==='all')return [...(state.invoices||[])].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
   const range=getDashboardPeriodRange(period);
   return state.invoices.filter(x=>{
     const d=x.createdAt?new Date(x.createdAt):new Date();
