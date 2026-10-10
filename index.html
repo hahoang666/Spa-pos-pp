@@ -1926,17 +1926,26 @@ function saveAppointment(){
  state.appointments=Array.isArray(state.appointments)?state.appointments:[];state.appointments.push(appt);saveState();closeModal();renderPage();updateAppointmentNotifications();alert('Đã tạo lịch hẹn.');
 }
 function updateAppointmentNotifications(){
- const now=new Date(),today=localDateKey(now),minute=now.getHours()*60+now.getMinutes();
+ const now=new Date();
  const appointments=appointmentEventsForMonth();
  state.notifications=Array.isArray(state.notifications)?state.notifications:[];
  const existing=new Set(state.notifications.filter(n=>n.type==='appointment').map(n=>n.id));
- appointments.filter(a=>a.date===today).forEach(a=>{
-  const parts=String(a.start||'00:00').split(':').map(Number),startMinute=(parts[0]||0)*60+(parts[1]||0);
-  if(startMinute>minute)return;
-  const id='APN-'+a.id;
-  if(existing.has(id))return;
-  state.notifications.push({id,type:'appointment',title:'Nhắc lịch hẹn',message:(a.title||'Lịch hẹn')+' · '+(a.start||'')+(a.end?' – '+a.end:'')+' · '+(a.customerName||a.customer_name||'Khách lẻ'),createdAt:now.toISOString(),read:false});
-  existing.add(id);
+ appointments.forEach(a=>{
+  if(!a.date||!a.start)return;
+  const startAt=new Date(String(a.date)+'T'+String(a.start).slice(0,5)+':00');
+  if(Number.isNaN(startAt.getTime()))return;
+  const minutesUntil=(startAt.getTime()-now.getTime())/60000;
+  if(minutesUntil<=0)return;
+  const baseMessage=(a.title||'Lịch hẹn')+' · '+a.start+(a.end?' – '+a.end:'')+' · '+(a.customerName||a.customer_name||'Khách lẻ');
+  const reminders=[
+   {minutes:15,id:'APN-15-'+a.id,title:'Nhắc lịch hẹn · trước 15 phút'},
+   {minutes:10,id:'APN-10-'+a.id,title:'Nhắc lịch hẹn · trước 10 phút'}
+  ];
+  reminders.forEach(reminder=>{
+   if(minutesUntil>reminder.minutes||existing.has(reminder.id))return;
+   state.notifications.push({id:reminder.id,type:'appointment',title:reminder.title,message:baseMessage,createdAt:now.toISOString(),read:false,appointmentId:a.id,reminderMinutes:reminder.minutes});
+   existing.add(reminder.id);
+  });
  });
  saveState();
  const badge=document.getElementById('notificationBadge'),list=document.getElementById('notificationList');
