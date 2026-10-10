@@ -436,6 +436,7 @@ async function refreshBackendSalesData(){
  const methodById=new Map(methodRows.map(x=>[String(x.id),BACKEND_PAYMENT_LABELS[String(x.code||'').toUpperCase()]||x.name||'Tiền mặt']));
  const fundToLocal={CASH:'FUND-CASH',BANK_TRANSFER:'FUND-BANK',E_WALLET:'FUND-WALLET',CARD:'FUND-POS'};
  const fundByBackendId=new Map(fundRows.map(x=>[String(x.id),fundToLocal[x.code]||'FUND-CASH']));
+ state.backendFunds=fundRows.map(row=>({...row,opening_balance:Number(row.opening_balance)||0,is_active:row.is_active!==false}));
  const itemsByInvoice=new Map();
  itemRows.forEach(row=>{
   const k=String(row.invoice_id);if(!itemsByInvoice.has(k))itemsByInvoice.set(k,[]);
@@ -494,6 +495,7 @@ async function refreshBackendSalesData(){
   const method=payment?methodById.get(String(payment.payment_method_id))||'Tiền mặt':(row.fund_id?({CASH:'Tiền mặt',BANK_TRANSFER:'Chuyển khoản',E_WALLET:'Ví điện tử',CARD:'Thẻ'}[fundRows.find(f=>String(f.id)===String(row.fund_id))?.code]||'Tiền mặt'):'Tiền mặt');
   return {id:'SB-'+row.id,backendId:row.id,backendSource:'supabase',type:direction==='IN'?'thu':'chi',amount:Number(row.amount)||0,subject:invoice?.customerName||row.note||'Giao dịch Supabase',category:row.category||'Bán hàng',paymentMethod:method,fundId:fundByBackendId.get(String(row.fund_id))||'FUND-CASH',referenceId:invoice?.id||String(row.reference_id||''),note:row.note||'',txnDate:String(row.txn_at||row.created_at||'').slice(0,10),createdAt:row.txn_at||row.created_at||'',createdBy:row.created_by||'',shiftId:row.shift_id,status:'Hoàn thành'};
  });
+ state.backendCashbook=backendBooks;
  state.cashbook=[...(state.cashbook||[]).filter(x=>!x.backendSource),...backendBooks];
  saveState();
  return {ok:true,invoices:backendInvoices.length,cashbook:backendBooks.length};
@@ -542,7 +544,9 @@ const state={
   transfers:[],
   damages:[],
   stocktakes:[],
-  accounts:[]
+  accounts:[],
+  backendFunds:[],
+  backendCashbook:[]
 };
 const STORAGE_KEY='spa_pos_state_v1';
 const RESET_DEMO_DATA = !localStorage.getItem('spa_pos_demo_reset_v4');
@@ -1978,21 +1982,31 @@ function punchAttendance(){
  else return alert('Hôm nay đã chấm công đủ.');
  saveState();renderPage();
 }
-function fundSummaryForType(type){
- const funds=(state.funds||[]).filter(f=>f.active!==false);
- const ids=type==='cash'?['FUND-CASH']:type==='bank'?['FUND-BANK']:type==='wallet'?['FUND-WALLET']:['FUND-CASH','FUND-BANK','FUND-WALLET'];
- const selected=funds.filter(f=>ids.includes(f.id));
- const opening=selected.reduce((s,f)=>s+fundOpening(f),0);
- const tx=(state.cashbook||[]).filter(x=>ids.includes(x.fundId));
- const thu=tx.filter(x=>x.type==='thu').reduce((s,x)=>s+Number(x.amount||0),0);
- const chi=tx.filter(x=>x.type==='chi').reduce((s,x)=>s+Number(x.amount||0),0);
- return {opening,thu,chi,closing:opening+thu-chi};
+const CASHBOOK_BASELINE_DATE='2026-10-07';
+function fundSummaryForType(type,from='',to=''){
+ const codeGroups={cash:['CASH'],bank:['BANK_TRANSFER'],wallet:['E_WALLET'],card:['CARD'],total:['CASH','BANK_TRANSFER','E_WALLET','CARD']};
+ const codes=codeGroups[type]||codeGroups.total;
+ const funds=(state.backendFunds||[]).filter(f=>f.is_active!==false&&codes.includes(String(f.code||'').toUpperCase()));
+ const localIds=new Set(funds.map(f=>({CASH:'FUND-CASH',BANK_TRANSFER:'FUND-BANK',E_WALLET:'FUND-WALLET',CARD:'FUND-POS'}[String(f.code||'').toUpperCase()])));
+ const effectiveFrom=!from||from<CASHBOOK_BASELINE_DATE?CASHBOOK_BASELINE_DATE:from;
+ const effectiveTo=to||localDateKey(new Date());
+ const validRange=effectiveTo>=effectiveFrom;
+ const movements=(state.backendCashbook||[]).filter(x=>localIds.has(x.fundId)&&String(x.txnDate||'')>=CASHBOOK_BASELINE_DATE);
+ const opening=funds.reduce((sum,f)=>sum+Number(f.opening_balance||0),0)+movements.filter(x=>String(x.txnDate||'')<effectiveFrom).reduce((sum,x)=>sum+(x.type==='thu'?1:-1)*Number(x.amount||0),0);
+ const period=validRange?movements.filter(x=>String(x.txnDate||'')>=effectiveFrom&&String(x.txnDate||'')<=effectiveTo):[];
+ const thu=period.filter(x=>x.type==='thu').reduce((sum,x)=>sum+Number(x.amount||0),0);
+ const chi=period.filter(x=>x.type==='chi').reduce((sum,x)=>sum+Number(x.amount||0),0);
+ return {opening,thu,chi,closing:opening+thu-chi,from:effectiveFrom,to:effectiveTo,validRange,fundCount:funds.length};
 }
-function fundSummaryPage(c,type){
+function fundSummaryPage(c,type,from='',to=''){
  if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem sổ quỹ.</div>';return;}
- const labels={cash:'Tiền mặt',bank:'Ngân hàng',wallet:'Ví điện tử',total:'Tổng quỹ'},s=fundSummaryForType(type);
- const tabs=Object.entries(labels).map(([k,v])=>'<button class="btn cashbook-tab '+(k===type?'btn-primary':'btn-secondary')+'" onclick="selectPage(\''+v+'\')">'+v+'</button>').join('');
- c.innerHTML='<div class="cashbook-large"><div class="page-title">Sổ quỹ</div><div class="cashbook-tabs">'+tabs+'</div><div class="card cashbook-card"><h2 class="cashbook-title">'+labels[type]+'</h2><table class="cashbook-table"><thead><tr><th>Quỹ đầu kỳ</th><th>Tổng thu</th><th>Tổng chi</th><th>Cuối kỳ</th></tr></thead><tbody><tr><td>'+money(s.opening)+' ₫</td><td>'+money(s.thu)+' ₫</td><td>'+money(s.chi)+' ₫</td><td>'+money(s.closing)+' ₫</td></tr></tbody></table><p class="cashbook-note dashboard-note">Cuối kỳ = Đầu kỳ + Tổng thu − Tổng chi.</p>'+(type==='total'?'<p class="cashbook-note dashboard-note">Tổng quỹ = Tiền mặt + Ngân hàng (chuyển khoản) + Ví điện tử.</p>':'')+'</div></div>';
+ const fromInput=document.getElementById('fundSummaryFrom'),toInput=document.getElementById('fundSummaryTo');
+ if(fromInput)from=fromInput.value||'';if(toInput)to=toInput.value||'';
+ const labels={cash:'Tiền mặt',bank:'Ngân hàng',wallet:'Ví điện tử',total:'Tổng quỹ'},s=fundSummaryForType(type,from,to);
+ const tabs=[['Tiền mặt','Tiền mặt'],['Ngân hàng','Ngân hàng'],['Ví điện tử','Ví điện tử'],['Thẻ','Thẻ'],['Tổng quỹ','Tổng quỹ']].map(([label,page])=>'<button class="btn cashbook-tab '+((page===labels[type])?'btn-primary':'btn-secondary')+'" onclick="selectPage(\''+page+'\')">'+label+'</button>').join('');
+ const rangeNote='Khoảng tính: '+s.from+' đến '+s.to+'. Ngày bắt đầu số dư: '+CASHBOOK_BASELINE_DATE+'.';
+ const missingFunds=s.fundCount===0;
+ c.innerHTML='<div class="cashbook-large"><div class="page-title">Sổ quỹ</div><div class="cashbook-tabs">'+tabs+'</div><div class="card cashbook-card"><h2 class="cashbook-title">'+labels[type]+'</h2><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:20px"><label style="display:flex;flex-direction:column;gap:6px">Từ ngày<input id="fundSummaryFrom" type="date" min="'+CASHBOOK_BASELINE_DATE+'" class="field" value="'+esc(from)+'" onchange="fundSummaryPage(document.getElementById(\'content\'),\''+type+'\')"></label><label style="display:flex;flex-direction:column;gap:6px">Đến ngày<input id="fundSummaryTo" type="date" min="'+CASHBOOK_BASELINE_DATE+'" class="field" value="'+esc(to)+'" onchange="fundSummaryPage(document.getElementById(\'content\'),\''+type+'\')"></label><button class="btn btn-secondary" onclick="fundSummaryPage(document.getElementById(\'content\'),\''+type+'\',\'\',\'\')">Xóa bộ lọc</button></div><p class="cashbook-note dashboard-note">'+rangeNote+'</p>'+(from&&from<CASHBOOK_BASELINE_DATE?'<p class="cashbook-note" style="color:var(--danger)">Ngày Từ ngày không được trước 07/10/2026; phép tính đã giới hạn về ngày bắt đầu số dư.</p>':'')+(!s.validRange?'<p class="cashbook-note" style="color:var(--danger)">Đến ngày phải bằng hoặc sau Từ ngày.</p>':'')+(missingFunds?'<p class="cashbook-note" style="color:var(--danger)">Chưa tải được dữ liệu quỹ từ Supabase. Hãy đồng bộ lại dữ liệu.</p>':'')+'<table class="cashbook-table"><thead><tr><th>Quỹ đầu kỳ</th><th>Tổng thu</th><th>Tổng chi</th><th>Cuối kỳ</th></tr></thead><tbody><tr><td>'+money(s.opening)+' ₫</td><td>'+money(s.thu)+' ₫</td><td>'+money(s.chi)+' ₫</td><td>'+money(s.closing)+' ₫</td></tr></tbody></table><p class="cashbook-note dashboard-note">Cuối kỳ = Quỹ đầu kỳ + Tổng thu − Tổng chi. Số dư đầu kỳ lấy từ public.funds.opening_balance; phát sinh lấy từ cashbook_transactions đã đồng bộ.</p>'+(type==='total'?'<p class="cashbook-note dashboard-note">Tổng quỹ bao gồm Tiền mặt + Ngân hàng + Ví điện tử + Thẻ. Các khoản thu/chi nội bộ nếu được ghi nhận thành cặp giao dịch sẽ triệt tiêu nhau khi tính cuối kỳ.</p>':'')+'</div></div>';
 }
 function cardCollectionPage(c,from='',to=''){
  if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem sổ quỹ.</div>';return;}
