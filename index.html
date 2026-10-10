@@ -3529,6 +3529,7 @@ function reportNetRevenue(invoices){
 }
 function createInvoice(data){
  const txnDate=String(data.txnDate||data.createdAt||localDateKey(new Date())).slice(0,10);const lockMsg=generalLockMessage(txnDate);if(lockMsg){alert(lockMsg);return null;}
+ const revenueFields=invoiceRevenueFields({...data,items:Array.isArray(data.items)?data.items:[]});
  const now=new Date();
  const invoiceId=nextAutoCode('HD',6,'spa_next_invoice_id',state.invoices,'id');
  const total=Number(data.total)||0;
