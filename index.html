@@ -420,6 +420,55 @@ function mapBackendProduct(row){const code=String(backendValue(row,['product_cod
 function mapBackendCustomer(row){const code=String(backendValue(row,['customer_code','code'],row.id));return {...row,id:String(row.id??code),backendId:row.id,code,name:String(backendValue(row,['full_name','name','customer_name'],code)),phone:String(backendValue(row,['phone','phone_number'],'')),email:String(backendValue(row,['email'],'')),address:String(backendValue(row,['address'],'')),type:backendValue(row,['customer_type'],'new'),status:backendActive(row)?'Hoạt động':'Ngừng hoạt động',backendSource:'supabase'};}
 function mapBackendEmployee(row){const code=String(backendValue(row,['employee_code','code'],row.id));return {...row,id:String(row.id??code),backendId:row.id,code,name:String(backendValue(row,['full_name','name','display_name'],code)),phone:String(backendValue(row,['phone','phone_number'],'')),email:String(backendValue(row,['email'],'')),position:String(backendValue(row,['job_title','position','role','specialty'],'')),status:backendActive(row)?'Hoạt động':'Ngừng hoạt động',accountId:backendValue(row,['profile_id','account_id'],''),backendSource:'supabase'};}
 async function readBackendTable(table){const {data,error}=await supabaseClient.from(table).select('*');if(error)throw new Error(table+': '+error.message);return Array.isArray(data)?data:[];}
+function backendInvoiceStatus(status,paymentStatus){
+ if(status==='CANCELLED')return 'Đã hủy';
+ if(paymentStatus==='PAID')return 'Đã thanh toán';
+ return paymentStatus==='PARTIALLY_PAID'||Number(paymentStatus?.paid_amount)>0?'Còn nợ':'Còn nợ';
+}
+async function refreshBackendSalesData(){
+ if(!state.currentUser?.isSupabaseAuth)return {ok:false,reason:'no-auth'};
+ const [invoiceRows,itemRows,bookRows,paymentRows,methodRows,fundRows]=await Promise.all([
+  readBackendTable('invoices'),readBackendTable('invoice_items'),readBackendTable('cashbook_transactions'),
+  readBackendTable('payments'),readBackendTable('payment_methods'),readBackendTable('funds')
+ ]);
+ const customerById=new Map((state.customers||[]).map(x=>[String(x.backendId),x]));
+ const productById=new Map((state.products||[]).map(x=>[String(x.backendId),x]));
+ const methodById=new Map(methodRows.map(x=>[String(x.id),BACKEND_PAYMENT_LABELS[String(x.code||'').toUpperCase()]||x.name||'Tiền mặt']));
+ const fundToLocal={CASH:'FUND-CASH',BANK_TRANSFER:'FUND-BANK',E_WALLET:'FUND-WALLET',CARD:'FUND-POS'};
+ const fundByBackendId=new Map(fundRows.map(x=>[String(x.id),fundToLocal[x.code]||'FUND-CASH']));
+ const itemsByInvoice=new Map();
+ itemRows.forEach(row=>{
+  const k=String(row.invoice_id);if(!itemsByInvoice.has(k))itemsByInvoice.set(k,[]);
+  const product=productById.get(String(row.product_id));
+  const gross=Number(row.unit_price_after_vat||0)*Number(row.quantity||0);
+  const discount=(Number(row.line_discount_amount||0)+Number(row.allocated_order_discount_amount||0))*(1+Number(row.vat_rate||0)/100);
+  itemsByInvoice.get(k).push({code:row.product_code||product?.code||'',name:row.product_name||product?.name||'',price:Number(row.unit_price_after_vat||0),qty:Number(row.quantity||0),discount,vat:Number(row.vat_rate||0),backendId:row.product_id});
+ });
+ const paymentsByInvoice=new Map();
+ paymentRows.forEach(row=>{const k=String(row.invoice_id);if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push({method:methodById.get(String(row.payment_method_id))||'Tiền mặt',amount:Number(row.amount)||0,source:'backend',backendId:row.id});});
+ const backendInvoices=invoiceRows.map(row=>{
+  const customer=customerById.get(String(row.customer_id));
+  const its=itemsByInvoice.get(String(row.id))||[];
+  const pm=paymentsByInvoice.get(String(row.id))||[];
+  const paid=Number(row.paid_amount)||0,total=Number(row.total_amount)||0;
+  const paymentStatus=row.payment_status||'UNPAID';
+  return {id:row.code||('HD'+String(row.id).padStart(6,'0')),backendId:row.id,backendCode:row.code||'',backendSource:'supabase',createdAt:row.created_at||'',time:row.created_at?new Date(row.created_at).toLocaleString('vi-VN'):'',type:'Thu',customer:customer?.name||'Khách lẻ',customerName:customer?.name||'Khách lẻ',customerCode:customer?.code||'KH000001',phone:customer?.phone||'',productCode:its[0]?.code||'',productName:its.map(x=>x.name).join(', '),amount:Number(row.subtotal_before_vat)||total,discount:Number(row.discount_amount)||0,total,tax:Number(row.vat_amount)||0,paid,paymentMethod:pm[0]?.method||'Tiền mặt',payment:pm[0]?.method||'Tiền mặt',paymentBreakdown:pm,employeeId:row.employee_id||'',employeeName:'',items:its,status:row.status==='CANCELLED'?'Đã hủy':(paymentStatus==='PAID'?'Đã thanh toán':'Còn nợ'),dueAmount:Number(row.due_amount)||0,notes:row.notes||'',netRevenue:Math.max(0,Number(row.subtotal_before_vat||0)-Number(row.discount_amount||0))};
+ });
+ const backendIds=new Set(backendInvoices.map(x=>String(x.backendId)));
+ state.invoices=[...(state.invoices||[]).filter(x=>!x.backendSource&&!backendIds.has(String(x.backendId||''))),...backendInvoices];
+ const paymentById=new Map(paymentRows.map(x=>[String(x.id),x]));
+ const invoiceByBackendId=new Map(backendInvoices.map(x=>[String(x.backendId),x]));
+ const backendBooks=bookRows.map(row=>{
+  const payment=paymentById.get(String(row.payment_id));
+  const invoice=String(row.reference_type||'').toUpperCase()==='INVOICE'?invoiceByBackendId.get(String(row.reference_id)):null;
+  const direction=String(row.direction||'').toUpperCase();
+  const method=payment?methodById.get(String(payment.payment_method_id))||'Tiền mặt':(row.fund_id?({CASH:'Tiền mặt',BANK_TRANSFER:'Chuyển khoản',E_WALLET:'Ví điện tử',CARD:'Thẻ'}[fundRows.find(f=>String(f.id)===String(row.fund_id))?.code]||'Tiền mặt'):'Tiền mặt');
+  return {id:'SB-'+row.id,backendId:row.id,backendSource:'supabase',type:direction==='IN'?'thu':'chi',amount:Number(row.amount)||0,subject:invoice?.customerName||row.note||'Giao dịch Supabase',category:row.category||'Bán hàng',paymentMethod:method,fundId:fundByBackendId.get(String(row.fund_id))||'FUND-CASH',referenceId:invoice?.id||String(row.reference_id||''),note:row.note||'',txnDate:String(row.txn_at||row.created_at||'').slice(0,10),createdAt:row.txn_at||row.created_at||'',createdBy:row.created_by||'',shiftId:row.shift_id,status:'Hoàn thành'};
+ });
+ state.cashbook=[...(state.cashbook||[]).filter(x=>!x.backendSource),...backendBooks];
+ saveState();
+ return {ok:true,invoices:backendInvoices.length,cashbook:backendBooks.length};
+}
 async function refreshBackendReferenceData(){
  if(!state.currentUser?.isSupabaseAuth)return {ok:false,reason:'no-auth'};
  const report={};
@@ -964,6 +1013,7 @@ function activateLoggedInUser(account){
  if(screen)screen.style.display='none';
  renderAll();
  refreshBackendReferenceData().then(result=>{if(result.ok){renderAll();console.info('Đã đồng bộ dữ liệu nền từ Supabase.');}}).catch(e=>console.warn('Đồng bộ dữ liệu nền thất bại:',e));
+ refreshBackendReferenceData().then(result=>{if(result.ok)return refreshBackendSalesData();}).then(result=>{if(result?.ok)renderAll();}).catch(e=>console.warn('Đồng bộ hóa đơn/Sổ quỹ thất bại:',e));
  refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
 }
 function backendRoleName(roleId, roleName, roleCode){
@@ -2167,15 +2217,16 @@ function saveQuickCashierCustomer(){
  const code=nextAutoCode('KH',6,'spa_next_customer_id',state.customers,'code');
  state.customers.push({code,name,phone});state.cashierCustomerCode=code;saveState();closeModal();renderAll();alert('Đã thêm khách hàng '+code+'.');
 }
-function completeCashierSale(){
+async function completeCashierSale(){
+ if(window.__cashierSaleSubmitting)return alert('Đang xử lý hóa đơn, vui lòng chờ.');
  if(!hasPermission('Sử dụng thu ngân'))return alert('Bạn không có quyền sử dụng Thu ngân.');
  const shift=requireOpenShift('bán hàng');if(!shift)return;
  const cart=state.cashierCart||[];if(!cart.length)return alert('Vui lòng thêm sản phẩm vào đơn hàng.');
  const t=cashierTotals(),payments=(state.cashierPayments||[]).filter(p=>Number(p.amount)>0);
- const paid=payments.reduce((s,p)=>s+Math.max(0,Number(p.amount)||0),0);
+ const paid=payments.reduce((sum,p)=>sum+Math.max(0,Number(p.amount)||0),0);
  if(paid>t.total+0.000001)return alert('Tổng tiền thanh toán không được vượt quá tổng hóa đơn.');
- const cashTender=payments.filter(p=>normalizePaymentMethod(p.method)==='Tiền mặt').reduce((s,p)=>s+Math.max(0,Number(p.tendered)||0),0);
- const cashAllocated=payments.filter(p=>normalizePaymentMethod(p.method)==='Tiền mặt').reduce((s,p)=>s+Math.max(0,Number(p.amount)||0),0);
+ const cashTender=payments.filter(p=>normalizePaymentMethod(p.method)==='Tiền mặt').reduce((sum,p)=>sum+Math.max(0,Number(p.tendered)||0),0);
+ const cashAllocated=payments.filter(p=>normalizePaymentMethod(p.method)==='Tiền mặt').reduce((sum,p)=>sum+Math.max(0,Number(p.amount)||0),0);
  if(cashTender+0.000001<cashAllocated)return alert('Tiền mặt khách đưa phải lớn hơn hoặc bằng số tiền thanh toán bằng tiền mặt.');
  const customer=state.customers.find(x=>x.code===state.cashierCustomerCode)||state.customers[0];
  if(!customer)return alert('Chưa có khách hàng.');
@@ -2188,14 +2239,13 @@ function completeCashierSale(){
  const discountBase=Math.max(0,t.subtotal-t.lineDiscount);
  if(!validateDiscountApproval(t.orderDiscount,discountBase,'Thu ngân '+(customer.name||'')))return;
  for(const x of cart){const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number'&&p.stock<x.qty)return alert('Không đủ tồn kho cho '+p.name+'.');}
- cart.forEach(x=>{const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number')p.stock-=x.qty;});
  const first=payments[0]||{method:'Tiền mặt'};
  const employees=(state.employees||[]).filter(e=>e.status==='Hoạt động');
  const employee=employees.find(x=>x.id===state.cashierEmployeeId)||employees.find(x=>x.id===state.currentUser?.employeeId)||state.employees.find(x=>x.accountId===state.currentUser?.id);
  const consultant=employees.find(x=>x.id===state.cashierConsultantId);
  const hasPriorPurchase=(state.invoices||[]).some(x=>x.status!=='Đã hủy'&&(x.type||'Thu')==='Thu'&&x.customerCode===customer.code);
  const customerType=hasPriorPurchase?'Cũ':'Mới';
- const netBeforeOrder=cart.reduce((s,x)=>s+Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0))),0);
+ const netBeforeOrder=cart.reduce((sum,x)=>sum+Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-Math.min(Math.max(0,Number(x.discount)||0),(Number(x.price)||0)*(Number(x.qty)||0))),0);
  const invoiceItems=cart.map(x=>{
    const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0));
    const lineDisc=Math.min(Math.max(0,Number(x.discount)||0),gross);
@@ -2203,19 +2253,67 @@ function completeCashierSale(){
    const allocatedOrder=netBeforeOrder>0?t.orderDiscount*(lineNet/netBeforeOrder):0;
    return {...x,discount:lineDisc+allocatedOrder,vat:Number(x.vat)||0,orderDiscountAllocated:allocatedOrder};
  });
- const totalDiscount=invoiceItems.reduce((s,x)=>s+Number(x.discount||0),0);
- const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType,phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:totalDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0,source:'sale'})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',shiftId:shift.id,dueDate:debt>0?document.getElementById('cashierDebtDueDate')?.value||state.cashierDebtDueDate:'',status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:invoiceItems});
- createTherapyCardFromInvoice(invoice);
- payments.forEach(p=>addCashMovement({type:'thu',amount:p.amount,paymentMethod:p.method,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id}));
- const commissionRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
- cart.forEach(x=>{const product=state.products.find(p=>p.code===x.code);if(product?.type==='Gói dịch vụ, liệu trình')return;const rule=commissionRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0));state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
- state.lastCashierInvoiceId=invoice.id;
-saveActiveCashierInvoice();
-state.cashierInvoices.splice(state.cashierActiveInvoice,1);
-if(!state.cashierInvoices.length){state.cashierInvoices.push(cashierDraftDefaults());state.cashierActiveInvoice=0;}
-else state.cashierActiveInvoice=Math.min(state.cashierActiveInvoice,state.cashierInvoices.length-1);
-loadActiveCashierInvoice();
- saveState();alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận là Còn nợ.':''));renderAll();
+ const totalDiscount=invoiceItems.reduce((sum,x)=>sum+Number(x.discount||0),0);
+ let backendInvoice=null;
+ const isBackend=!!state.currentUser?.isSupabaseAuth;
+ window.__cashierSaleSubmitting=true;
+ try{
+  if(isBackend){
+   if(!state.backendShiftLoaded||!state.currentBackendShift||state.currentBackendShift.status!=='Đang mở')throw new Error('Chưa xác nhận được ca đang mở trên Supabase. Hãy tải lại trạng thái ca rồi thử lại.');
+   const backendItems=cart.map(x=>{
+    const product=state.products.find(p=>p.code===x.code);
+    const pid=Number(product?.backendId);
+    if(!product||product.backendSource!=='supabase'||!Number.isInteger(pid)||pid<=0)throw new Error('Không ánh xạ được mã sản phẩm '+x.code+' sang ID Supabase. Hãy đồng bộ lại sản phẩm.');
+    const vat=Math.max(0,Number(product.vat??x.vat)||0),factor=1+vat/100;
+    const gross=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0));
+    const lineDiscount=Math.min(Math.max(0,Number(x.discount)||0),gross);
+    const lineNet=Math.max(0,gross-lineDiscount);
+    const allocatedOrder=netBeforeOrder>0?t.orderDiscount*(lineNet/netBeforeOrder):0;
+    return {product_id:pid,quantity:Number(x.qty),line_discount_amount:Math.round((factor?lineDiscount/factor:lineDiscount)*1000)/1000,allocated_order_discount_amount:Math.round((factor?allocatedOrder/factor:allocatedOrder)*1000)/1000};
+   });
+   let customerId=null;
+   if(customer.code!=='KH000001'){
+    customerId=Number(customer.backendId);
+    if(customer.backendSource!=='supabase'||!Number.isInteger(customerId)||customerId<=0)throw new Error('Khách hàng '+customer.code+' chưa được ánh xạ sang ID Supabase. Đồng bộ khách hàng hoặc chọn khách đã đồng bộ.');
+   }
+   let employeeId=null;
+   if(employee?.backendId!==undefined&&employee?.backendId!==null&&Number.isInteger(Number(employee.backendId)))employeeId=Number(employee.backendId);
+   const {data:created,error:createError}=await supabaseClient.rpc('create_invoice',{p_items:backendItems,p_customer_id:customerId,p_employee_id:employeeId,p_type:'CASHIER',p_notes:'Tạo từ Thu ngân Spa POS'});
+   if(createError)throw new Error('Supabase không tạo được hóa đơn: '+createError.message);
+   backendInvoice=Array.isArray(created)?created[0]:created;
+   if(!backendInvoice?.id)throw new Error('RPC create_invoice không trả về ID hóa đơn hợp lệ.');
+   const serverTotal=Number(backendInvoice.total_amount);
+   if(!Number.isFinite(serverTotal)||Math.abs(serverTotal-t.total)>1){
+    await refreshBackendSalesData().catch(()=>{});
+    throw new Error('Tổng tiền frontend ('+money(t.total)+' ₫) khác tổng backend ('+money(serverTotal)+' ₫). Hóa đơn đã được tạo trên Supabase nhưng chưa thu tiền; không bấm tạo lại. Hãy kiểm tra dữ liệu hóa đơn trước khi tiếp tục.');
+   }
+   for(const payment of payments){
+    const label=normalizePaymentMethod(payment.method);
+    const methodId=Number(state.backendPaymentMethodIds?.[label]);
+    if(!Number.isInteger(methodId)||methodId<=0)throw new Error('Không ánh xạ được phương thức thanh toán "'+label+'" sang payment_methods.id Supabase.');
+    const {error:paymentError}=await supabaseClient.rpc('create_payment',{p_invoice_id:Number(backendInvoice.id),p_payment_method_id:methodId,p_amount:Number(payment.amount),p_reference_no:null,p_notes:'Thu ngân Spa POS '+String(backendInvoice.code||backendInvoice.id)});
+    if(paymentError)throw new Error('Hóa đơn '+(backendInvoice.code||backendInvoice.id)+' đã được tạo, nhưng khoản thanh toán chưa hoàn tất: '+paymentError.message+'. Không bấm tạo hóa đơn lần nữa; hãy kiểm tra hóa đơn trên Supabase.');
+   }
+  }
+  const invoice=createInvoice({type:'Thu',customer:customer.name,customerCode:customer.code,customerName:customer.name,customerType,phone:customer.phone||'',productCode:cart[0].code,productName:cart.length===1?cart[0].name:cart.map(x=>x.name).join(', '),amount:t.subtotal,discount:totalDiscount,total:t.total,tax:t.vat,paid,paymentMethod:normalizePaymentMethod(first.method),paymentBreakdown:payments.map(x=>({method:normalizePaymentMethod(x.method),amount:Number(x.amount)||0,source:'sale'})),employeeId:employee?.id||'',employeeName:employee?.name||'',consultantId:consultant?.id||'',consultantName:consultant?.name||'',shiftId:shift.id,dueDate:debt>0?document.getElementById('cashierDebtDueDate')?.value||state.cashierDebtDueDate:'',status:paid>=t.total?'Đã thanh toán':'Còn nợ',items:invoiceItems});
+  if(!invoice)return;
+  if(backendInvoice){invoice.backendId=backendInvoice.id;invoice.backendCode=backendInvoice.code||'';invoice.id=backendInvoice.code||('HD'+String(backendInvoice.id).padStart(6,'0'));invoice.createdAt=backendInvoice.created_at||invoice.createdAt;state.invoices=state.invoices.filter(x=>String(x.backendId||'')!==String(backendInvoice.id));}
+  cart.forEach(x=>{const p=state.products.find(z=>z.code===x.code);if(typeof p?.stock==='number')p.stock-=x.qty;});
+  createTherapyCardFromInvoice(invoice);
+  if(!isBackend)payments.forEach(p=>addCashMovement({type:'thu',amount:p.amount,paymentMethod:p.method,subject:invoice.customerName,referenceId:invoice.id,note:'Thanh toán hóa đơn '+invoice.id}));
+  const commissionRules=state.commissionRules||[];state.serviceCommissions=Array.isArray(state.serviceCommissions)?state.serviceCommissions:[];
+  cart.forEach(x=>{const product=state.products.find(p=>p.code===x.code);if(product?.type==='Gói dịch vụ, liệu trình')return;const rule=commissionRules.find(r=>r.productCode===x.code),rate=Number(rule?.rate)||0;if(rate>0&&employee?.id){const revenue=Math.max(0,(Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0));state.serviceCommissions.push({id:nextAutoCode('HH',6,'spa_next_commission_id',state.serviceCommissions,'id'),invoiceId:invoice.id,employeeId:employee.id,productCode:x.code,productName:x.name,revenue,rate,amount:revenue*rate/100,createdAt:new Date().toISOString(),status:'Đang ghi nhận'});}});
+  state.lastCashierInvoiceId=invoice.id;
+  saveActiveCashierInvoice();state.cashierInvoices.splice(state.cashierActiveInvoice,1);
+  if(!state.cashierInvoices.length){state.cashierInvoices.push(cashierDraftDefaults());state.cashierActiveInvoice=0;}else state.cashierActiveInvoice=Math.min(state.cashierActiveInvoice,state.cashierInvoices.length-1);
+  loadActiveCashierInvoice();saveState();
+  if(isBackend)await refreshBackendSalesData().catch(e=>console.warn('Đồng bộ hóa đơn/Sổ quỹ thất bại:',e));
+  alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận còn nợ trên hóa đơn.':''));renderAll();
+ }catch(e){
+  console.error('Lỗi tạo hóa đơn Thu ngân:',e);
+  alert(String(e?.message||e||'Không thể tạo hóa đơn.'));
+  if(backendInvoice)await refreshBackendSalesData().catch(()=>{});
+ }finally{window.__cashierSaleSubmitting=false;}
 }
 function eInvoiceStatusLabel(inv){return inv?.eInvoiceStatus||'Chưa xuất';}
 function nextEInvoiceNumber(series){const key='spa_einvoice_seq_'+String(series||'').toUpperCase();const n=Number(localStorage.getItem(key)||0)+1;localStorage.setItem(key,String(n));return String(n).padStart(6,'0');}
