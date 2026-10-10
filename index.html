@@ -1973,9 +1973,10 @@ async function saveAppointment(){
  const appt={id:'APT'+Date.now(),customerCode:customerCode||'KH000001',customerName:c?.name||'Khách lẻ',staffId:String(st.backendId||st.id),staffName:st.name||'',date,start,end,title,note,status:'Đã đặt',createdAt:new Date().toISOString()};
  state.appointments=Array.isArray(state.appointments)?state.appointments:[];state.appointments.push(appt);saveState();closeModal();renderPage();updateAppointmentNotifications();alert('Đã tạo lịch hẹn trên thiết bị này (chưa đồng bộ Supabase).');
 }
+let appointmentReminderCheckRunning=false;
 async function updateAppointmentNotifications(){
- if(state._appointmentReminderCheckRunning)return;
- state._appointmentReminderCheckRunning=true;
+ if(appointmentReminderCheckRunning)return;
+ appointmentReminderCheckRunning=true;
  try{
   const now=new Date(),appointments=appointmentEventsForMonth();
   state.notifications=Array.isArray(state.notifications)?state.notifications:[];
@@ -1992,7 +1993,7 @@ async function updateAppointmentNotifications(){
     {minutes:10,id:'APN-10-'+a.id,title:'Nhắc lịch hẹn · trước 10 phút'}
    ];
    for(const reminder of reminders){
-    if(minutesUntil>reminder.minutes||existing.has(reminder.id))continue;
+    if(minutesUntil>reminder.minutes)continue;
     if(a.backendSource==='supabase'&&state.currentUser?.isSupabaseAuth){
      const {error}=await supabaseClient.from('appointment_reminders').insert({appointment_id:Number(a.backendId||a.id),reminder_minutes:reminder.minutes,created_by:state.currentUser.id});
      if(error){
@@ -2001,6 +2002,7 @@ async function updateAppointmentNotifications(){
       continue;
      }
     }
+    if(existing.has(reminder.id))continue;
     state.notifications.push({id:reminder.id,type:'appointment',title:reminder.title,message:baseMessage,createdAt:now.toISOString(),read:false,appointmentId:a.id,reminderMinutes:reminder.minutes});
     existing.add(reminder.id);
    }
@@ -2010,7 +2012,7 @@ async function updateAppointmentNotifications(){
   const unread=state.notifications.filter(n=>!n.read).length;
   if(badge){badge.textContent=String(unread);badge.style.display=unread?'inline-flex':'none';}
   if(list)list.innerHTML=state.notifications.length?state.notifications.slice(-10).reverse().map(n=>'<div style="padding:10px 12px;border-bottom:1px solid #eee"><b>'+esc(n.title||'Thông báo')+'</b><div style="font-size:12px;color:#667085;margin-top:3px">'+esc(n.message||'')+'</div></div>').join(''):'<div style="padding:12px;color:#667085">Không có thông báo.</div>';
- }finally{state._appointmentReminderCheckRunning=false;}
+ }finally{appointmentReminderCheckRunning=false;}
 }
 
 function appointmentViewDate(){
