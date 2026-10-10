@@ -3500,7 +3500,7 @@ function refreshDashboard(){
   const expense=cash.filter(x=>x.type==='chi').reduce((a,x)=>a+Number(x.amount||0),0)+legacyExpense;
   const debt=validSales.reduce((a,x)=>a+Math.max(0,Number(x.total||0)-Number(x.paid||0)-invoiceReturnedAmount(x)),0);
   document.getElementById('dashboardRevenue').innerText=money(revenue)+' ₫';
-  const paymentRevenue=(method)=>validSales.reduce((sum,x)=>{if(Array.isArray(x.paymentBreakdown)&&x.paymentBreakdown.length)return sum+x.paymentBreakdown.filter(p=>(p.source||'sale')==='sale'&&normalizePaymentMethod(p.method)===method).reduce((a,p)=>a+Number(p.amount||0),0);return sum+(!hasCashMovement(x.id,'thu')&&normalizePaymentMethod(x.paymentMethod)===method?Number(x.paid||0):0);},0);
+  const paymentRevenue=(method)=>validSales.reduce((sum,x)=>{if(Array.isArray(x.paymentBreakdown)&&x.paymentBreakdown.length)return sum+x.paymentBreakdown.filter(p=>(!p.source||p.source==='sale'||p.source==='backend')&&normalizePaymentMethod(p.method)===method).reduce((a,p)=>a+Number(p.amount||0),0);return sum+(!hasCashMovement(x.id,'thu')&&normalizePaymentMethod(x.paymentMethod)===method?Number(x.paid||0):0);},0);
   document.getElementById('cashRevenue').innerText=money(paymentRevenue('Tiền mặt'))+' ₫';
   document.getElementById('bankRevenue').innerText=money(paymentRevenue('Chuyển khoản'))+' ₫';
   document.getElementById('ewalletRevenue').innerText=money(paymentRevenue('Ví điện tử'))+' ₫';
