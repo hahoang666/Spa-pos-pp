@@ -1012,8 +1012,7 @@ function activateLoggedInUser(account){
  const screen=document.getElementById('loginScreen');
  if(screen)screen.style.display='none';
  renderAll();
- refreshBackendReferenceData().then(result=>{if(result.ok){renderAll();console.info('Đã đồng bộ dữ liệu nền từ Supabase.');}}).catch(e=>console.warn('Đồng bộ dữ liệu nền thất bại:',e));
- refreshBackendReferenceData().then(result=>{if(result.ok)return refreshBackendSalesData();}).then(result=>{if(result?.ok)renderAll();}).catch(e=>console.warn('Đồng bộ hóa đơn/Sổ quỹ thất bại:',e));
+ refreshBackendReferenceData().then(result=>{if(result.ok){console.info('Đã đồng bộ dữ liệu nền từ Supabase.');return refreshBackendSalesData();}}).then(result=>{if(result?.ok)renderAll();}).catch(e=>console.warn('Đồng bộ dữ liệu nền/hóa đơn/Sổ quỹ thất bại:',e));
  refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
 }
 function backendRoleName(roleId, roleName, roleCode){
