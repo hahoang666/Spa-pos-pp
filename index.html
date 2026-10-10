@@ -458,7 +458,7 @@ async function refreshBackendSalesData(){
  const backendCodes=new Set(backendInvoices.flatMap(x=>[x.id,x.backendCode,x.code,x.invoiceCode,x.number].filter(v=>v!==undefined&&v!==null).map(String)));
  // The legacy frontend invoice schema may store the displayed code in a different top-level field.
  // Match all top-level string/number fields to remove the specifically identified local-only test invoices.
- const frontendOnlyTestCodes=new Set(['HD00000030','HD00000031','HD00000032']);
+ const frontendOnlyTestCodes=new Set(['HD000030','HD000031','HD000032','HD00000030','HD00000031','HD00000032']);
  const allScalarValues=x=>Object.values(x||{}).filter(v=>['string','number'].includes(typeof v)).map(String);
  const isFrontendOnlyTestInvoice=x=>!x.backendSource&&allScalarValues(x).some(v=>frontendOnlyTestCodes.has(v));
  const isLocalDuplicateOfBackend=x=>!x.backendSource&&(
