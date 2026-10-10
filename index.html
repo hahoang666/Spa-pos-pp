@@ -1899,8 +1899,9 @@ async function refreshBackendAppointments(){
  try{
   const rows=await readBackendTable('appointments');
   const mapped=rows.map(mapBackendAppointment);
-  const localOnly=(state.appointments||[]).filter(a=>!a.backendSource&&!a.backendId);
-  state.appointments=[...localOnly,...mapped];
+  // Backend is the source of truth: discard frontend/localStorage-only appointments
+  // after a successful Supabase read. This does not delete any backend appointment.
+  state.appointments=mapped;
   state.backendAppointmentsLoaded=true;
   state.backendAppointmentsAt=new Date().toISOString();
   saveState();
