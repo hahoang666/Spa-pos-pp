@@ -445,7 +445,7 @@ async function refreshBackendSalesData(){
   itemsByInvoice.get(k).push({code:row.product_code||product?.code||'',name:row.product_name||product?.name||'',price:Number(row.unit_price_after_vat||0),qty:Number(row.quantity||0),discount,vat:Number(row.vat_rate||0),backendId:row.product_id});
  });
  const paymentsByInvoice=new Map();
- paymentRows.forEach(row=>{const k=String(row.invoice_id);if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push({method:methodById.get(String(row.payment_method_id))||'Tiền mặt',amount:Number(row.amount)||0,source:'backend',backendId:row.id});});
+ paymentRows.forEach(row=>{const k=String(row.invoice_id);if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push({method:methodById.get(String(row.payment_method_id))||'Tiền mặt',amount:Number(row.amount)||0,createdAt:row.created_at||row.paid_at||'',source:'backend',backendId:row.id});});
  const backendInvoices=invoiceRows.map(row=>{
   const customer=customerById.get(String(row.customer_id));
   const its=itemsByInvoice.get(String(row.id))||[];
@@ -684,6 +684,7 @@ const navigation=[
   {id:'cash',label:'Tiền mặt',page:'Tiền mặt',permission:'Xem sổ quỹ'},
   {id:'bank',label:'Ngân hàng',page:'Ngân hàng',permission:'Xem sổ quỹ'},
   {id:'wallet',label:'Ví điện tử',page:'Ví điện tử',permission:'Xem sổ quỹ'},
+  {id:'card',label:'Thẻ',page:'Thẻ',permission:'Xem sổ quỹ'},
   {id:'cashbook-total',label:'Tổng quỹ',page:'Tổng quỹ',permission:'Xem sổ quỹ'}
  ]},
  {id:'reports',label:'Báo cáo',icon:'📊',page:'Bộ báo cáo chuẩn',permission:'Xem doanh thu'},
@@ -1993,6 +1994,19 @@ function fundSummaryPage(c,type){
  const tabs=Object.entries(labels).map(([k,v])=>'<button class="btn cashbook-tab '+(k===type?'btn-primary':'btn-secondary')+'" onclick="selectPage(\''+v+'\')">'+v+'</button>').join('');
  c.innerHTML='<div class="cashbook-large"><div class="page-title">Sổ quỹ</div><div class="cashbook-tabs">'+tabs+'</div><div class="card cashbook-card"><h2 class="cashbook-title">'+labels[type]+'</h2><table class="cashbook-table"><thead><tr><th>Quỹ đầu kỳ</th><th>Tổng thu</th><th>Tổng chi</th><th>Cuối kỳ</th></tr></thead><tbody><tr><td>'+money(s.opening)+' ₫</td><td>'+money(s.thu)+' ₫</td><td>'+money(s.chi)+' ₫</td><td>'+money(s.closing)+' ₫</td></tr></tbody></table><p class="cashbook-note dashboard-note">Cuối kỳ = Đầu kỳ + Tổng thu − Tổng chi.</p>'+(type==='total'?'<p class="cashbook-note dashboard-note">Tổng quỹ = Tiền mặt + Ngân hàng (chuyển khoản) + Ví điện tử.</p>':'')+'</div></div>';
 }
+function cardCollectionPage(c,from='',to=''){
+ if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem sổ quỹ.</div>';return;}
+ const fromInput=document.getElementById('cardCollectionFrom'),toInput=document.getElementById('cardCollectionTo');
+ if(fromInput)from=fromInput.value||'';if(toInput)to=toInput.value||'';
+ const rows=[];
+ (state.invoices||[]).forEach(inv=>{
+  const parts=Array.isArray(inv.paymentBreakdown)?inv.paymentBreakdown:[];
+  if(parts.length){parts.forEach(p=>{const method=String(p.method||p.paymentMethod||'').trim().toLowerCase();if(!['thẻ','card','card_pos','pos'].includes(method))return;const date=String(p.createdAt||p.paidAt||inv.createdAt||'').slice(0,10);if(from&&(!date||date<from))return;if(to&&(!date||date>to))return;rows.push({amount:Number(p.amount)||0,date,invoice:inv.id||inv.backendCode||'—'});});}
+  else {const method=String(inv.paymentMethod||inv.payment||'').trim().toLowerCase();if(!['thẻ','card','card_pos','pos'].includes(method))return;const date=String(inv.createdAt||'').slice(0,10);if(from&&(!date||date<from))return;if(to&&(!date||date>to))return;const amount=Number(inv.paid||inv.total||inv.amount)||0;if(amount>0)rows.push({amount,date,invoice:inv.id||'—'});}
+ });
+ const total=rows.reduce((sum,x)=>sum+x.amount,0);
+ c.innerHTML='<div class="cashbook-large"><div class="page-title">Sổ quỹ</div><div class="cashbook-tabs">'+[['Tiền mặt','Tiền mặt'],['Ngân hàng','Ngân hàng'],['Ví điện tử','Ví điện tử'],['Thẻ','Thẻ'],['Tổng quỹ','Tổng quỹ']].map(([label,page])=>'<button class="btn cashbook-tab '+(page==='Thẻ'?'btn-primary':'btn-secondary')+'" onclick="selectPage(\''+page+'\')">'+label+'</button>').join('')+'</div><div class="card cashbook-card"><h2 class="cashbook-title">Tổng tiền thu bằng thẻ</h2><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:24px"><label style="display:flex;flex-direction:column;gap:6px">Từ ngày<input id="cardCollectionFrom" type="date" class="field" value="'+esc(from)+'" onchange="cardCollectionPage(document.getElementById(\'content\'))"></label><label style="display:flex;flex-direction:column;gap:6px">Đến ngày<input id="cardCollectionTo" type="date" class="field" value="'+esc(to)+'" onchange="cardCollectionPage(document.getElementById(\'content\'))"></label><button class="btn btn-secondary" onclick="document.getElementById(\'cardCollectionFrom\').value=\'\';document.getElementById(\'cardCollectionTo\').value=\'\';cardCollectionPage(document.getElementById(\'content\'),\'\',\'\')">Xóa bộ lọc</button></div><div style="font-size:14px;color:var(--muted);margin-bottom:8px">'+(from||to?('Khoảng thời gian: '+(from||'đầu kỳ')+' — '+(to||'hiện tại')):'Tất cả giao dịch')+'</div><div style="font-size:32px;font-weight:750;color:var(--primary);margin:10px 0 20px">'+money(total)+' ₫</div><p class="cashbook-note dashboard-note">Tổng được tính từ các khoản thanh toán có phương thức Thẻ trong dữ liệu hóa đơn đã đồng bộ. Mặc định không giới hạn ngày.</p></div></div>';
+}
 function renderPage(){
   if((state.page==='Quản lý tài khoản'||state.page==='Phân quyền User') && !hasPermission(state.page==='Quản lý tài khoản'?'Quản lý tài khoản':'Phân quyền User')){ state.section='Tổng quan'; state.page='Tổng quan'; }
   const c=document.getElementById('content');
@@ -2005,6 +2019,7 @@ function renderPage(){
   if(state.page==='Tiền mặt') return fundSummaryPage(c,'cash');
   if(state.page==='Ngân hàng') return fundSummaryPage(c,'bank');
   if(state.page==='Ví điện tử') return fundSummaryPage(c,'wallet');
+  if(state.page==='Thẻ') return cardCollectionPage(c);
   if(state.page==='Tổng quỹ') return fundSummaryPage(c,'total');
   if(state.page==='Phiếu chi') return cashBookPage(c,'chi');
   if(state.page==='Dịch vụ') return servicePage(c);
