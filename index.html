@@ -1046,7 +1046,7 @@ function activateLoggedInUser(account){
  const screen=document.getElementById('loginScreen');
  if(screen)screen.style.display='none';
  renderAll();
- refreshBackendReferenceData().then(result=>{if(result.ok){console.info('Đã đồng bộ dữ liệu nền từ Supabase.');return refreshBackendSalesData();}}).then(result=>{if(result?.ok)renderAll();}).catch(e=>console.warn('Đồng bộ dữ liệu nền/hóa đơn/Sổ quỹ thất bại:',e));
+ refreshBackendReferenceData().then(async result=>{if(result.ok){console.info('Đã đồng bộ dữ liệu nền từ Supabase.');await refreshBackendAppointments();return refreshBackendSalesData();}}).then(result=>{if(result?.ok)renderAll();}).catch(e=>console.warn('Đồng bộ dữ liệu nền/hóa đơn/Sổ quỹ thất bại:',e));
  refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
 }
 function backendRoleName(roleId, roleName, roleCode){
@@ -1881,6 +1881,38 @@ function appointmentEventsForMonth(){
  const a=Array.isArray(state.appointments)?state.appointments:[];
  return a.filter(x=>x.status!=='Đã hủy');
 }
+function mapBackendAppointment(row){
+ const customer=(state.customers||[]).find(c=>String(c.backendId||'')===String(row.customer_id||''));
+ const employee=(state.employees||[]).find(e=>String(e.backendId||e.id||'')===String(row.employee_id||''));
+ const statusMap={BOOKED:'Đã đặt',CONFIRMED:'Đã xác nhận',IN_PROGRESS:'Đang thực hiện',COMPLETED:'Hoàn thành',CANCELLED:'Đã hủy'};
+ return {
+  id:String(row.id),backendId:row.id,customerCode:customer?.code||'KH000001',
+  customerName:customer?.name||'Khách lẻ',staffId:String(row.employee_id),
+  staffName:employee?.name||'Nhân viên',date:String(row.appointment_date||''),
+  start:String(row.start_time||'').slice(0,5),end:String(row.end_time||'').slice(0,5),
+  title:String(row.title||''),note:String(row.notes||''),status:statusMap[row.status]||'Đã đặt',
+  createdAt:row.created_at||'',backendSource:'supabase'
+ };
+}
+async function refreshBackendAppointments(){
+ if(!state.currentUser?.isSupabaseAuth)return {ok:false,reason:'no-auth'};
+ try{
+  const rows=await readBackendTable('appointments');
+  const mapped=rows.map(mapBackendAppointment);
+  const localOnly=(state.appointments||[]).filter(a=>!a.backendSource&&!a.backendId);
+  state.appointments=[...localOnly,...mapped];
+  state.backendAppointmentsLoaded=true;
+  state.backendAppointmentsAt=new Date().toISOString();
+  saveState();
+  updateAppointmentNotifications();
+  if(state.page==='Lịch hẹn')renderPage();
+  console.info('Supabase appointments sync:',{rows:rows.length});
+  return {ok:true,count:rows.length};
+ }catch(error){
+  console.warn('Không thể đồng bộ lịch hẹn từ Supabase. Hãy kiểm tra migration/RLS:',error.message);
+  return {ok:false,error:error.message};
+ }
+}
 function appointmentCustomerSearch(){
  const q=(document.getElementById('apptCustomerSearch')?.value||'').trim().toLowerCase();
  const box=document.getElementById('apptCustomerResults');if(!box)return;
@@ -1895,14 +1927,14 @@ function selectAppointmentCustomer(code){
 }
 function appointmentStaffSearch(){
  const q=(document.getElementById('apptStaffSearch')?.value||'').trim().toLowerCase(),box=document.getElementById('apptStaffResults');if(!box)return;
- const rows=(state.accounts||[]).filter(x=>x.status==='Hoạt động').filter(x=>!q||String(x.name||'').toLowerCase().includes(q)||String(x.phone||x.phoneNumber||'').toLowerCase().includes(q)).slice(0,8);
- box.innerHTML=rows.length?rows.map(x=>'<button type="button" class="appt-search-result" onclick="selectAppointmentStaff(\''+escJs(x.id)+'\')"><b>'+esc(x.name)+'</b><span>'+esc(x.phone||x.phoneNumber||x.role||'')+'</span></button>').join(''):'<div class="appt-search-empty">Không tìm thấy nhân viên</div>';
+ const rows=(state.employees||[]).filter(x=>x.status==='Hoạt động').filter(x=>!q||String(x.name||'').toLowerCase().includes(q)||String(x.phone||x.phoneNumber||'').toLowerCase().includes(q)).slice(0,8);
+ box.innerHTML=rows.length?rows.map(x=>'<button type="button" class="appt-search-result" onclick="selectAppointmentStaff(\''+escJs(x.id)+'\')"><b>'+esc(x.name)+'</b><span>'+esc(x.phone||x.phoneNumber||x.position||'')+'</span></button>').join(''):'<div class="appt-search-empty">Không tìm thấy nhân viên</div>';
 }
 function selectAppointmentStaff(id){
- const st=(state.accounts||[]).find(x=>x.id===id);if(!st)return;
- document.getElementById('apptStaff').value=id;
+ const st=(state.employees||[]).find(x=>String(x.id)===String(id)||String(x.backendId)===String(id));if(!st)return;
+ document.getElementById('apptStaff').value=String(st.backendId||st.id);
  document.getElementById('apptStaffSearch').value=st.name||'';
- document.getElementById('apptStaffResults').innerHTML='<div class="appt-selected">✓ '+esc(st.name)+' · '+esc(st.role||'')+'</div>';
+ document.getElementById('apptStaffResults').innerHTML='<div class="appt-selected">✓ '+esc(st.name)+' · '+esc(st.position||'')+'</div>';
 }
 function openAppointmentCreate(){
  const today=localDateKey(new Date());
@@ -1917,41 +1949,68 @@ function openAppointmentCreate(){
   '</div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveAppointment()">Lưu lịch hẹn</button>');
 }
 
-function saveAppointment(){
+async function saveAppointment(){
  const customerCode=document.getElementById('apptCustomer')?.value||'',staffId=document.getElementById('apptStaff')?.value||'',date=document.getElementById('apptDate')?.value||'',start=document.getElementById('apptStart')?.value||'',end=document.getElementById('apptEnd')?.value||'',title=document.getElementById('apptTitle')?.value.trim()||'',note=document.getElementById('apptNote')?.value.trim()||'';
- if(!customerCode||!date||!start||!title)return alert('Vui lòng nhập khách hàng, ngày, giờ bắt đầu và tên lịch hẹn.');
- if(end&&end<=start)return alert('Giờ kết thúc phải sau giờ bắt đầu.');
- const c=(state.customers||[]).find(x=>x.code===customerCode),st=(state.accounts||[]).find(x=>x.id===staffId);
- const appt={id:'APT'+Date.now(),customerCode,customerName:c?.name||'',staffId,staffName:st?.name||'',date,start,end,title,note,status:'Đã đặt',createdAt:new Date().toISOString()};
- state.appointments=Array.isArray(state.appointments)?state.appointments:[];state.appointments.push(appt);saveState();closeModal();renderPage();updateAppointmentNotifications();alert('Đã tạo lịch hẹn.');
+ if(!date||!start||!end||!title||!staffId)return alert('Vui lòng chọn nhân viên, ngày, giờ bắt đầu/kết thúc và tên lịch hẹn.');
+ if(end<=start)return alert('Giờ kết thúc phải sau giờ bắt đầu.');
+ const c=(state.customers||[]).find(x=>x.code===customerCode),st=(state.employees||[]).find(x=>String(x.id)===String(staffId)||String(x.backendId)===String(staffId));
+ if(!st)return alert('Không tìm thấy nhân viên trong dữ liệu nhân sự. Vui lòng tải lại dữ liệu.');
+ const backendCustomerId=c?.backendId?Number(c.backendId):null;
+ if(state.currentUser?.isSupabaseAuth){
+  const payload={customer_id:backendCustomerId,employee_id:Number(st.backendId||st.id),appointment_date:date,start_time:start,end_time:end,title,notes:note||null,status:'BOOKED',created_by:state.currentUser.id};
+  const {data,error}=await supabaseClient.from('appointments').insert(payload).select('*').single();
+  if(error){
+   const message=String(error.message||'');
+   if(message.includes('APPOINTMENT_OVERLAP')||error.code==='23P01')return alert('Không thể tạo lịch: nhân viên đã có lịch hẹn chồng lấn trong khoảng thời gian này.');
+   console.error('Không lưu được lịch hẹn Supabase:',error);
+   return alert('Chưa lưu được lịch hẹn vào Supabase. Hãy kiểm tra migration và quyền truy cập. Chi tiết: '+message);
+  }
+  const appt=mapBackendAppointment(data);
+  state.appointments=Array.isArray(state.appointments)?state.appointments.filter(x=>String(x.id)!==String(appt.id)):[];
+  state.appointments.push(appt);saveState();closeModal();renderPage();updateAppointmentNotifications();alert('Đã lưu lịch hẹn lên Supabase.');
+  return;
+ }
+ const appt={id:'APT'+Date.now(),customerCode:customerCode||'KH000001',customerName:c?.name||'Khách lẻ',staffId:String(st.backendId||st.id),staffName:st.name||'',date,start,end,title,note,status:'Đã đặt',createdAt:new Date().toISOString()};
+ state.appointments=Array.isArray(state.appointments)?state.appointments:[];state.appointments.push(appt);saveState();closeModal();renderPage();updateAppointmentNotifications();alert('Đã tạo lịch hẹn trên thiết bị này (chưa đồng bộ Supabase).');
 }
-function updateAppointmentNotifications(){
- const now=new Date();
- const appointments=appointmentEventsForMonth();
- state.notifications=Array.isArray(state.notifications)?state.notifications:[];
- const existing=new Set(state.notifications.filter(n=>n.type==='appointment').map(n=>n.id));
- appointments.forEach(a=>{
-  if(!a.date||!a.start)return;
-  const startAt=new Date(String(a.date)+'T'+String(a.start).slice(0,5)+':00');
-  if(Number.isNaN(startAt.getTime()))return;
-  const minutesUntil=(startAt.getTime()-now.getTime())/60000;
-  if(minutesUntil<=0)return;
-  const baseMessage=(a.title||'Lịch hẹn')+' · '+a.start+(a.end?' – '+a.end:'')+' · '+(a.customerName||a.customer_name||'Khách lẻ');
-  const reminders=[
-   {minutes:15,id:'APN-15-'+a.id,title:'Nhắc lịch hẹn · trước 15 phút'},
-   {minutes:10,id:'APN-10-'+a.id,title:'Nhắc lịch hẹn · trước 10 phút'}
-  ];
-  reminders.forEach(reminder=>{
-   if(minutesUntil>reminder.minutes||existing.has(reminder.id))return;
-   state.notifications.push({id:reminder.id,type:'appointment',title:reminder.title,message:baseMessage,createdAt:now.toISOString(),read:false,appointmentId:a.id,reminderMinutes:reminder.minutes});
-   existing.add(reminder.id);
-  });
- });
- saveState();
- const badge=document.getElementById('notificationBadge'),list=document.getElementById('notificationList');
- const unread=state.notifications.filter(n=>!n.read).length;
- if(badge){badge.textContent=String(unread);badge.style.display=unread?'inline-flex':'none';}
- if(list)list.innerHTML=state.notifications.length?state.notifications.slice(-10).reverse().map(n=>'<div style="padding:10px 12px;border-bottom:1px solid #eee"><b>'+esc(n.title||'Thông báo')+'</b><div style="font-size:12px;color:#667085;margin-top:3px">'+esc(n.message||'')+'</div></div>').join(''):'<div style="padding:12px;color:#667085">Không có thông báo.</div>';
+async function updateAppointmentNotifications(){
+ if(state._appointmentReminderCheckRunning)return;
+ state._appointmentReminderCheckRunning=true;
+ try{
+  const now=new Date(),appointments=appointmentEventsForMonth();
+  state.notifications=Array.isArray(state.notifications)?state.notifications:[];
+  const existing=new Set(state.notifications.filter(n=>n.type==='appointment').map(n=>n.id));
+  for(const a of appointments){
+   if(!a.date||!a.start)continue;
+   const startAt=new Date(String(a.date)+'T'+String(a.start).slice(0,5)+':00');
+   if(Number.isNaN(startAt.getTime()))continue;
+   const minutesUntil=(startAt.getTime()-now.getTime())/60000;
+   if(minutesUntil<=0)continue;
+   const baseMessage=(a.title||'Lịch hẹn')+' · '+a.start+(a.end?' – '+a.end:'')+' · '+(a.customerName||a.customer_name||'Khách lẻ');
+   const reminders=[
+    {minutes:15,id:'APN-15-'+a.id,title:'Nhắc lịch hẹn · trước 15 phút'},
+    {minutes:10,id:'APN-10-'+a.id,title:'Nhắc lịch hẹn · trước 10 phút'}
+   ];
+   for(const reminder of reminders){
+    if(minutesUntil>reminder.minutes||existing.has(reminder.id))continue;
+    if(a.backendSource==='supabase'&&state.currentUser?.isSupabaseAuth){
+     const {error}=await supabaseClient.from('appointment_reminders').insert({appointment_id:Number(a.backendId||a.id),reminder_minutes:reminder.minutes,created_by:state.currentUser.id});
+     if(error){
+      if(error.code==='23505')continue;
+      console.warn('Không thể ghi nhận mốc nhắc lịch trên Supabase:',error.message);
+      continue;
+     }
+    }
+    state.notifications.push({id:reminder.id,type:'appointment',title:reminder.title,message:baseMessage,createdAt:now.toISOString(),read:false,appointmentId:a.id,reminderMinutes:reminder.minutes});
+    existing.add(reminder.id);
+   }
+  }
+  saveState();
+  const badge=document.getElementById('notificationBadge'),list=document.getElementById('notificationList');
+  const unread=state.notifications.filter(n=>!n.read).length;
+  if(badge){badge.textContent=String(unread);badge.style.display=unread?'inline-flex':'none';}
+  if(list)list.innerHTML=state.notifications.length?state.notifications.slice(-10).reverse().map(n=>'<div style="padding:10px 12px;border-bottom:1px solid #eee"><b>'+esc(n.title||'Thông báo')+'</b><div style="font-size:12px;color:#667085;margin-top:3px">'+esc(n.message||'')+'</div></div>').join(''):'<div style="padding:12px;color:#667085">Không có thông báo.</div>';
+ }finally{state._appointmentReminderCheckRunning=false;}
 }
 
 function appointmentViewDate(){
