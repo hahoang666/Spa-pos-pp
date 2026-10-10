@@ -2003,7 +2003,7 @@ function fundSummaryPage(c,type,from='',to=''){
  if(!hasPermission('Xem sổ quỹ')){c.innerHTML='<div class="empty">Bạn không có quyền xem sổ quỹ.</div>';return;}
  const fromInput=document.getElementById('fundSummaryFrom'),toInput=document.getElementById('fundSummaryTo');
  if(fromInput)from=fromInput.value||'';if(toInput)to=toInput.value||'';
- const labels={cash:'Tiền mặt',bank:'Ngân hàng',wallet:'Ví điện tử',total:'Tổng quỹ'},s=fundSummaryForType(type,from,to);
+ const labels={cash:'Tiền mặt',bank:'Ngân hàng',wallet:'Ví điện tử',card:'Thẻ',total:'Tổng quỹ'},s=fundSummaryForType(type,from,to);
  const tabs=[['Tiền mặt','Tiền mặt'],['Ngân hàng','Ngân hàng'],['Ví điện tử','Ví điện tử'],['Thẻ','Thẻ'],['Tổng quỹ','Tổng quỹ']].map(([label,page])=>'<button class="btn cashbook-tab '+((page===labels[type])?'btn-primary':'btn-secondary')+'" onclick="selectPage(\''+page+'\')">'+label+'</button>').join('');
  const rangeNote='Khoảng tính: '+s.from+' đến '+s.to+'. Ngày bắt đầu số dư lấy từ Supabase: '+s.baselineDate+'.';
  const missingFunds=s.fundCount===0;
