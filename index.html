@@ -1928,14 +1928,23 @@ function saveAppointment(){
 function updateAppointmentNotifications(){
  const now=new Date(),today=localDateKey(now),minute=now.getHours()*60+now.getMinutes();
  const appointments=appointmentEventsForMonth();
- const due=appointments.filter(a=>a.date===today).filter(a=>{const [h,m]=String(a.start||'00:00').split(':').map(Number);return h*60+m<=minute;});
- state.notifications=(state.notifications||[]).filter(n=>n.type!=='appointment');
- due.forEach(a=>state.notifications.push({id:'APN-'+a.id,type:'appointment',title:'Nhắc lịch hẹn',message:a.title+' · '+a.start+' · '+a.customerName,createdAt:new Date().toISOString(),read:false}));
+ state.notifications=Array.isArray(state.notifications)?state.notifications:[];
+ const existing=new Set(state.notifications.filter(n=>n.type==='appointment').map(n=>n.id));
+ appointments.filter(a=>a.date===today).forEach(a=>{
+  const parts=String(a.start||'00:00').split(':').map(Number),startMinute=(parts[0]||0)*60+(parts[1]||0);
+  if(startMinute>minute)return;
+  const id='APN-'+a.id;
+  if(existing.has(id))return;
+  state.notifications.push({id,type:'appointment',title:'Nhắc lịch hẹn',message:(a.title||'Lịch hẹn')+' · '+(a.start||'')+(a.end?' – '+a.end:'')+' · '+(a.customerName||a.customer_name||'Khách lẻ'),createdAt:now.toISOString(),read:false});
+  existing.add(id);
+ });
  saveState();
  const badge=document.getElementById('notificationBadge'),list=document.getElementById('notificationList');
- const unread=(state.notifications||[]).filter(n=>!n.read).length;if(badge)badge.textContent=String(unread);
- if(list)list.innerHTML=state.notifications.length?state.notifications.slice(-10).reverse().map(n=>'<div style="padding:10px 12px;border-bottom:1px solid #eee"><b>'+esc(n.title)+'</b><div style="font-size:12px;color:#667085;margin-top:3px">'+esc(n.message)+'</div></div>').join(''):'<div style="padding:12px;color:#667085">Không có thông báo.</div>';
+ const unread=state.notifications.filter(n=>!n.read).length;
+ if(badge){badge.textContent=String(unread);badge.style.display=unread?'inline-flex':'none';}
+ if(list)list.innerHTML=state.notifications.length?state.notifications.slice(-10).reverse().map(n=>'<div style="padding:10px 12px;border-bottom:1px solid #eee"><b>'+esc(n.title||'Thông báo')+'</b><div style="font-size:12px;color:#667085;margin-top:3px">'+esc(n.message||'')+'</div></div>').join(''):'<div style="padding:12px;color:#667085">Không có thông báo.</div>';
 }
+
 function appointmentViewDate(){
  if(!state.appointmentViewDate||!/\d{4}-\d{2}-\d{2}/.test(state.appointmentViewDate))state.appointmentViewDate=localDateKey(new Date());
  const d=new Date(state.appointmentViewDate+'T12:00:00');return Number.isNaN(d.getTime())?new Date():d;
@@ -2771,7 +2780,7 @@ function exitCashier(){
  state.page=target;state.section='Bán hàng';renderAll();
 }
 function shiftTopbarAction(){if(getOpenShift())openCloseShift();else openShift();}
-function toggleNotifications(){document.getElementById('notificationMenu')?.classList.toggle('show');document.getElementById('settingsMenu')?.classList.remove('show');}
+function toggleNotifications(){updateAppointmentNotifications();document.getElementById('notificationMenu')?.classList.toggle('show');document.getElementById('settingsMenu')?.classList.remove('show');}
 function toggleUserMenu(){document.getElementById('settingsMenu')?.classList.toggle('show');document.getElementById('notificationMenu')?.classList.remove('show');}
 function runGlobalSearch(query){
  const q=String(query||'').trim().toLowerCase(),box=document.getElementById('globalSearchResults');if(!box)return;
@@ -3982,6 +3991,8 @@ state.section='Tổng quan';
 state.page='Tổng quan';
 initLogin();
 renderAll();
+updateAppointmentNotifications();
+setInterval(updateAppointmentNotifications,30000);
 </script>
 </body>
 </html>
