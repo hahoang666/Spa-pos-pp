@@ -2034,7 +2034,7 @@ function renderPage(){
   if(state.page==='Tiền mặt') return fundSummaryPage(c,'cash');
   if(state.page==='Ngân hàng') return fundSummaryPage(c,'bank');
   if(state.page==='Ví điện tử') return fundSummaryPage(c,'wallet');
-  if(state.page==='Thẻ') return cardCollectionPage(c);
+  if(state.page==='Thẻ') return fundSummaryPage(c,'card');
   if(state.page==='Tổng quỹ') return fundSummaryPage(c,'total');
   if(state.page==='Phiếu chi') return cashBookPage(c,'chi');
   if(state.page==='Dịch vụ') return servicePage(c);
