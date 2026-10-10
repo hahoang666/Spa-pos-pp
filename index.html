@@ -455,13 +455,32 @@ async function refreshBackendSalesData(){
   return {id:row.code||('HD'+String(row.id).padStart(6,'0')),backendId:row.id,backendCode:row.code||'',backendSource:'supabase',createdAt:row.created_at||'',time:row.created_at?new Date(row.created_at).toLocaleString('vi-VN'):'',type:'Thu',customer:customer?.name||'Khách lẻ',customerName:customer?.name||'Khách lẻ',customerCode:customer?.code||'KH000001',phone:customer?.phone||'',productCode:its[0]?.code||'',productName:its.map(x=>x.name).join(', '),amount:Number(row.subtotal_before_vat)||total,discount:Number(row.discount_amount)||0,total,tax:Number(row.vat_amount)||0,paid,paymentMethod:pm[0]?.method||'Tiền mặt',payment:pm[0]?.method||'Tiền mặt',paymentBreakdown:pm,employeeId:row.employee_id||'',employeeName:'',items:its,status:row.status==='CANCELLED'?'Đã hủy':(paymentStatus==='PAID'?'Đã thanh toán':'Còn nợ'),dueAmount:Number(row.due_amount)||0,notes:row.notes||'',netRevenue:Math.max(0,Number(row.subtotal_before_vat||0)-Number(row.discount_amount||0))};
  });
  const backendIds=new Set(backendInvoices.map(x=>String(x.backendId)));
- // Remove only the three confirmed frontend-only test invoices. Check every identifier field independently:
- // local invoices may have an internal id while the visible invoice code is stored in code/invoiceCode.
+ const backendCodes=new Set(backendInvoices.flatMap(x=>[x.id,x.backendCode,x.code,x.invoiceCode,x.number].filter(v=>v!==undefined&&v!==null).map(String)));
+ // The legacy frontend invoice schema may store the displayed code in a different top-level field.
+ // Match all top-level string/number fields to remove the specifically identified local-only test invoices.
  const frontendOnlyTestCodes=new Set(['HD00000030','HD00000031','HD00000032']);
- const isFrontendOnlyTestInvoice=x=>!x.backendSource&&[x.id,x.code,x.invoiceCode,x.number].some(v=>frontendOnlyTestCodes.has(String(v||'')));
+ const allScalarValues=x=>Object.values(x||{}).filter(v=>['string','number'].includes(typeof v)).map(String);
+ const isFrontendOnlyTestInvoice=x=>!x.backendSource&&allScalarValues(x).some(v=>frontendOnlyTestCodes.has(v));
+ const isLocalDuplicateOfBackend=x=>!x.backendSource&&(
+   (x.backendId!==undefined&&backendIds.has(String(x.backendId))) ||
+   allScalarValues(x).some(v=>backendCodes.has(v))
+ );
  const removedFrontendInvoices=(state.invoices||[]).filter(isFrontendOnlyTestInvoice);
- const removedInvoiceRefs=new Set(removedFrontendInvoices.flatMap(x=>[x.id,x.code,x.invoiceCode,x.number].filter(v=>v!==undefined&&v!==null).map(String)));
- state.invoices=[...(state.invoices||[]).filter(x=>!isFrontendOnlyTestInvoice(x)&&!(!x.backendSource&&backendIds.has(String(x.backendId||'')))),...backendInvoices];
+ const removedInvoiceRefs=new Set(removedFrontendInvoices.flatMap(x=>allScalarValues(x)));
+ const mergedInvoices=[...(state.invoices||[]).filter(x=>!isFrontendOnlyTestInvoice(x)&&!isLocalDuplicateOfBackend(x)),...backendInvoices];
+ // Deduplicate by stable backend ID and visible invoice code so repeated refreshes never multiply rows.
+ const seenBackendIds=new Set(),seenCodes=new Set();
+ state.invoices=mergedInvoices.filter(x=>{
+   if(x.backendSource){
+     const bid=String(x.backendId??'');
+     const code=String(x.backendCode||x.id||'');
+     if(bid&&seenBackendIds.has(bid))return false;
+     if(code&&seenCodes.has(code))return false;
+     if(bid)seenBackendIds.add(bid);
+     if(code)seenCodes.add(code);
+   }
+   return true;
+ });
  if(removedInvoiceRefs.size){
   state.cashbook=(state.cashbook||[]).filter(x=>x.backendSource||!removedInvoiceRefs.has(String(x.referenceId||''))&&!removedInvoiceRefs.has(String(x.invoiceId||'')));
  }
