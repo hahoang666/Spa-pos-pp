@@ -470,7 +470,7 @@ async function refreshBackendSalesData(){
  );
  const removedFrontendInvoices=(state.invoices||[]).filter(isFrontendOnlyTestInvoice);
  const removedInvoiceRefs=new Set(removedFrontendInvoices.flatMap(x=>allScalarValues(x)));
- const mergedInvoices=[...(state.invoices||[]).filter(x=>!isFrontendOnlyTestInvoice(x)&&!isLocalDuplicateOfBackend(x)),...backendInvoices];
+ const mergedInvoices=[...(state.invoices||[]).filter(x=>!x.backendSource&&!isFrontendOnlyTestInvoice(x)&&!isLocalDuplicateOfBackend(x)),...backendInvoices];
  // Deduplicate by stable backend ID and visible invoice code so repeated refreshes never multiply rows.
  const seenBackendIds=new Set(),seenCodes=new Set();
  state.invoices=mergedInvoices.filter(x=>{
