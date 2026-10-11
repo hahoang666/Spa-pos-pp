@@ -44,7 +44,7 @@ begin
     from pg_policies
     where schemaname = 'public'
       and tablename = 'employees'
-      and cmd = 'SELECT'
+      and cmd in ('SELECT', 'ALL')
   loop
     execute format('drop policy if exists %I on public.employees', pol.policyname);
   end loop;
