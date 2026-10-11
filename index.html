@@ -2603,7 +2603,7 @@ async function openCancelInvoice(id){
    return alert('Không thể kiểm tra trạng thái mới nhất của hóa đơn trên Supabase. Để tránh hủy lặp, hộp thoại chưa được mở. Chi tiết: '+(error?.message||'Lỗi không xác định'));
   }
  }
- openModal('Hủy hóa đơn '+esc(inv.id),'<div><label>Lý do hủy *</label><textarea id="cancelReason" class="field" rows="4" placeholder="Nhập lý do hủy..."></textarea></div>','<button class="btn btn-secondary" onclick="closeModal()">Không</button><button class="btn btn-danger" onclick="cancelInvoice(\\''+esc(inv.id)+'\\')">Xác nhận hủy</button>');
+ openModal('Hủy hóa đơn '+esc(inv.id),'<div><label>Lý do hủy *</label><textarea id="cancelReason" class="field" rows="4" placeholder="Nhập lý do hủy..."></textarea></div>','<button class="btn btn-secondary" onclick="closeModal()">Không</button><button class="btn btn-danger" onclick="cancelInvoice(\''+esc(inv.id)+'\')">Xác nhận hủy</button>');
 }
 async function cancelInvoice(id){
  if(!hasPermission('Hủy hóa đơn'))return alert('Bạn không có quyền hủy hóa đơn.');
