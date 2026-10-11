@@ -508,9 +508,14 @@ begin
     'Hoàn tiền phiếu trả hàng ' || v_return.code
   );
 
-  -- Keep paid_amount (original collections) intact. Status reflects actual cash
-  -- returned; a reversed but not-yet-refunded return does not change this status.
-  v_refunded := v_refunded + p_amount;
+  -- Keep paid_amount (original collections) intact. Status reflects all cash
+  -- actually refunded across every return for this invoice.
+  select coalesce(sum(srr.amount), 0)
+    into v_refunded
+    from public.sales_return_refunds srr
+    join public.sales_returns sr on sr.id = srr.return_id
+   where sr.invoice_id = v_return.invoice_id;
+
   update public.invoices i
   set payment_status = case
         when v_refunded >= coalesce(i.paid_amount, 0) then 'REFUNDED'
