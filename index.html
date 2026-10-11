@@ -1374,7 +1374,7 @@ async function employeeProfilePage(c){
  }
  const showAccounts=isAdmin;
  const rows=visible.map(e=>{
-  const action=canManage?'<td><button class="btn btn-secondary" onclick="openEditEmployeeProfile('+JSON.stringify(String(e.id))+')">Sửa</button></td>':'';
+  const action=canManage?'<td><button class="btn btn-secondary" data-action="employee-edit" data-employee-id="'+esc(String(e.id))+'">Sửa</button></td>':'';
   const account=showAccounts?'<td>'+esc((e.accountUsernames||[]).join(', ')||'Không có / không xem được')+'</td>':'';
   return '<tr><td>'+esc(e.code||e.id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.phone||'—')+'</td><td>'+esc(e.position||'—')+'</td><td>'+esc(e.specialties||'—')+'</td><td>'+esc(e.status||'')+'</td>'+account+action+'</tr>';
  }).join('');
@@ -1401,7 +1401,7 @@ async function saveEmployeeProfile(){
  catch(error){console.error('Lưu hồ sơ nhân sự thất bại:',error);alert('Không thể lưu hồ sơ nhân sự: '+(error.message||error));}
 }
 function openEditEmployeeProfile(id){
- const e=state.employees.find(x=>x.id===id);if(!e)return;
+ const e=state.employees.find(x=>String(x.id)===String(id));if(!e)return;
  openModal('Sửa hồ sơ nhân sự','<div class="form-grid"><div><label>Mã NV</label><input class="field" value="'+esc(e.code||e.id)+'" readonly></div><div><label>Họ và tên *</label><input id="epName" class="field" value="'+esc(e.name)+'"></div><div><label>Số điện thoại</label><input id="epPhone" class="field" value="'+esc(e.phone||'')+'"></div><div><label>Email</label><input id="epEmail" class="field" value="'+esc(e.email||'')+'"></div><div><label>Chức danh *</label><input id="epPosition" class="field" value="'+esc(e.position||'')+'"></div><div><label>Bộ phận / chuyên môn</label><input id="epSpecialties" class="field" value="'+esc(e.specialties||'')+'"></div><div><label>Liên kết tài khoản</label><input class="field" value="Quản lý riêng ở hồ sơ tài khoản" readonly></div><div><label>Trạng thái</label><select id="epStatus" class="field"><option '+(e.status==='Hoạt động'?'selected':'')+'>Hoạt động</option><option '+(e.status==='Ngừng hoạt động'?'selected':'')+'>Ngừng hoạt động</option></select></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="updateEmployeeProfile('+JSON.stringify(id).replace(/\"/g,'&quot;')+')">Lưu</button>');
 }
 async function updateEmployeeProfile(id){
@@ -3025,6 +3025,12 @@ function globalSearchKeydown(e){if(e.key==='Enter'){const box=document.getElemen
 document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();const input=document.getElementById('globalSearchInput');if(input){input.focus();input.select();}}});
 function toggleSettingsMenu(){toggleUserMenu();}
 document.addEventListener('click',function(e){
+  const employeeEditEl=e.target.closest('[data-action="employee-edit"]');
+  if(employeeEditEl){
+    e.preventDefault();
+    openEditEmployeeProfile(employeeEditEl.dataset.employeeId||'');
+    return;
+  }
   const actionEl=e.target.closest('[data-action="toolbar-action"]');
   if(actionEl){
     e.preventDefault();
