@@ -1661,6 +1661,23 @@ function filterServiceTable(){
  document.querySelectorAll('#serviceTableBody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
 }
 function toggleAllServices(checked){document.querySelectorAll('.service-check').forEach(x=>x.checked=checked);}
+function nextServiceCode(type){
+ const prefix=type==='Gói dịch vụ, liệu trình'?'GDV':'DV';
+ const max=(Array.isArray(state.products)?state.products:[]).reduce((n,p)=>{
+  const raw=String(p?.code||'').toUpperCase();
+  if(!raw.startsWith(prefix))return n;
+  const value=Number(raw.slice(prefix.length));
+  return Number.isInteger(value)&&value>n?value:n;
+ },0);
+ return prefix+String(max+1).padStart(6,'0');
+}
+function updateServiceCodeForType(){
+ const codeEl=document.getElementById('serviceCode'),typeEl=document.getElementById('serviceType');
+ if(!codeEl||!typeEl)return;
+ // Never silently rename an existing record while editing it.
+ if((Array.isArray(state.products)?state.products:[]).some(p=>String(p.code)===codeEl.value))return;
+ codeEl.value=nextServiceCode(typeEl.value);
+}
 function toggleServicePackageFields(){
  const isPackage=document.getElementById('serviceType')?.value==='Gói dịch vụ, liệu trình';
  const sessionWrap=document.getElementById('serviceSessionWrap'),validWrap=document.getElementById('serviceValidDaysWrap');
@@ -1671,10 +1688,10 @@ function openService(code){
  const editing=!!code;
  const old=editing?state.products.find(x=>x.code===code):null;
  if(editing&&!old)return;
- const p=old||{code:nextAutoCode('DV',6,'spa_next_service_id',state.products,'code'),name:'',type:'Dịch vụ',group:'Dịch vụ',unit:'Lần',pre:0,vat:10,price:0,cost:0,status:'Đang kinh doanh',durationMinutes:60,sessionCount:0,validDays:0};
+ const p=old||{code:nextServiceCode('Dịch vụ'),name:'',type:'Dịch vụ',group:'Dịch vụ',unit:'Lần',pre:0,vat:10,price:0,cost:0,status:'Đang kinh doanh',durationMinutes:60,sessionCount:0,validDays:0};
  const isPackage=p.type==='Gói dịch vụ, liệu trình';
  openModal(editing?'Sửa dịch vụ / gói liệu trình':'Thêm dịch vụ / gói liệu trình',
- '<div class="form-grid"><div><label>Mã</label><input id="serviceCode" class="field" value="'+esc(p.code)+'" readonly></div><div><label>Loại *</label><select id="serviceType" class="field" onchange="toggleServicePackageFields()"><option value="Dịch vụ">Dịch vụ thông thường</option><option value="Gói dịch vụ, liệu trình">Gói dịch vụ / liệu trình</option></select></div><div><label>Nhóm</label><input id="serviceGroup" class="field" value="'+esc(p.group||'Dịch vụ')+'"></div><div><label>Đơn vị tính</label><select id="serviceUnit" class="field"><option>Lần</option><option>Gói</option><option>Buổi</option></select></div><div class="full"><label>Tên dịch vụ / gói *</label><input id="serviceName" class="field" value="'+esc(p.name||'')+'"></div><div><label>Barcode</label><input id="serviceBarcode" class="field" value="'+esc(p.barcode||'')+'"></div><div><label>Thời lượng mỗi buổi (phút)</label><input id="serviceDuration" class="field" type="number" min="0" step="1" value="'+(Number(p.durationMinutes||p.duration)||0)+'"></div><div id="serviceSessionWrap"><label>Số buổi liệu trình *</label><input id="serviceSessionCount" class="field" type="number" min="1" step="1" value="'+(Number(p.sessionCount||p.sessionsCount||p.session_count)||1)+'"></div><div id="serviceValidDaysWrap"><label>Thời hạn sử dụng (ngày, tùy chọn)</label><input id="serviceValidDays" class="field" type="number" min="0" step="1" value="'+(Number(p.validDays||p.valid_days)||0)+'"></div><div><label>VAT (%)</label><select id="serviceVat" class="field"><option value="0">0</option><option value="5">5</option><option value="8">8</option><option value="10">10</option></select></div><div><label>Giá bán sau thuế</label><input id="servicePrice" class="field" type="number" min="0" step="0.001" value="'+(Number(p.price)||0)+'"></div><div><label>Giá vốn</label><input id="serviceCost" class="field" type="number" min="0" step="0.001" value="'+(Number(p.cost)||0)+'"></div><div><label>Trạng thái</label><select id="serviceStatus" class="field"><option>Đang kinh doanh</option><option>Ngừng kinh doanh</option></select></div></div>',
+ '<div class="form-grid"><div><label>Mã</label><input id="serviceCode" class="field" value="'+esc(p.code)+'" readonly></div><div><label>Loại *</label><select id="serviceType" class="field" onchange="toggleServicePackageFields();updateServiceCodeForType()"><option value="Dịch vụ">Dịch vụ thông thường</option><option value="Gói dịch vụ, liệu trình">Gói dịch vụ / liệu trình</option></select></div><div><label>Nhóm</label><input id="serviceGroup" class="field" value="'+esc(p.group||'Dịch vụ')+'"></div><div><label>Đơn vị tính</label><select id="serviceUnit" class="field"><option>Lần</option><option>Gói</option><option>Buổi</option></select></div><div class="full"><label>Tên dịch vụ / gói *</label><input id="serviceName" class="field" value="'+esc(p.name||'')+'"></div><div><label>Barcode</label><input id="serviceBarcode" class="field" value="'+esc(p.barcode||'')+'"></div><div><label>Thời lượng mỗi buổi (phút)</label><input id="serviceDuration" class="field" type="number" min="0" step="1" value="'+(Number(p.durationMinutes||p.duration)||0)+'"></div><div id="serviceSessionWrap"><label>Số buổi liệu trình *</label><input id="serviceSessionCount" class="field" type="number" min="1" step="1" value="'+(Number(p.sessionCount||p.sessionsCount||p.session_count)||1)+'"></div><div id="serviceValidDaysWrap"><label>Thời hạn sử dụng (ngày, tùy chọn)</label><input id="serviceValidDays" class="field" type="number" min="0" step="1" value="'+(Number(p.validDays||p.valid_days)||0)+'"></div><div><label>VAT (%)</label><select id="serviceVat" class="field"><option value="0">0</option><option value="5">5</option><option value="8">8</option><option value="10">10</option></select></div><div><label>Giá bán sau thuế</label><input id="servicePrice" class="field" type="number" min="0" step="0.001" value="'+(Number(p.price)||0)+'"></div><div><label>Giá vốn</label><input id="serviceCost" class="field" type="number" min="0" step="0.001" value="'+(Number(p.cost)||0)+'"></div><div><label>Trạng thái</label><select id="serviceStatus" class="field"><option>Đang kinh doanh</option><option>Ngừng kinh doanh</option></select></div></div>',
  '<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveService(\''+esc(p.code)+'\','+editing+')">Lưu</button>');
  document.getElementById('serviceType').value=p.type||'Dịch vụ';
  document.getElementById('serviceUnit').value=p.unit||'Lần';
@@ -1686,6 +1703,7 @@ async function saveService(code,editing){
  if(!hasPermission(editing?'Sửa sản phẩm':'Thêm sản phẩm'))return alert('Bạn không có quyền thực hiện thao tác này.');
  const name=document.getElementById('serviceName').value.trim(); if(!name)return alert('Vui lòng nhập tên dịch vụ/gói liệu trình.');
  const type=document.getElementById('serviceType').value;
+ const serviceCode=(document.getElementById('serviceCode')?.value||code).trim();
  const price=Number(document.getElementById('servicePrice').value)||0, vat=Number(document.getElementById('serviceVat').value)||0;
  const duration=Math.max(0,Number(document.getElementById('serviceDuration').value)||0);
  const sessionCount=type==='Gói dịch vụ, liệu trình'?Number(document.getElementById('serviceSessionCount').value):0;
@@ -1698,7 +1716,7 @@ async function saveService(code,editing){
  if(editing&&!existing)return alert('Không tìm thấy dịch vụ cần sửa.');
  if(state.currentUser?.isSupabaseAuth){
   try{
-   const payload={name,product_type:type==='Gói dịch vụ, liệu trình'?'PACKAGE':'SERVICE',product_group:data.group,unit_name:data.unit,barcode:data.barcode||null,duration_minutes:duration,session_count:sessionCount,valid_days:validDays,price_before_vat:data.pre,price_after_vat:price,vat_rate:vat,status:data.status==='Đang kinh doanh'?'ACTIVE':'INACTIVE'};
+   const payload={code:serviceCode,name,product_type:type==='Gói dịch vụ, liệu trình'?'PACKAGE':'SERVICE',product_group:data.group,unit_name:data.unit,barcode:data.barcode||null,duration_minutes:duration,session_count:sessionCount,valid_days:validDays,price_before_vat:data.pre,price_after_vat:price,vat_rate:vat,status:data.status==='Đang kinh doanh'?'ACTIVE':'INACTIVE'};
    let request;
    if(existing?.backendId){request=supabaseClient.from('products').update(payload).eq('id',existing.backendId);}
    else{request=supabaseClient.from('products').insert(payload);}
@@ -1709,7 +1727,7 @@ async function saveService(code,editing){
    else state.products.push({...mapped,...data,code:row.code,backendId:row.id,backendSource:'supabase'});
   }catch(error){console.error('Không lưu được dịch vụ/gói liệu trình lên Supabase:',error);return alert('Không lưu được lên Supabase: '+(error.message||'Lỗi không xác định')+'. Dữ liệu chưa được xác nhận lưu.');}
  }else{
-  if(existing)Object.assign(existing,data);else state.products.push({code,...data,createdAt:new Date().toISOString()});
+  if(existing)Object.assign(existing,data);else state.products.push({code:serviceCode,...data,createdAt:new Date().toISOString()});
  }
  saveState();closeModal();servicePage(document.getElementById('content'));
 }
