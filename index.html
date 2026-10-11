@@ -2725,8 +2725,11 @@ function invoicePage(c){
    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px"><button class="btn btn-secondary" onclick="exportInvoicesExcel()">⬇ Xuất Excel</button></div><div class="table-wrap"><table><thead><tr><th data-col="0">Mã</th><th data-col="1">Thời gian</th><th data-col="2">Khách hàng</th><th data-col="3">Số điện thoại</th><th data-col="4">Tổng tiền hàng</th><th data-col="5">Giảm giá</th><th data-col="6">Tổng sau giảm giá</th><th data-col="7">VAT</th><th data-col="8">Khách cần trả</th><th data-col="9">Khách đã trả</th><th data-col="10">Trạng thái</th><th data-col="11">Ghi chú</th></tr></thead><tbody id="invoiceTableBody"></tbody></table></div><div id="invoicePagination" style="display:flex;justify-content:center;padding:12px"></div>
   </div>
  </div>`;
- // The inner header creates its own controls; keep only the table's column controls.
+ // Render cached data first, then refresh from Supabase automatically for authenticated sessions.
  applyInvoiceFilters();
+ if(state.currentUser?.isSupabaseAuth){
+  refreshBackendSalesData().then(result=>{if(result?.ok)applyInvoiceFilters();}).catch(error=>console.error('Tự động làm mới danh sách hóa đơn thất bại:',error));
+ }
 }
 
 function customerPage(c){
