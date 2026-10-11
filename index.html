@@ -423,6 +423,8 @@ async function readBackendTable(table){const {data,error}=await supabaseClient.f
 function backendInvoiceStatus(status,paymentStatus){
  const s=String(status||'').trim().toUpperCase(),p=String(paymentStatus||'').trim().toUpperCase();
  if(s==='CANCELLED'||p==='CANCELLED')return 'Đã hủy';
+ if(p==='REFUNDED')return 'Đã hoàn tiền';
+ if(p==='PARTIALLY_REFUNDED')return 'Hoàn tiền một phần';
  if(p==='PAID')return 'Đã thanh toán';
  return 'Còn nợ';
 }
