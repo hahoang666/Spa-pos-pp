@@ -4,20 +4,12 @@
 begin;
 
 alter table public.products
-  add column if not exists barcode text,
   add column if not exists product_group text,
+  add column if not exists unit_name text,
   add column if not exists duration_minutes integer not null default 0,
   add column if not exists session_count integer not null default 0,
   add column if not exists valid_days integer not null default 0,
   add column if not exists price_after_vat numeric(18,3);
-
-update public.products
-set price_after_vat = round(selling_price * (1 + coalesce(vat_rate, 0) / 100), 3)
-where price_after_vat is null;
-
-alter table public.products
-  alter column price_after_vat set default 0,
-  alter column price_after_vat set not null;
 
 do $$
 begin
