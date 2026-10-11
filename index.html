@@ -4191,7 +4191,7 @@ function calculateProductPreTax(){
  const pre=document.getElementById('productPre');
  if(pre) pre.value=formatProductPreTax(price,vat);
 }
-function saveProduct(code,editing){
+async function saveProduct(code,editing){
   if(!hasPermission(editing?'Sửa sản phẩm':'Thêm sản phẩm')) return alert('Bạn không có quyền thực hiện thao tác này.');
  const name=document.getElementById('productName').value.trim();
  if(!name){alert('Vui lòng nhập tên hàng hóa.');return;}
@@ -4212,12 +4212,38 @@ function saveProduct(code,editing){
   unit:document.getElementById('productUnit').value,
   status:document.getElementById('productStatus')?.value||'Đang kinh doanh'
  };
- if(editing){
-  const p=state.products.find(x=>x.code===code);
-  if(!p)return;
-  Object.assign(p,data);
+ const existing=editing?state.products.find(x=>x.code===code):null;
+ if(editing&&!existing)return alert('Không tìm thấy sản phẩm cần sửa.');
+ if(state.currentUser?.isSupabaseAuth){
+  try{
+   const productType=data.type==='Gói dịch vụ, liệu trình'?'PACKAGE':data.type==='Dịch vụ'?'SERVICE':'PRODUCT';
+   const payload={
+    code,
+    name,
+    product_type:productType,
+    product_group:data.group,
+    unit_name:data.unit,
+    barcode:data.barcode||null,
+    price_before_vat:data.pre,
+    price_after_vat:price,
+    vat_rate:data.vat,
+    status:data.status==='Đang kinh doanh'?'ACTIVE':'INACTIVE'
+   };
+   let request;
+   if(existing?.backendId) request=supabaseClient.from('products').update(payload).eq('id',existing.backendId);
+   else request=supabaseClient.from('products').insert(payload);
+   const {data:row,error}=await request.select('*').single();
+   if(error)throw error;
+   const mapped=mapBackendProduct(row);
+   if(existing)Object.assign(existing,mapped,data,{code:row.code,backendId:row.id,backendSource:'supabase'});
+   else state.products.push({...mapped,...data,code:row.code,backendId:row.id,backendSource:'supabase',stock:productType==='PRODUCT'?0:'---'});
+  }catch(error){
+   console.error('Không lưu được sản phẩm lên Supabase:',error);
+   return alert('Không lưu được lên Supabase: '+(error.message||'Lỗi không xác định')+'. Dữ liệu chưa được xác nhận lưu.');
+  }
  }else{
-  state.products.push({code,...data,stock:(data.type==='Dịch vụ'||data.type==='Gói dịch vụ, liệu trình')?'---':0});
+  if(editing)Object.assign(existing,data);
+  else state.products.push({code,...data,stock:(data.type==='Dịch vụ'||data.type==='Gói dịch vụ, liệu trình')?'---':0});
  }
  saveState();
  closeModal();
