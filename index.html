@@ -1351,10 +1351,39 @@ function undoTherapySession(cardId,usageId){
  saveState();therapyCardsPage(document.getElementById('content'));alert('Đã hoàn tác buổi thực hiện.');
 }
 
-function employeeProfilePage(c){
- const emps=Array.isArray(state.employees)?state.employees:[];
- const rows=emps.map(e=>{return '<tr><td>'+esc(e.code||e.id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.phone||'—')+'</td><td>'+esc(e.position||'—')+'</td><td>'+esc(e.specialties||'—')+'</td><td>'+esc(e.status||'')+'</td><td>'+esc((e.accountUsernames||[]).join(', ')||'Không có / không xem được')+'</td><td><button class="btn btn-secondary" onclick="openEditEmployeeProfile('+JSON.stringify(e.id).replace(/\"/g,'&quot;')+')">Sửa</button></td></tr>';}).join('');
- c.innerHTML=header('Nhân viên','Thêm nhân sự','openCreateEmployeeProfile')+'<div class="card" style="margin-bottom:12px;padding:14px"><div style="font-size:13px;color:#667085">Hồ sơ nhân sự độc lập với tài khoản đăng nhập. Kỹ thuật viên/tư vấn có thể tồn tại mà không cần username/password.</div></div><div class="card table-wrap"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>SĐT</th><th>Chức danh</th><th>Chuyên môn</th><th>Trạng thái</th><th>Tài khoản</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có hồ sơ nhân sự</div></td></tr>')+'</tbody></table></div>';
+async function employeeProfilePage(c){
+ const user=state.currentUser||{};
+ const role=String(user.role||'').trim().toLowerCase();
+ const isAdmin=role==='admin'||role==='quản trị viên';
+ const employeeId=String(user.employeeId??'');
+ const all=Array.isArray(state.employees)?state.employees:[];
+ const normalizeRoleText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const isTechnicianOrConsultant=e=>/(ky thuat|technician|tu van|consultant)/.test(normalizeRoleText([e.position,e.specialties,e.department].filter(Boolean).join(' ')));
+ const visible=all.filter(e=>{
+  if(isAdmin)return true;
+  const isOwn=employeeId!==''&&(String(e.backendId??e.id)===employeeId||String(e.id)===employeeId);
+  if(isOwn)return true;
+  if(role==='thu ngân'||role==='cashier')return false;
+  if(role==='nhân viên'||role==='employee'||role==='quản lý'||role==='manager')return isTechnicianOrConsultant(e);
+  return false;
+ });
+ let canManage=isAdmin;
+ if(!canManage&&user.isSupabaseAuth){
+  try{const {data,error}=await supabaseClient.rpc('can_manage_employees');if(error)throw error;canManage=data===true;}
+  catch(error){console.warn('Không xác minh được quyền quản lý hồ sơ nhân sự:',error.message||error);canManage=false;}
+ }
+ const showAccounts=isAdmin;
+ const rows=visible.map(e=>{
+  const action=canManage?'<td><button class="btn btn-secondary" onclick="openEditEmployeeProfile('+JSON.stringify(e.id).replace(/\\"/g,'&quot;')+')">Sửa</button></td>':'';
+  const account=showAccounts?'<td>'+esc((e.accountUsernames||[]).join(', ')||'Không có / không xem được')+'</td>':'';
+  return '<tr><td>'+esc(e.code||e.id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.phone||'—')+'</td><td>'+esc(e.position||'—')+'</td><td>'+esc(e.specialties||'—')+'</td><td>'+esc(e.status||'')+'</td>'+account+action+'</tr>';
+ }).join('');
+ const toolbar=header('Nhân viên',canManage?'Thêm nhân sự':'',canManage?'openCreateEmployeeProfile':'');
+ const accountHeader=showAccounts?'<th>Tài khoản</th>':'';
+ const actionHeader=canManage?'<th>Thao tác</th>':'';
+ const colspan=6+(showAccounts?1:0)+(canManage?1:0);
+ const scopeNote=isAdmin?'Quản trị viên xem được toàn bộ hồ sơ nhân sự.':(role==='thu ngân'||role==='cashier'?'Bạn chỉ xem được hồ sơ nhân sự đã liên kết với tài khoản của mình.':'Bạn xem được hồ sơ của mình và các kỹ thuật viên/tư vấn viên, kể cả người không có tài khoản đăng nhập.');
+ c.innerHTML=toolbar+'<div class="card" style="margin-bottom:12px;padding:14px"><div style="font-size:13px;color:#667085">Hồ sơ nhân sự độc lập với tài khoản đăng nhập. '+esc(scopeNote)+'</div></div><div class="card table-wrap"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>SĐT</th><th>Chức danh</th><th>Chuyên môn</th><th>Trạng thái</th>'+accountHeader+actionHeader+'</tr></thead><tbody>'+(rows||'<tr><td colspan="'+colspan+'"><div class="empty">Không có hồ sơ nhân sự trong phạm vi được phép xem</div></td></tr>')+'</tbody></table></div>';
 }
 function openCreateEmployeeProfile(){
  openModal('Thêm hồ sơ nhân sự','<div class="form-grid"><div><label>Mã NV</label><input class="field" value="Backend tự sinh mã khi lưu" readonly></div><div><label>Họ và tên *</label><input id="epName" class="field"></div><div><label>Số điện thoại</label><input id="epPhone" class="field"></div><div><label>Email</label><input id="epEmail" class="field"></div><div><label>Chức danh *</label><input id="epPosition" class="field" placeholder="Kỹ thuật viên / Tư vấn / Quản lý..."></div><div><label>Bộ phận / chuyên môn</label><input id="epSpecialties" class="field"></div><div><label>Liên kết tài khoản</label><input class="field" value="Quản lý riêng ở hồ sơ tài khoản" readonly></div><div><label>Trạng thái</label><select id="epStatus" class="field"><option>Hoạt động</option><option>Ngừng hoạt động</option></select></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEmployeeProfile()">Lưu</button>');
