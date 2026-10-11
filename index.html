@@ -685,7 +685,7 @@ const navigation=[
  ]},
  {id:'staff',label:'Nhân sự',icon:'👨‍💼',children:[
   {id:'staff-list',label:'Hồ sơ nhân sự',page:'Nhân viên',permission:'Xem khách hàng'},
-  {id:'attendance',label:'Chấm công',page:'Chấm công',permission:'Chấm công nhân viên'},
+  {id:'attendance',label:'Chấm công',page:'Chấm công',permission:'Tự chấm công'},
   {id:'commission',label:'Hoa hồng',page:'Hoa hồng'},
  ]},
  {id:'cashbook',label:'Sổ quỹ',icon:'💰',children:[
@@ -714,7 +714,7 @@ const permissionCatalog={
   'Sản phẩm / dịch vụ':['Xem sản phẩm','Thêm sản phẩm','Sửa sản phẩm','Xóa sản phẩm','Cập nhật giá','Quản lý tồn kho'],
   'Thu / Chi':['Xem sổ quỹ','Lập phiếu thu','Lập phiếu chi','Đảo phiếu','Chuyển quỹ','Xem phiếu thu','Tạo phiếu thu','Xem phiếu chi','Tạo phiếu chi','Tạo nhà cung cấp','Tạo chứng từ'],
   'Báo cáo':['Xem biểu đồ','Xuất Excel'],
-  'Spa':['Chấm công nhân viên','Mở ca','Chốt quỹ','Khóa kỳ sổ quỹ','Sửa số dư đầu kỳ','Phê duyệt'],
+  'Spa':['Tự chấm công','Chấm công nhân viên','Mở ca','Chốt quỹ','Khóa kỳ sổ quỹ','Sửa số dư đầu kỳ','Phê duyệt'],
   'Quản trị':['Quản lý tài khoản','Phân quyền User']
 };
 const allPermissions=Object.values(permissionCatalog).flat();
@@ -725,7 +725,7 @@ saveState();
 function defaultPermissions(role){
   if(role==='Admin') return [...allPermissions];
   if(role==='Quản lý') return allPermissions.filter(p=>!['Quản lý tài khoản','Phân quyền User'].includes(p));
-  return ['Xem Dashboard','Xem hóa đơn','Tạo hóa đơn','Xem thanh toán','Sử dụng thu ngân','Xem khách hàng','Thêm khách hàng','Xem sản phẩm','Xem sổ quỹ'];
+  return ['Xem Dashboard','Xem hóa đơn','Tạo hóa đơn','Xem thanh toán','Sử dụng thu ngân','Xem khách hàng','Thêm khách hàng','Xem sản phẩm','Xem sổ quỹ','Tự chấm công'];
 }
 function mapBackendShift(row){
  if(!row||typeof row!=='object')return null;
@@ -2150,6 +2150,7 @@ function attendanceMonthlyPage(c){
 function exportAttendanceMonth(){alert('Chức năng Xuất Excel sẽ được nối ở bước nghiệp vụ tiếp theo.')}
 function openAttendanceExplanation(){alert('Chức năng Gửi giải trình sẽ được nối ở bước nghiệp vụ tiếp theo.')}
 function attendancePage(c){
+  if(!hasPermission('Tự chấm công')&&!hasPermission('Chấm công nhân viên')){c.innerHTML='<div class="empty">Bạn không có quyền xem chấm công.</div>';return;}
  const emp=state.currentUser?.employeeId?state.employees.find(e=>e.id===state.currentUser.employeeId):state.employees.find(e=>e.accountId===state.currentUser?.id);
  const name=emp?.name||state.currentUser?.name||'Nhân viên';
  const today=localDateKey(new Date());
@@ -2161,6 +2162,7 @@ function attendancePage(c){
  setInterval(()=>{const el=document.getElementById('attendanceClock');if(el)el.textContent=new Date().toLocaleTimeString('vi-VN')},1000);
 }
 function punchAttendance(){
+  if(!hasPermission('Tự chấm công')&&!hasPermission('Chấm công nhân viên'))return alert('Bạn không có quyền tự chấm công.');
  const emp=state.currentUser?.employeeId?state.employees.find(e=>e.id===state.currentUser.employeeId):state.employees.find(e=>e.accountId===state.currentUser?.id);
  if(!emp)return alert('Tài khoản chưa liên kết hồ sơ nhân viên.');
  const date=localDateKey(new Date()), now=new Date(), time=now.toLocaleTimeString('vi-VN');
