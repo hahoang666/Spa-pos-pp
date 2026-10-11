@@ -1361,7 +1361,7 @@ async function employeeProfilePage(c){
  const isTechnicianOrConsultant=e=>/(ky thuat|technician|tu van|consultant)/.test(normalizeRoleText([e.position,e.specialties,e.department].filter(Boolean).join(' ')));
  const visible=all.filter(e=>{
   if(isAdmin)return true;
-  const isOwn=employeeId!==''&&(String(e.backendId??e.id)===employeeId||String(e.id)===employeeId);
+  const isOwn=(employeeId!==''&&(String(e.backendId??e.id)===employeeId||String(e.id)===employeeId))||String(e.auth_user_id??'')===String(user.authUserId??user.id??'');
   if(isOwn)return true;
   if(role==='thu ngân'||role==='cashier')return false;
   if(role==='nhân viên'||role==='employee'||role==='quản lý'||role==='manager')return isTechnicianOrConsultant(e);
