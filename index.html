@@ -2572,10 +2572,38 @@ function viewInvoice(id){
  const itemRows=items.map(x=>'<tr><td>'+esc(x.code||'')+'</td><td>'+esc(x.name||'')+'</td><td>'+x.qty+'</td><td>'+money(x.price||0)+' ₫</td><td>'+money(x.discount||0)+' ₫</td><td>'+Number(x.vat||10)+'%</td><td>'+money((Number(x.price)||0)*(Number(x.qty)||0)-(Number(x.discount)||0))+' ₫'+'</td></tr>').join('');
  openModal('Chi tiết hóa đơn '+esc(inv.id),'<div class="form-grid"><div><label>Khách hàng</label><input class="field" readonly value="'+esc(inv.customerName||inv.customer||'')+'"></div><div><label>Nhân viên</label><input class="field" readonly value="'+esc(inv.employeeName||'')+'"></div><div><label>Thời gian</label><input class="field" readonly value="'+esc(inv.time||'')+'"></div><div><label>Trạng thái</label><input class="field" readonly value="'+esc(inv.status||'')+'"></div></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Mã SP</th><th>Sản phẩm</th><th>SL</th><th>Đơn giá</th><th>Giảm</th><th>VAT</th><th>Thành tiền</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><div class="summary" style="margin-top:12px"><div class="summary-box"><div class="summary-row"><span>Tổng</span><b>'+money(total)+' ₫</b></div><div class="summary-row"><span>Đã trả</span><b>'+money(paid)+' ₫</b></div><div class="summary-row"><span>Còn nợ</span><b>'+money(debt)+' ₫</b></div></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Đóng</button><button class="btn btn-primary" onclick="printInvoice(\''+esc(inv.id)+'\');closeModal()">In hóa đơn</button>');
 }
-function openCancelInvoice(id){
+async function openCancelInvoice(id){
  if(!hasPermission('Hủy hóa đơn'))return alert('Bạn không có quyền hủy hóa đơn.');
- const inv=state.invoices.find(x=>x.id===id);if(!inv||inv.status==='Đã hủy')return;
- openModal('Hủy hóa đơn '+esc(inv.id),'<div><label>Lý do hủy *</label><textarea id="cancelReason" class="field" rows="4" placeholder="Nhập lý do hủy..."></textarea></div>','<button class="btn btn-secondary" onclick="closeModal()">Không</button><button class="btn btn-danger" onclick="cancelInvoice(\''+esc(inv.id)+'\')">Xác nhận hủy</button>');
+ let inv=state.invoices.find(x=>x.id===id);
+ if(!inv)return alert('Không tìm thấy hóa đơn. Hãy tải lại danh sách hóa đơn.');
+ if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy.');
+
+ // Xác minh trạng thái mới nhất trên Supabase trước khi mở hộp thoại.
+ if(state.currentUser?.isSupabaseAuth&&inv.backendSource==='supabase'){
+  if(!inv.backendId)return alert('Không tìm thấy ID hóa đơn trên Supabase. Không thể kiểm tra trạng thái.');
+  try{
+   const {data:latest,error}=await supabaseClient.from('invoices')
+    .select('id,code,status,payment_status,paid_amount')
+    .eq('id',Number(inv.backendId)).maybeSingle();
+   if(error)throw error;
+   if(!latest)return alert('Không tìm thấy hóa đơn trên Supabase. Danh sách chưa được thay đổi.');
+   if(String(latest.status||'').toUpperCase()==='CANCELLED'||String(latest.payment_status||'').toUpperCase()==='CANCELLED'){
+    const sync=await refreshBackendSalesData();
+    if(!sync?.ok){
+     inv.status='Đã hủy';saveState();applyInvoiceFilters();
+     return alert('Supabase xác nhận hóa đơn đã hủy nhưng chưa đồng bộ được toàn bộ dữ liệu. Giao diện đã khóa thao tác hủy; hãy tải lại trang để đồng bộ đầy đủ.');
+    }
+    applyInvoiceFilters();
+    return alert('Hóa đơn đã được hủy trước đó. Danh sách đã đồng bộ lại từ Supabase.');
+   }
+   inv.status=String(latest.payment_status||'').toUpperCase()==='PAID'?'Đã thanh toán':'Còn nợ';
+   inv.paid=Number(latest.paid_amount)||0;
+  }catch(error){
+   console.error('Kiểm tra trạng thái hóa đơn trước khi hủy thất bại:',error);
+   return alert('Không thể kiểm tra trạng thái mới nhất của hóa đơn trên Supabase. Để tránh hủy lặp, hộp thoại chưa được mở. Chi tiết: '+(error?.message||'Lỗi không xác định'));
+  }
+ }
+ openModal('Hủy hóa đơn '+esc(inv.id),'<div><label>Lý do hủy *</label><textarea id="cancelReason" class="field" rows="4" placeholder="Nhập lý do hủy..."></textarea></div>','<button class="btn btn-secondary" onclick="closeModal()">Không</button><button class="btn btn-danger" onclick="cancelInvoice(\\''+esc(inv.id)+'\\')">Xác nhận hủy</button>');
 }
 async function cancelInvoice(id){
  if(!hasPermission('Hủy hóa đơn'))return alert('Bạn không có quyền hủy hóa đơn.');
@@ -2599,6 +2627,20 @@ async function cancelInvoice(id){
    return alert('Backend đã xác nhận hủy hóa đơn chưa thanh toán. Chưa phát sinh hoàn tiền.');
   }catch(error){
    console.error('Supabase cancel_invoice failed:',error);
+   const errorText=String(error?.message||error?.details||error?.hint||'');
+   const alreadyCancelled=String(error?.code||'')==='INVOICE_ALREADY_CANCELLED'||errorText.includes('INVOICE_ALREADY_CANCELLED');
+   if(alreadyCancelled){
+    const sync=await refreshBackendSalesData().catch(syncError=>{
+     console.error('Đồng bộ sau INVOICE_ALREADY_CANCELLED thất bại:',syncError);
+     return {ok:false};
+    });
+    const latestInv=state.invoices.find(x=>x.id===id);
+    if(!sync?.ok&&latestInv){latestInv.status='Đã hủy';saveState();}
+    closeModal();applyInvoiceFilters();
+    return alert(sync?.ok
+     ?'Hóa đơn đã được hủy trước đó. Danh sách đã đồng bộ lại từ Supabase.'
+     :'Supabase xác nhận hóa đơn đã hủy nhưng chưa đồng bộ được toàn bộ dữ liệu. Giao diện đã khóa thao tác hủy; hãy tải lại trang để đồng bộ lại.');
+   }
    return alert('Không thể xác nhận hủy hóa đơn trên Supabase: '+(error?.message||'Lỗi không xác định')+'. Hãy kiểm tra trạng thái hóa đơn trước khi thử lại.');
   }
  }
