@@ -21,6 +21,11 @@ as $$
       and (
         r.code = 'ADMIN'
         or me.employee_id = p_employee_id
+        or exists (
+          select 1 from public.employees linked
+          where linked.id = p_employee_id
+            and linked.auth_user_id = auth.uid()
+        )
         or (
           r.code in ('EMPLOYEE', 'MANAGER')
           and (
