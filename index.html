@@ -421,9 +421,10 @@ function mapBackendCustomer(row){const code=String(backendValue(row,['customer_c
 function mapBackendEmployee(row){const code=String(backendValue(row,['employee_code','code'],row.id));return {...row,id:String(row.id??code),backendId:row.id,code,name:String(backendValue(row,['full_name','name','display_name'],code)),phone:String(backendValue(row,['phone','phone_number'],'')),email:String(backendValue(row,['email'],'')),position:String(backendValue(row,['job_title','position','role','specialty'],'')),status:backendActive(row)?'Hoạt động':'Ngừng hoạt động',accountId:backendValue(row,['profile_id','account_id'],''),backendSource:'supabase'};}
 async function readBackendTable(table){const {data,error}=await supabaseClient.from(table).select('*');if(error)throw new Error(table+': '+error.message);return Array.isArray(data)?data:[];}
 function backendInvoiceStatus(status,paymentStatus){
- if(status==='CANCELLED')return 'Đã hủy';
- if(paymentStatus==='PAID')return 'Đã thanh toán';
- return paymentStatus==='PARTIALLY_PAID'||Number(paymentStatus?.paid_amount)>0?'Còn nợ':'Còn nợ';
+ const s=String(status||'').trim().toUpperCase(),p=String(paymentStatus||'').trim().toUpperCase();
+ if(s==='CANCELLED'||p==='CANCELLED')return 'Đã hủy';
+ if(p==='PAID')return 'Đã thanh toán';
+ return 'Còn nợ';
 }
 async function refreshBackendSalesData(){
  if(!state.currentUser?.isSupabaseAuth)return {ok:false,reason:'no-auth'};
@@ -453,7 +454,7 @@ async function refreshBackendSalesData(){
   const pm=paymentsByInvoice.get(String(row.id))||[];
   const paid=Number(row.paid_amount)||0,total=Number(row.total_amount)||0;
   const paymentStatus=row.payment_status||'UNPAID';
-  return {id:row.code||('HD'+String(row.id).padStart(6,'0')),backendId:row.id,backendCode:row.code||'',backendSource:'supabase',createdAt:row.created_at||'',time:row.created_at?new Date(row.created_at).toLocaleString('vi-VN'):'',type:'Thu',customer:customer?.name||'Khách lẻ',customerName:customer?.name||'Khách lẻ',customerCode:customer?.code||'KH000001',phone:customer?.phone||'',productCode:its[0]?.code||'',productName:its.map(x=>x.name).join(', '),amount:Number(row.subtotal_before_vat)||total,discount:Number(row.discount_amount)||0,total,tax:Number(row.vat_amount)||0,paid,paymentMethod:pm[0]?.method||'Tiền mặt',payment:pm[0]?.method||'Tiền mặt',paymentBreakdown:pm,employeeId:row.employee_id||'',employeeName:'',items:its,status:row.status==='CANCELLED'?'Đã hủy':(paymentStatus==='PAID'?'Đã thanh toán':'Còn nợ'),dueAmount:Number(row.due_amount)||0,notes:row.notes||'',netRevenue:Math.max(0,Number(row.subtotal_before_vat||0)-Number(row.discount_amount||0))};
+  return {id:row.code||('HD'+String(row.id).padStart(6,'0')),backendId:row.id,backendCode:row.code||'',backendSource:'supabase',createdAt:row.created_at||'',time:row.created_at?new Date(row.created_at).toLocaleString('vi-VN'):'',type:'Thu',customer:customer?.name||'Khách lẻ',customerName:customer?.name||'Khách lẻ',customerCode:customer?.code||'KH000001',phone:customer?.phone||'',productCode:its[0]?.code||'',productName:its.map(x=>x.name).join(', '),amount:Number(row.subtotal_before_vat)||total,discount:Number(row.discount_amount)||0,total,tax:Number(row.vat_amount)||0,paid,paymentMethod:pm[0]?.method||'Tiền mặt',payment:pm[0]?.method||'Tiền mặt',paymentBreakdown:pm,employeeId:row.employee_id||'',employeeName:'',items:its,backendStatus:String(row.status||'').trim().toUpperCase(),backendPaymentStatus:String(paymentStatus||'').trim().toUpperCase(),cancelReason:row.cancel_reason||null,cancelledAt:row.canceled_at||row.cancelled_at||null,cancelledBy:row.canceled_by||row.cancelled_by||null,status:backendInvoiceStatus(row.status,paymentStatus),dueAmount:backendInvoiceStatus(row.status,paymentStatus)==='Đã hủy'?0:(Number(row.due_amount)||0),notes:row.notes||'',netRevenue:Math.max(0,Number(row.subtotal_before_vat||0)-Number(row.discount_amount||0))};
  });
  const backendIds=new Set(backendInvoices.map(x=>String(x.backendId)));
  const backendCodes=new Set(backendInvoices.flatMap(x=>[x.id,x.backendCode,x.code,x.invoiceCode,x.number].filter(v=>v!==undefined&&v!==null).map(String)));
@@ -2562,7 +2563,8 @@ function applyInvoiceFilters(){
 function clearInvoiceDateFilters(){const a=document.getElementById('invoiceDateFrom'),b=document.getElementById('invoiceDateTo');if(a)a.value='';if(b)b.value='';applyInvoiceFilters();}
 function changeInvoicePage(d){state.invoicePage=Math.max(1,state.invoicePage+d);applyInvoiceFilters();}
 function invoiceTableRow(x,i){
- const status=x.status||'Còn nợ',cancelled=status==='Đã hủy';
+ const cancelled=String(x.status||'').trim()==='Đã hủy'||String(x.backendStatus||'').toUpperCase()==='CANCELLED'||String(x.backendPaymentStatus||'').toUpperCase()==='CANCELLED';
+ const status=cancelled?'Đã hủy':(x.status||'Còn nợ');
  return '<tr><td data-col="0"><b>'+esc(x.id||'')+'</b></td><td data-col="1">'+esc(x.time||new Date(x.createdAt).toLocaleString('vi-VN'))+'</td><td data-col="2">'+esc(x.customerName||x.customer||'')+'</td><td data-col="3">'+esc(x.phone||'')+'</td><td data-col="4">'+money(x.amount||x.total||0)+' ₫</td><td data-col="5">'+money(x.discount||0)+' ₫</td><td data-col="6">'+money(x.total||0)+' ₫</td><td data-col="7">'+money(x.tax||0)+' ₫</td><td data-col="8">'+money(x.total||0)+' ₫</td><td data-col="9">'+money(x.paid||0)+' ₫</td><td data-col="10">'+esc(status)+'</td><td data-col="11">'+esc(x.note||'')+'</td><td><button class="btn btn-secondary" onclick="viewInvoice(\''+esc(x.id)+'\')">Xem</button> <button class="btn btn-secondary" onclick="printInvoice(\''+esc(x.id)+'\')">In lại</button> <button class="btn btn-secondary" onclick="exportEInvoice(\''+esc(x.id)+'\')">Xuất HĐĐT</button> '+(!cancelled&&status==='Còn nợ'?'<button class="btn btn-secondary" onclick="openCollectDebt(\''+esc(x.id)+'\')">Thu nợ</button> ':'')+(!cancelled&&hasPermission('Hủy hóa đơn')?'<button class="btn btn-danger" onclick="openCancelInvoice(\''+esc(x.id)+'\')">Hủy</button>':'')+'</td></tr>';
 }
 function viewInvoice(id){
@@ -2609,7 +2611,8 @@ async function cancelInvoice(id){
  if(!hasPermission('Hủy hóa đơn'))return alert('Bạn không có quyền hủy hóa đơn.');
  const inv=state.invoices.find(x=>x.id===id),reason=document.getElementById('cancelReason')?.value.trim();
  if(!inv||!reason)return alert('Vui lòng nhập lý do hủy.');
- if(inv.status==='Đã hủy')return alert('Hóa đơn đã hủy.');
+ if(inv.status==='Đã hủy'||String(inv.backendStatus||'').toUpperCase()==='CANCELLED'||String(inv.backendPaymentStatus||'').toUpperCase()==='CANCELLED')return alert('Hóa đơn đã hủy. Hãy đồng bộ lại danh sách từ Supabase.');
+ if(['Đã cấp mã','Đã điều chỉnh','Đã thay thế'].includes(inv.eInvoiceStatus))return alert('Hóa đơn đã phát hành HĐĐT. Không được hủy trực tiếp hóa đơn bán hàng; hãy hoàn tất quy trình HĐĐT Hủy/Điều chỉnh/Thay thế trước.');
  const cancelLock=generalLockMessage(inv.createdAt);if(cancelLock)return alert(cancelLock);
  if(!requiresApproval('Hủy hóa đơn',{amount:Number(inv.total||0),details:reason}))return alert('Hủy hóa đơn cần được phê duyệt.');
  if(isTransactionClosed(inv))return alert('Hóa đơn thuộc ca đã chốt, không thể hủy.');
