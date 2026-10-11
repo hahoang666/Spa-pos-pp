@@ -2949,7 +2949,8 @@ document.addEventListener('click',function(e){
       openMultiLineInvoice: openMultiLineInvoice,
       openProduct: openProduct,
       openPrice: openPrice,
-      openCustomer: openCustomer
+      openCustomer: openCustomer,
+      openReturn: openReturn
     };
     const fn=actions[actionName];
     if(typeof fn==='function') fn();
