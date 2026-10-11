@@ -4160,7 +4160,7 @@ function openProduct(code){
  const editing=!!code;
  const p=editing?state.products.find(x=>x.code===code):null;
  if(editing&&!p)return;
- const product=p||{code:nextAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Hàng hóa',group:'Mỹ phẩm',unit:'Cái',pre:0,vat:10,price:0,cost:0,stock:0,status:'Đang kinh doanh'};
+ const product=p||{code:peekAutoCode('SP',6,'spa_next_product_id',state.products,'code'),name:'',type:'Hàng hóa',group:'Mỹ phẩm',unit:'Cái',pre:0,vat:10,price:0,cost:0,stock:0,status:'Đang kinh doanh'};
  document.getElementById('productGroup')&&(document.getElementById('productGroup').value=product.group||'Mỹ phẩm');
  openModal(editing?'Sửa hàng hóa':'Thêm hàng hóa',`
    <div class="form-grid">
@@ -4245,6 +4245,7 @@ async function saveProduct(code,editing){
   if(editing)Object.assign(existing,data);
   else state.products.push({code,...data,stock:(data.type==='Dịch vụ'||data.type==='Gói dịch vụ, liệu trình')?'---':0});
  }
+ syncAutoCodeCounter('spa_next_product_id','SP',state.products,'code');
  saveState();
  closeModal();
  productPage(document.getElementById('content'));
