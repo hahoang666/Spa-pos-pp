@@ -444,7 +444,7 @@ async function refreshBackendSalesData(){
   const product=productById.get(String(row.product_id));
   const gross=Number(row.unit_price_after_vat||0)*Number(row.quantity||0);
   const discount=(Number(row.line_discount_amount||0)+Number(row.allocated_order_discount_amount||0))*(1+Number(row.vat_rate||0)/100);
-  itemsByInvoice.get(k).push({code:row.product_code||product?.code||'',name:row.product_name||product?.name||'',price:Number(row.unit_price_after_vat||0),qty:Number(row.quantity||0),discount,vat:Number(row.vat_rate||0),backendId:row.product_id});
+  itemsByInvoice.get(k).push({code:row.product_code||product?.code||'',name:row.product_name||product?.name||'',price:Number(row.unit_price_after_vat||0),qty:Number(row.quantity||0),discount,vat:Number(row.vat_rate||0),backendId:row.product_id,invoiceItemId:row.id});
  });
  const paymentsByInvoice=new Map();
  paymentRows.forEach(row=>{const k=String(row.invoice_id);if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push({method:methodById.get(String(row.payment_method_id))||'Tiền mặt',amount:Number(row.amount)||0,createdAt:row.created_at||row.paid_at||'',source:'backend',backendId:row.id});});
@@ -3682,6 +3682,7 @@ function updateReturnTotals(){
  document.querySelectorAll('.return-qty').forEach(el=>{const q=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);el.value=q;const lineGross=q*Number(el.dataset.price||0);const max=Number(el.dataset.max)||0;const lineDiscount=max>0?Math.min(Number(el.dataset.discount||0),Number(el.dataset.price||0)*max)*(q/max):0;const line=Math.max(0,lineGross-lineDiscount);total+=line;const cell=el.closest('tr')?.querySelector('.return-line-total');if(cell)cell.textContent=money(line)+' ₫';});
 }
 function saveReturn(){
+ if(state.currentUser?.isSupabaseAuth)return saveBackendReturn();
  if(!hasPermission('Tạo trả hàng'))return alert('Bạn không có quyền tạo trả hàng.');
  const shift=requireOpenShift('trả hàng');if(!shift)return;
  const inv=state.invoices.find(x=>x.id===document.getElementById('returnInvoice')?.value);
@@ -3775,9 +3776,117 @@ function saveReturn(){
  auditSensitive('Hoàn trả hàng',ret.id,{invoiceId:inv.id,amount:amount},{status:ret.status,refundAmount:amount},'Hoàn tiền từ '+inv.id);
  saveState();closeModal();returnPage(document.getElementById('content'));alert('Đã tạo phiếu trả hàng '+ret.id+' và hoàn tiền '+money(amount)+' ₫.');
 }
-function returnPage(c){
- const rows=(state.returns||[]).slice().reverse().map(r=>'<tr><td><b>'+esc(r.id)+'</b></td><td>'+esc(r.invoiceId)+'</td><td>'+esc(r.createdAt?new Date(r.createdAt).toLocaleString('vi-VN'):'')+'</td><td>'+esc(r.customerName||'')+'</td><td>'+money(r.amount||0)+' ₫</td><td>'+esc(r.paymentMethod||'')+'</td><td>'+esc(r.status||'')+'</td></tr>').join('');
- c.innerHTML=header('Trả hàng','Tạo trả hàng','openReturn')+'<div class="card table-wrap"><table><thead><tr><th>Mã trả hàng</th><th>Hóa đơn gốc</th><th>Thời gian</th><th>Khách hàng</th><th>Hoàn tiền</th><th>Phương thức</th><th>Trạng thái</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7"><div class="empty">Chưa có phiếu trả hàng</div></td></tr>')+'</tbody></table></div>';
+async function returnPage(c){
+ if(state.currentUser?.isSupabaseAuth){
+  c.innerHTML=header('Trả hàng','Tạo trả hàng','openReturn')+'<div class="card table-wrap"><div class="empty">Đang tải phiếu trả hàng từ Supabase...</div></div>';
+  try{await refreshBackendReturns();}catch(error){console.error('Load sales returns failed:',error);c.innerHTML=header('Trả hàng','Tạo trả hàng','openReturn')+'<div class="card"><div class="empty">Không tải được phiếu trả hàng từ Supabase: '+esc(error.message||String(error))+'</div></div>';return;}
+ }
+ const rows=(state.returns||[]).slice().reverse().map(r=>{
+  if(r.backendSource){
+   const canReverse=r.backendStatus==='PENDING_REVERSAL'&&hasPermission('Đảo phiếu trả hàng');
+   const canRefund=r.backendStatus==='REVERSED'&&Number(r.remainingRefund||0)>0&&hasPermission('Hoàn tiền');
+   const actions=(canReverse?'<button class="btn btn-secondary" onclick="reverseBackendReturn('+Number(r.backendId)+')">Đảo phiếu</button> ':'')+(canRefund?'<button class="btn btn-primary" onclick="refundBackendReturn('+Number(r.backendId)+')">Hoàn tiền</button>':'');
+   return '<tr><td><b>'+esc(r.id)+'</b></td><td>'+esc(r.invoiceId||'')+'</td><td>'+esc(r.createdAt?new Date(r.createdAt).toLocaleString('vi-VN'):'')+'</td><td>'+esc(r.customerName||'')+'</td><td>'+money(r.amount||0)+' ₫<br><small>Đã hoàn: '+money(r.refundedAmount||0)+' ₫</small></td><td>'+esc(r.paymentMethod||'Chưa hoàn')+'</td><td>'+esc(r.status||'')+'</td><td>'+actions+'</td></tr>';
+  }
+  return '<tr><td><b>'+esc(r.id)+'</b></td><td>'+esc(r.invoiceId)+'</td><td>'+esc(r.createdAt?new Date(r.createdAt).toLocaleString('vi-VN'):'')+'</td><td>'+esc(r.customerName||'')+'</td><td>'+money(r.amount||0)+' ₫</td><td>'+esc(r.paymentMethod||'')+'</td><td>'+esc(r.status||'')+'</td><td></td></tr>';
+ }).join('');
+ c.innerHTML=header('Trả hàng','Tạo trả hàng','openReturn')+'<div class="card table-wrap"><table><thead><tr><th>Mã trả hàng</th><th>Hóa đơn gốc</th><th>Thời gian</th><th>Khách hàng</th><th>Giá trị / đã hoàn</th><th>Phương thức</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8"><div class="empty">Chưa có phiếu trả hàng</div></td></tr>')+'</tbody></table></div>';
+}
+async function refreshBackendReturns(){
+ const [returnRows,itemRows,refundRows,invoiceRows,methodRows]=await Promise.all([
+  readBackendTable('sales_returns'),readBackendTable('sales_return_items'),readBackendTable('sales_return_refunds'),
+  readBackendTable('invoices'),readBackendTable('payment_methods')
+ ]);
+ const invoiceById=new Map((state.invoices||[]).filter(x=>x.backendId!==undefined).map(x=>[String(x.backendId),x]));
+ const rawInvoiceById=new Map(invoiceRows.map(x=>[String(x.id),x]));
+ const methodById=new Map(methodRows.map(x=>[String(x.id),BACKEND_PAYMENT_LABELS[String(x.code||'').toUpperCase()]||x.name||'']));
+ const itemsByReturn=new Map();
+ itemRows.forEach(x=>{const k=String(x.return_id);if(!itemsByReturn.has(k))itemsByReturn.set(k,[]);itemsByReturn.get(k).push(x);});
+ const refundsByReturn=new Map();
+ refundRows.forEach(x=>{const k=String(x.return_id);if(!refundsByReturn.has(k))refundsByReturn.set(k,[]);refundsByReturn.get(k).push(x);});
+ state.returns=returnRows.map(r=>{
+  const inv=invoiceById.get(String(r.invoice_id));
+  const rawInv=rawInvoiceById.get(String(r.invoice_id));
+  const refunds=refundsByReturn.get(String(r.id))||[];
+  const refundedAmount=refunds.reduce((sum,x)=>sum+Number(x.amount||0),0);
+  const statusMap={PENDING_REVERSAL:'Chờ đảo phiếu',REVERSED:'Đã đảo phiếu',CANCELLED:'Đã hủy'};
+  const latestRefund=refunds.slice().sort((a,b)=>String(b.refunded_at||'').localeCompare(String(a.refunded_at||'')))[0];
+  return {id:r.code||('TH-'+r.id),backendId:r.id,backendSource:'supabase',backendStatus:r.status,invoiceId:inv?.id||rawInv?.code||String(r.invoice_id),invoiceBackendId:r.invoice_id,createdAt:r.created_at,customerName:inv?.customerName||'Khách hàng',amount:Number(r.total_amount)||0,status:statusMap[r.status]||r.status,reason:r.reason,items:itemsByReturn.get(String(r.id))||[],refunds,refundedAmount,remainingRefund:Math.max(0,Number(r.total_amount||0)-refundedAmount),paymentMethod:latestRefund?methodById.get(String(latestRefund.payment_method_id))||'Đã hoàn một phần':'Chưa hoàn'};
+ }).concat((state.returns||[]).filter(x=>!x.backendSource));
+}
+async function saveBackendReturn(){
+ if(!hasPermission('Tạo trả hàng'))return alert('Bạn không có quyền tạo trả hàng.');
+ const shift=requireOpenShift('trả hàng');if(!shift)return;
+ const invoiceCode=document.getElementById('returnInvoice')?.value;
+ const inv=(state.invoices||[]).find(x=>String(x.id)===String(invoiceCode));
+ if(!inv)return alert('Vui lòng chọn hóa đơn gốc.');
+ if(!inv.backendId)return alert('Hóa đơn này chưa có ID Supabase. Hãy đồng bộ dữ liệu hoặc chọn hóa đơn đã lưu trên hệ thống.');
+ if(inv.backendStatus!=='COMPLETED')return alert('Chỉ hóa đơn COMPLETED trên Supabase mới được trả hàng.');
+ const reason=String(document.getElementById('returnNote')?.value||'').trim();
+ if(!reason)return alert('Vui lòng nhập lý do trả hàng vào ô Ghi chú.');
+ const rows=[...document.querySelectorAll('.return-qty')].filter(el=>Number(el.value)>0);
+ if(!rows.length)return alert('Vui lòng chọn ít nhất một sản phẩm để trả.');
+ const items=[];
+ for(const el of rows){
+  const code=el.dataset.code;
+  const sold=(inv.items||[]).find(x=>String(x.code)===String(code));
+  if(!sold||!sold.invoiceItemId)return alert('Không xác định được ID dòng hàng Supabase cho '+code+'. Hãy tải lại dữ liệu hóa đơn rồi thử lại.');
+  const product=(state.products||[]).find(x=>String(x.code)===String(code));
+  if(product?.type==='Gói dịch vụ, liệu trình')return alert('Trả gói liệu trình chưa được kết nối an toàn với thẻ liệu trình và hoa hồng. Chưa tạo phiếu; vui lòng không tiếp tục với gói dịch vụ.');
+  const qty=Math.min(Math.max(0,Number(el.value)||0),Number(el.dataset.max)||0);
+  if(qty>0)items.push({invoice_item_id:Number(sold.invoiceItemId),quantity:qty});
+ }
+ if(!items.length)return alert('Vui lòng nhập số lượng trả hợp lệ.');
+ const button=document.querySelector('#modal .btn-primary');if(button){button.disabled=true;button.textContent='Đang lưu...';}
+ try{
+  const {data,error}=await supabaseClient.rpc('create_return',{p_invoice_id:Number(inv.backendId),p_items:items,p_reason:reason});
+  if(error)throw error;
+  await refreshBackendReturns();
+  closeModal();
+  returnPage(document.getElementById('content'));
+  alert('Đã tạo phiếu '+(data?.code||'trả hàng')+' trên Supabase. Phiếu đang chờ đảo; chưa ghi giao dịch chi tiền.');
+ }catch(error){console.error('Create return failed:',error);alert('Không tạo được phiếu trả hàng: '+(error.message||String(error)));}
+ finally{if(button){button.disabled=false;button.textContent='Xác nhận trả hàng';}}
+}
+async function reverseBackendReturn(returnId){
+ if(!hasPermission('Đảo phiếu trả hàng'))return alert('Bạn không có quyền đảo phiếu trả hàng.');
+ const ref=prompt('Nhập mã tham chiếu chứng từ đảo/điều chỉnh đã thực hiện. Không nhập mã giả để bỏ qua quy trình hóa đơn điện tử:');
+ if(!ref||!ref.trim())return;
+ const reason=prompt('Nhập lý do đảo/điều chỉnh phiếu trả hàng:');
+ if(!reason||!reason.trim())return;
+ try{
+  const {error}=await supabaseClient.rpc('reverse_return',{p_return_id:Number(returnId),p_reversal_reference:ref.trim(),p_reversal_reason:reason.trim()});
+  if(error)throw error;
+  await refreshBackendReturns();returnPage(document.getElementById('content'));
+  alert('Đã xác nhận đảo phiếu. Chưa phát sinh giao dịch chi tiền.');
+ }catch(error){console.error('Reverse return failed:',error);alert('Không đảo được phiếu: '+(error.message||String(error)));}
+}
+async function refundBackendReturn(returnId){
+ if(!hasPermission('Hoàn tiền'))return alert('Bạn không có quyền hoàn tiền.');
+ const slip=(state.returns||[]).find(x=>x.backendSource&&Number(x.backendId)===Number(returnId));
+ if(!slip||slip.backendStatus!=='REVERSED')return alert('Chỉ được hoàn tiền sau khi phiếu đã đảo thành công.');
+ if(Number(slip.remainingRefund)<=0)return alert('Phiếu này đã hoàn đủ tiền.');
+ try{
+  const methods=(await readBackendTable('payment_methods')).filter(backendActive);
+  if(!methods.length)return alert('Không có phương thức thanh toán đang hoạt động.');
+  const options=methods.map(m=>String(m.code)+' = '+String(m.name||m.code)).join('\n');
+  const code=prompt('Chọn mã phương thức hoàn tiền bằng cách nhập CODE:\n'+options,methods.find(m=>String(m.code).toUpperCase()==='CASH')?.code||methods[0].code);
+  if(!code)return;
+  const method=methods.find(m=>String(m.code).toUpperCase()===code.trim().toUpperCase());
+  if(!method)return alert('Mã phương thức thanh toán không hợp lệ.');
+  const amountText=prompt('Số tiền hoàn (tối đa '+money(slip.remainingRefund)+' ₫):',String(slip.remainingRefund));
+  if(amountText===null)return;
+  const amount=Number(amountText);
+  if(!Number.isFinite(amount)||amount<=0||amount>Number(slip.remainingRefund))return alert('Số tiền hoàn không hợp lệ hoặc vượt số tiền còn phải hoàn.');
+  const reference=prompt('Mã tham chiếu giao dịch hoàn tiền (nếu có):','')||'';
+  const notes=prompt('Ghi chú hoàn tiền (nếu có):','')||'';
+  const {error}=await supabaseClient.rpc('refund_return',{p_return_id:Number(returnId),p_payment_method_id:Number(method.id),p_amount:amount,p_reference_no:reference.trim()||null,p_notes:notes.trim()||null});
+  if(error)throw error;
+  await refreshBackendReturns();
+  if(typeof refreshBackendSalesData==='function')await refreshBackendSalesData();
+  returnPage(document.getElementById('content'));
+  alert('Hoàn tiền đã được ghi nhận trên Supabase và sổ quỹ.');
+ }catch(error){console.error('Refund return failed:',error);alert('Không hoàn tiền được: '+(error.message||String(error)));}
 }
 function openModal(title,body,actions=''){
  document.getElementById('modal').innerHTML=`<div class="modal-head"><h2>${title}</h2><button class="btn btn-secondary" onclick="closeModal()">✕</button></div>${body}<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">${actions}</div>`;
