@@ -2683,6 +2683,13 @@ function collectDebt(id){
  addCashMovement({type:'thu',amount,paymentMethod:method,subject:inv.customerName||inv.customer||'',referenceId:inv.id,note:'Thu nợ hóa đơn '+inv.id});
  saveState();closeModal();applyInvoiceFilters();alert('Đã thu nợ '+money(amount)+' ₫.');
 }
+async function syncInvoiceData(){
+ if(!state.currentUser?.isSupabaseAuth)return alert('Hãy đăng nhập bằng tài khoản Supabase để đồng bộ hóa đơn.');
+ const button=document.getElementById('syncInvoicesButton');if(button){button.disabled=true;button.textContent='Đang đồng bộ...';}
+ try{const result=await refreshBackendSalesData();if(!result?.ok)throw new Error('Supabase không trả về dữ liệu đồng bộ.');applyInvoiceFilters();alert('Đã đồng bộ '+result.invoices+' hóa đơn từ Supabase.');}
+ catch(error){console.error('Đồng bộ hóa đơn từ Supabase thất bại:',error);alert('Không thể đồng bộ hóa đơn từ Supabase: '+(error?.message||'Lỗi không xác định'));}
+ finally{if(button){button.disabled=false;button.textContent='↻ Đồng bộ Supabase';}}
+}
 function exportInvoicesExcel(){
  if(!hasPermission('Xuất Excel'))return alert('Bạn không có quyền xuất Excel.');
  const rows=dashboardInvoices(document.querySelector('.invoice-filter')?.value||'today');
@@ -2714,7 +2721,7 @@ function invoicePage(c){
    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
     <button class="btn btn-secondary" data-action="toolbar-action" data-action-name="openMultiLineInvoice">＋ Tạo hóa đơn nhiều dòng</button>
    </div>
-   <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn btn-secondary" onclick="exportInvoicesExcel()">⬇ Xuất Excel</button></div><div class="table-wrap"><table><thead><tr><th data-col="0">Mã</th><th data-col="1">Thời gian</th><th data-col="2">Khách hàng</th><th data-col="3">Số điện thoại</th><th data-col="4">Tổng tiền hàng</th><th data-col="5">Giảm giá</th><th data-col="6">Tổng sau giảm giá</th><th data-col="7">VAT</th><th data-col="8">Khách cần trả</th><th data-col="9">Khách đã trả</th><th data-col="10">Trạng thái</th><th data-col="11">Ghi chú</th></tr></thead><tbody id="invoiceTableBody"></tbody></table></div><div id="invoicePagination" style="display:flex;justify-content:center;padding:12px"></div>
+   <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px"><button id="syncInvoicesButton" class="btn btn-secondary" onclick="syncInvoiceData()">↻ Đồng bộ Supabase</button><button class="btn btn-secondary" onclick="exportInvoicesExcel()">⬇ Xuất Excel</button></div><div class="table-wrap"><table><thead><tr><th data-col="0">Mã</th><th data-col="1">Thời gian</th><th data-col="2">Khách hàng</th><th data-col="3">Số điện thoại</th><th data-col="4">Tổng tiền hàng</th><th data-col="5">Giảm giá</th><th data-col="6">Tổng sau giảm giá</th><th data-col="7">VAT</th><th data-col="8">Khách cần trả</th><th data-col="9">Khách đã trả</th><th data-col="10">Trạng thái</th><th data-col="11">Ghi chú</th></tr></thead><tbody id="invoiceTableBody"></tbody></table></div><div id="invoicePagination" style="display:flex;justify-content:center;padding:12px"></div>
   </div>
  </div>`;
  // The inner header creates its own controls; keep only the table's column controls.
