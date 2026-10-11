@@ -1374,7 +1374,7 @@ async function employeeProfilePage(c){
  }
  const showAccounts=isAdmin;
  const rows=visible.map(e=>{
-  const action=canManage?'<td><button class="btn btn-secondary" onclick="openEditEmployeeProfile('+JSON.stringify(e.id).replace(/\\"/g,'&quot;')+')">Sửa</button></td>':'';
+  const action=canManage?'<td><button class="btn btn-secondary" onclick="openEditEmployeeProfile('+JSON.stringify(String(e.id))+')">Sửa</button></td>':'';
   const account=showAccounts?'<td>'+esc((e.accountUsernames||[]).join(', ')||'Không có / không xem được')+'</td>':'';
   return '<tr><td>'+esc(e.code||e.id)+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.phone||'—')+'</td><td>'+esc(e.position||'—')+'</td><td>'+esc(e.specialties||'—')+'</td><td>'+esc(e.status||'')+'</td>'+account+action+'</tr>';
  }).join('');
