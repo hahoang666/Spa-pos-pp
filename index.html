@@ -1698,12 +1698,15 @@ async function saveService(code,editing){
  if(editing&&!existing)return alert('Không tìm thấy dịch vụ cần sửa.');
  if(state.currentUser?.isSupabaseAuth){
   try{
-   const payload={product_code:code,name,product_type:type==='Gói dịch vụ, liệu trình'?'package':'service',product_group:data.group,barcode:data.barcode,unit:data.unit,duration_minutes:duration,session_count:sessionCount,valid_days:validDays,cost_price:data.cost,selling_price:data.pre,price_after_vat:price,vat_rate:vat,status:data.status==='Đang kinh doanh'?'active':'inactive'};
-   const {data:row,error}=await supabaseClient.from('products').upsert(payload,{onConflict:'product_code'}).select('*').single();
+   const payload={name,product_type:type==='Gói dịch vụ, liệu trình'?'PACKAGE':'SERVICE',product_group:data.group,unit_name:data.unit,barcode:data.barcode||null,duration_minutes:duration,session_count:sessionCount,valid_days:validDays,price_before_vat:data.pre,price_after_vat:price,vat_rate:vat,status:data.status==='Đang kinh doanh'?'ACTIVE':'INACTIVE'};
+   let request;
+   if(existing?.backendId){request=supabaseClient.from('products').update(payload).eq('id',existing.backendId);}
+   else{request=supabaseClient.from('products').insert(payload);}
+   const {data:row,error}=await request.select('*').single();
    if(error)throw error;
    const mapped=mapBackendProduct(row);
-   if(existing)Object.assign(existing,mapped,data,{backendId:row.id,backendSource:'supabase'});
-   else state.products.push({...mapped,...data,code,backendId:row.id,backendSource:'supabase'});
+   if(existing)Object.assign(existing,mapped,data,{code:row.code,backendId:row.id,backendSource:'supabase'});
+   else state.products.push({...mapped,...data,code:row.code,backendId:row.id,backendSource:'supabase'});
   }catch(error){console.error('Không lưu được dịch vụ/gói liệu trình lên Supabase:',error);return alert('Không lưu được lên Supabase: '+(error.message||'Lỗi không xác định')+'. Dữ liệu chưa được xác nhận lưu.');}
  }else{
   if(existing)Object.assign(existing,data);else state.products.push({code,...data,createdAt:new Date().toISOString()});
