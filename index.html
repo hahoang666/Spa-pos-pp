@@ -2151,33 +2151,88 @@ function exportAttendanceMonth(){alert('Chức năng Xuất Excel sẽ được 
 function openAttendanceExplanation(){alert('Chức năng Gửi giải trình sẽ được nối ở bước nghiệp vụ tiếp theo.')}
 async function loadBackendAttendance(){
  if(!state.currentUser?.isSupabaseAuth)throw new Error('Vui lòng đăng nhập bằng tài khoản Supabase.');
- const {data,error}=await supabaseClient.from('attendance_records').select('*').order('attendance_date',{ascending:false}).limit(90);
+ const [{data,error},{data:profileRows,error:profileError},{data:employeeRows,error:employeeError}]=await Promise.all([
+  supabaseClient.from('attendance_records').select('*').order('attendance_date',{ascending:false}).limit(1000),
+  supabaseClient.from('profiles').select('employee_id,full_name,username,is_active'),
+  supabaseClient.from('employees').select('*')
+ ]);
  if(error)throw error;
+ if(profileError)console.warn('Không tải được username/họ tên từ profiles:',profileError);
+ if(employeeError)console.warn('Không tải được danh sách nhân sự:',employeeError);
+ const profilesByEmployee=new Map();
+ (profileRows||[]).forEach(p=>{if(p.employee_id!==null&&p.employee_id!==undefined)profilesByEmployee.set(String(p.employee_id),p);});
+ const employeesById=new Map();
+ (employeeRows||[]).forEach(e=>employeesById.set(String(e.id),e));
+ const localEmployees=new Map((state.employees||[]).map(e=>[String(e.backendId??e.id),e]));
  state.attendance=(data||[]).map(row=>{
   const inDate=row.check_in_at?new Date(row.check_in_at):null,outDate=row.check_out_at?new Date(row.check_out_at):null;
   const fmt=d=>d?d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}):'';
-  return {id:String(row.id),backendId:row.id,employeeId:String(row.employee_id),date:String(row.attendance_date).slice(0,10),inAt:fmt(inDate),outAt:fmt(outDate),hours:inDate&&outDate?Math.max(0,(outDate-inDate)/3600000).toFixed(2):'',status:outDate?'Đã ra ca':inDate?'Đang làm việc':'Chưa chấm công',backendSource:'supabase',checkInAccuracy:row.check_in_accuracy_m,checkOutAccuracy:row.check_out_accuracy_m};
+  const eid=String(row.employee_id),profile=profilesByEmployee.get(eid)||{},employee=employeesById.get(eid)||localEmployees.get(eid)||{};
+  const explanation=[row.check_in_note,row.check_out_note].map(v=>String(v||'').trim()).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' / ');
+  return {id:String(row.id),backendId:row.id,employeeId:eid,date:String(row.attendance_date).slice(0,10),inAt:fmt(inDate),outAt:fmt(outDate),hours:inDate&&outDate?Math.max(0,(outDate-inDate)/3600000).toFixed(2):'',status:outDate?'Đã ra ca':inDate?'Đang làm việc':'Chưa chấm công',backendSource:'supabase',checkInAccuracy:row.check_in_accuracy_m,checkOutAccuracy:row.check_out_accuracy_m,username:profile.username||'',fullName:employee.full_name||employee.name||employee.display_name||profile.full_name||'',explanation,checkInNote:row.check_in_note||'',checkOutNote:row.check_out_note||''};
  });
  return state.attendance;
 }
 function attendanceEmployeeId(){const id=state.currentUser?.employeeId;return id===null||id===undefined||id===''?null:String(id);}
+function attendanceSetDateFilter(which,value){
+ state.attendanceFilterFrom=which==='from'?String(value||''):String(state.attendanceFilterFrom||'');
+ state.attendanceFilterTo=which==='to'?String(value||''):String(state.attendanceFilterTo||'');
+ attendancePage(document.getElementById('content'));
+}
+function attendanceClearDateFilter(){
+ state.attendanceFilterFrom='';state.attendanceFilterTo='';
+ attendancePage(document.getElementById('content'));
+}
+function attendanceFilteredRows(){
+ const eid=attendanceEmployeeId(),canViewAll=hasPermission('Chấm công nhân viên')||hasPermission('Xem chấm công');
+ const from=String(state.attendanceFilterFrom||''),to=String(state.attendanceFilterTo||'');
+ return (state.attendance||[]).filter(x=>(canViewAll||String(x.employeeId)===eid)&&(!from||String(x.date)>=from)&&(!to||String(x.date)<=to)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.inAt).localeCompare(String(a.inAt)));
+}
+function attendanceExportRows(){
+ const rows=attendanceFilteredRows();
+ return (state.attendanceFilterFrom||state.attendanceFilterTo)?rows:rows.slice(0,30);
+}
+function exportAttendanceExcel(){
+ if(!hasPermission('Chấm công nhân viên')&&!hasPermission('Xem chấm công')&&!hasPermission('Tự chấm công'))return alert('Bạn không có quyền xuất dữ liệu chấm công.');
+ const rows=attendanceExportRows();
+ if(!rows.length)return alert('Không có dữ liệu chấm công phù hợp để xuất.');
+ const cell=v=>esc(v===null||v===undefined||v===''?'—':String(v));
+ const body=rows.map(x=>'<tr><td>'+cell(x.date)+'</td><td>'+cell(x.username)+'</td><td>'+cell(x.fullName)+'</td><td>'+cell(x.inAt)+'</td><td>'+cell(x.outAt)+'</td><td>'+cell(x.status)+'</td><td>'+cell(x.checkInAccuracy==null?'':Number(x.checkInAccuracy).toFixed(0)+' m')+'</td><td>'+cell(x.explanation)+'</td></tr>').join('');
+ const range=(state.attendanceFilterFrom||state.attendanceFilterTo)?(state.attendanceFilterFrom||'…')+' đến '+(state.attendanceFilterTo||'…'):'30 bản ghi gần đây';
+ const html='<!doctype html><html><head><meta charset="UTF-8"></head><body><h2>Lịch sử chấm công</h2><p>Phạm vi: '+esc(range)+'</p><table border="1"><thead><tr><th>Ngày</th><th>User</th><th>Họ và Tên</th><th>Giờ vào</th><th>Giờ ra</th><th>Trạng thái</th><th>Độ chính xác GPS vào</th><th>Giải trình</th></tr></thead><tbody>'+body+'</tbody></table></body></html>';
+ const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'}),a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);a.download='Lich-su-cham-cong'+(state.attendanceFilterFrom?'-'+state.attendanceFilterFrom:'')+(state.attendanceFilterTo?'-'+state.attendanceFilterTo:'')+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function exportAttendancePdf(){
+ if(!hasPermission('Chấm công nhân viên')&&!hasPermission('Xem chấm công')&&!hasPermission('Tự chấm công'))return alert('Bạn không có quyền xuất dữ liệu chấm công.');
+ const rows=attendanceExportRows();
+ if(!rows.length)return alert('Không có dữ liệu chấm công phù hợp để xuất.');
+ const w=window.open('','_blank','width=1100,height=800');if(!w)return alert('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
+ const cell=v=>esc(v===null||v===undefined||v===''?'—':String(v));
+ const body=rows.map(x=>'<tr><td>'+cell(x.date)+'</td><td>'+cell(x.username)+'</td><td>'+cell(x.fullName)+'</td><td>'+cell(x.inAt)+'</td><td>'+cell(x.outAt)+'</td><td>'+cell(x.status)+'</td><td>'+cell(x.checkInAccuracy==null?'':Number(x.checkInAccuracy).toFixed(0)+' m')+'</td><td>'+cell(x.explanation)+'</td></tr>').join('');
+ const range=(state.attendanceFilterFrom||state.attendanceFilterTo)?(state.attendanceFilterFrom||'…')+' đến '+(state.attendanceFilterTo||'…'):'30 bản ghi gần đây';
+ w.document.write('<!doctype html><html><head><meta charset="UTF-8"><title>Lịch sử chấm công</title><style>@page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111}h2{text-align:center}p{margin:8px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #777;padding:5px;text-align:left;overflow-wrap:anywhere}th{background:#eee}button{padding:8px 14px;margin-bottom:10px}@media print{button{display:none}}</style></head><body><button onclick="window.print()">In / Lưu PDF</button><h2>LỊCH SỬ CHẤM CÔNG</h2><p>Phạm vi: '+esc(range)+'</p><table><thead><tr><th>Ngày</th><th>User</th><th>Họ và Tên</th><th>Giờ vào</th><th>Giờ ra</th><th>Trạng thái</th><th>Độ chính xác GPS vào</th><th>Giải trình</th></tr></thead><tbody>'+body+'</tbody></table></body></html>');
+ w.document.close();
+}
 async function attendancePage(c){
- if(!hasPermission('Tự chấm công')&&!hasPermission('Chấm công nhân viên')){c.innerHTML='<div class="empty">Bạn không có quyền xem chấm công.</div>';return;}
+ if(!hasPermission('Tự chấm công')&&!hasPermission('Chấm công nhân viên')&&!hasPermission('Xem chấm công')){c.innerHTML='<div class="empty">Bạn không có quyền xem chấm công.</div>';return;}
  if(!state.currentUser?.isSupabaseAuth){c.innerHTML='<div class="empty">Chấm công GPS chỉ khả dụng khi đăng nhập bằng tài khoản Supabase.</div>';return;}
  c.innerHTML='<div class="card report"><b>Đang tải dữ liệu chấm công từ Supabase…</b></div>';
  try{await loadBackendAttendance();}catch(error){console.error('Tải chấm công thất bại:',error);c.innerHTML='<div class="card report"><h3>Không tải được dữ liệu chấm công</h3><p>'+esc(error.message||String(error))+'</p><button class="btn btn-secondary" onclick="attendancePage(document.getElementById(\'content\'))">Thử lại</button></div>';return;}
  if(document.getElementById('content')!==c||state.page!=='Chấm công')return;
- const employeeId=attendanceEmployeeId();
+ const employeeId=attendanceEmployeeId(),today=localDateKey(new Date());
+ const allVisible=(state.attendance||[]).filter(x=>hasPermission('Chấm công nhân viên')||hasPermission('Xem chấm công')||String(x.employeeId)===employeeId);
+ const todayRec=allVisible.find(x=>String(x.date).slice(0,10)===today&&String(x.employeeId)===employeeId);
  const emp=(state.employees||[]).find(e=>String(e.id)===employeeId||String(e.backendId)===employeeId);
  const name=emp?.name||state.currentUser?.name||'Nhân viên';
- const today=localDateKey(new Date());
- const canViewAll=hasPermission('Chấm công nhân viên')||hasPermission('Xem chấm công');
- const recs=(state.attendance||[]).filter(x=>canViewAll||String(x.employeeId)===employeeId).slice(0,30);
- const todayRec=recs.find(x=>String(x.date).slice(0,10)===today&&String(x.employeeId)===employeeId);
- const checkedIn=!!todayRec?.inAt,checkedOut=!!todayRec?.outAt;
- const status=checkedOut?'Đã ra ca':checkedIn?'Đang làm việc':'Chưa vào ca';
- const rows=recs.map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.inAt||'—')+'</td><td>'+esc(x.outAt||'—')+'</td><td>'+esc(x.status||'—')+'</td><td>'+(x.checkInAccuracy!==undefined&&x.checkInAccuracy!==null?esc(Number(x.checkInAccuracy).toFixed(0))+' m':'—')+'</td></tr>').join('');
- c.innerHTML='<div class="attendance-wrap"><div class="page-title">Chấm công <span style="float:right"><button type="button" class="btn btn-secondary attendance-switch" onclick="attendanceMonthlyPage(document.getElementById(\'content\'))">Bảng công tháng</button> '+esc(name)+'</span></div><div class="attendance-clock"><div id="attendanceClock">'+new Date().toLocaleTimeString('vi-VN')+'</div><div>'+new Date().toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})+'</div></div><div class="card attendance-shift"><b>Chấm công GPS</b><div>'+status+'</div><small>Thời gian do máy chủ ghi nhận. Chấm công tách biệt với ca thu ngân.</small></div><button id="attendancePunchButton" class="attendance-punch '+(checkedIn&&!checkedOut?'out':'in')+'" '+(checkedOut?'disabled':'')+' onclick="punchAttendance()">'+(checkedIn&&!checkedOut?'Ra ca':checkedOut?'Đã chấm công đủ':'Vào ca')+'</button><div id="attendanceGpsStatus" class="attendance-verify">Khi bấm chấm công, trình duyệt sẽ yêu cầu quyền vị trí GPS.</div><div class="attendance-summary"><div>Giờ vào<br><b>'+(todayRec?.inAt||'—')+'</b></div><div>Giờ ra<br><b>'+(todayRec?.outAt||'—')+'</b></div><div>Tổng giờ làm<br><b>'+(todayRec?.hours?todayRec.hours+' giờ':'—')+'</b></div></div><div class="card"><h3>Lịch sử chấm công gần đây</h3><div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Giờ vào</th><th>Giờ ra</th><th>Trạng thái</th><th>Độ chính xác GPS vào</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5">Chưa có dữ liệu</td></tr>')+'</tbody></table></div></div></div>';
+ const checkedIn=!!todayRec?.inAt,checkedOut=!!todayRec?.outAt,status=checkedOut?'Đã ra ca':checkedIn?'Đang làm việc':'Chưa vào ca';
+ const from=String(state.attendanceFilterFrom||''),to=String(state.attendanceFilterTo||'');
+ const invalidRange=!!(from&&to&&from>to);
+ const recs=invalidRange?[]:attendanceFilteredRows();
+ const visibleRows=(from||to)?recs:recs.slice(0,30);
+ const cell=v=>esc(v===null||v===undefined||v===''?'—':String(v));
+ const rows=visibleRows.map(x=>'<tr><td>'+cell(x.date)+'</td><td>'+cell(x.username)+'</td><td>'+cell(x.fullName)+'</td><td>'+cell(x.inAt)+'</td><td>'+cell(x.outAt)+'</td><td>'+cell(x.status)+'</td><td>'+cell(x.checkInAccuracy==null?'':Number(x.checkInAccuracy).toFixed(0)+' m')+'</td><td>'+cell(x.explanation)+'</td></tr>').join('');
+ c.innerHTML='<div class="attendance-wrap"><div class="page-title">Chấm công <span style="float:right"><button type="button" class="btn btn-secondary attendance-switch" onclick="attendanceMonthlyPage(document.getElementById(\'content\'))">Bảng công tháng</button> '+esc(name)+'</span></div><div class="attendance-clock"><div id="attendanceClock">'+new Date().toLocaleTimeString('vi-VN')+'</div><div>'+new Date().toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})+'</div></div><div class="card attendance-shift"><b>Chấm công GPS</b><div>'+status+'</div><small>Thời gian do máy chủ ghi nhận. Chấm công tách biệt với ca thu ngân.</small></div><button id="attendancePunchButton" class="attendance-punch '+(checkedIn&&!checkedOut?'out':'in')+'" '+(checkedOut?'disabled':'')+' onclick="punchAttendance()">'+(checkedIn&&!checkedOut?'Ra ca':checkedOut?'Đã chấm công đủ':'Vào ca')+'</button><div id="attendanceGpsStatus" class="attendance-verify">Khi bấm chấm công, trình duyệt sẽ yêu cầu quyền vị trí GPS.</div><div class="attendance-summary"><div>Giờ vào<br><b>'+(todayRec?.inAt||'—')+'</b></div><div>Giờ ra<br><b>'+(todayRec?.outAt||'—')+'</b></div><div>Tổng giờ làm<br><b>'+(todayRec?.hours?todayRec.hours+' giờ':'—')+'</b></div></div><div class="card"><h3>Lịch sử chấm công gần đây</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:12px 0 16px"><label style="display:flex;flex-direction:column;gap:5px">Từ ngày<input id="attendanceFilterFrom" type="date" class="field" value="'+esc(from)+'" onchange="attendanceSetDateFilter(\'from\',this.value)"></label><label style="display:flex;flex-direction:column;gap:5px">Đến ngày<input id="attendanceFilterTo" type="date" class="field" value="'+esc(to)+'" onchange="attendanceSetDateFilter(\'to\',this.value)"></label><button type="button" class="btn btn-secondary" onclick="attendanceClearDateFilter()">Xóa bộ lọc</button><button type="button" class="btn btn-secondary" onclick="exportAttendanceExcel()">Xuất Excel</button><button type="button" class="btn btn-secondary" onclick="exportAttendancePdf()">Xuất PDF</button></div>'+(invalidRange?'<p style="color:var(--danger)">Từ ngày phải bằng hoặc trước Đến ngày.</p>':'')+'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">'+(from||to?'Khoảng lọc: '+esc(from||'…')+' đến '+esc(to||'…')+' · ':'')+'Số bản ghi: '+visibleRows.length+(from||to?'':' · Mặc định hiển thị 30 bản ghi gần đây')+'</p><div class="table-wrap"><table><thead><tr><th>Ngày</th><th>User</th><th>Họ và Tên</th><th>Giờ vào</th><th>Giờ ra</th><th>Trạng thái</th><th>Độ chính xác GPS vào</th><th>Giải trình</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8">Không có dữ liệu phù hợp</td></tr>')+'</tbody></table></div></div></div>';
  if(window.spaAttendanceClockTimer)clearInterval(window.spaAttendanceClockTimer);
  window.spaAttendanceClockTimer=setInterval(()=>{const el=document.getElementById('attendanceClock');if(el&&state.page==='Chấm công')el.textContent=new Date().toLocaleTimeString('vi-VN')},1000);
 }
