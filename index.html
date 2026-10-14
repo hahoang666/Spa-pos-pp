@@ -2853,20 +2853,64 @@ function openCollectDebt(id){
  if(debt<=0)return alert('Hóa đơn không còn nợ.');
  openModal('Thu nợ '+esc(inv.id),'<div class="form-grid"><div><label>Còn nợ</label><input class="field" readonly value="'+money(debt)+' ₫"></div><div><label>Phương thức</label><select id="debtMethod" class="field">'+paymentOptions('Tiền mặt')+'</select></div><div class="full"><label>Số tiền thu *</label><input id="debtAmount" class="field" type="number" min="0.01" max="'+debt+'" step="0.01" value="'+debt+'"></div></div>','<button class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="collectDebt(\''+esc(id)+'\')">Thu nợ</button>');
 }
-function collectDebt(id){
+const debtCollectionSubmitting=new Set();
+async function collectDebt(id){
  if(!hasPermission('Xem thanh toán'))return alert('Bạn không có quyền thu nợ.');
- const shift=requireOpenShift('thu nợ');if(!shift)return;
- const inv=state.invoices.find(x=>x.id===id),amount=Number(document.getElementById('debtAmount')?.value)||0,method=normalizePaymentMethod(document.getElementById('debtMethod')?.value||'Tiền mặt');
+ if(debtCollectionSubmitting.has(id))return;
+ const inv=state.invoices.find(x=>x.id===id);
  if(!inv||inv.status==='Đã hủy')return;
+ const amount=Number(document.getElementById('debtAmount')?.value);
+ const method=normalizePaymentMethod(document.getElementById('debtMethod')?.value||'Tiền mặt');
  const debt=Math.max(0,Number(inv.total||0)-Number(inv.paid||0)-invoiceReturnedAmount(inv));
- if(amount<=0||amount>debt)return alert('Số tiền thu không hợp lệ.');
+ if(!Number.isFinite(amount)||amount<=0||amount>debt)return alert('Số tiền thu không hợp lệ.');
  if(inv.customerCode==='KH000001')return alert('Khách lẻ không được ghi nợ.');
- inv.paid=Number(inv.paid||0)+amount;inv.paymentMethod=method;inv.payment=method;
- inv.paymentBreakdown=Array.isArray(inv.paymentBreakdown)?inv.paymentBreakdown:[];inv.paymentBreakdown.push({method,amount,source:'debt'});
- inv.status=inv.paid>=Math.max(0,Number(inv.total||0)-invoiceReturnedAmount(inv))?'Đã thanh toán':'Còn nợ';
- inv.debtHistory=Array.isArray(inv.debtHistory)?inv.debtHistory:[];inv.debtHistory.push({amount,method,createdAt:new Date().toISOString(),employee:state.currentUser?.name||'',shiftId:shift.id});
- addCashMovement({type:'thu',amount,paymentMethod:method,subject:inv.customerName||inv.customer||'',referenceId:inv.id,note:'Thu nợ hóa đơn '+inv.id});
- saveState();closeModal();applyInvoiceFilters();alert('Đã thu nợ '+money(amount)+' ₫.');
+ const submitButton=document.querySelector('#debtAmount')?.closest('.modal')?.querySelector('.btn-primary');
+ debtCollectionSubmitting.add(id);
+ if(submitButton)submitButton.disabled=true;
+ try{
+  if(state.currentUser?.isSupabaseAuth){
+   // Never write a local-only debt receipt for a Supabase invoice.
+   const invoiceId=Number(inv.backendId);
+   if(!Number.isInteger(invoiceId)||invoiceId<=0)throw new Error('Không tìm thấy ID hóa đơn Supabase. Vui lòng đồng bộ hóa đơn trước khi thu nợ.');
+   await refreshCurrentShift();
+   if(!requireOpenShift('thu nợ'))return;
+   const methodId=Number(state.backendPaymentMethodIds?.[method]);
+   if(!Number.isInteger(methodId)||methodId<=0)throw new Error('Không ánh xạ được phương thức thanh toán sang payment_methods.id Supabase.');
+   const {error}=await supabaseClient.rpc('create_payment',{
+    p_invoice_id:invoiceId,p_payment_method_id:methodId,p_amount:amount,
+    p_reference_no:null,p_notes:'Thu nợ hóa đơn '+String(inv.backendCode||inv.id)
+   });
+   if(error)throw error;
+   // RPC owns invoice status, payment and cashbook; do not duplicate these in local state.
+   closeModal();
+   try{
+    const refreshed=await refreshBackendSalesData();
+    if(!refreshed?.ok)throw new Error('Không xác nhận được dữ liệu đồng bộ.');
+    applyInvoiceFilters();
+    alert('Đã thu nợ '+money(amount)+' ₫ và đồng bộ Supabase.');
+   }catch(syncError){
+    console.error('Thu nợ đã được Supabase tiếp nhận nhưng đồng bộ thất bại:',syncError);
+    alert('Supabase đã tiếp nhận khoản thu nợ, nhưng chưa tải lại được dữ liệu. Không thu lại. Hãy đồng bộ hóa đơn và kiểm tra sổ quỹ.');
+   }
+   return;
+  }
+  // Legacy demo-only mode.
+  const shift=requireOpenShift('thu nợ');if(!shift)return;
+  inv.paid=Number(inv.paid||0)+amount;inv.paymentMethod=method;inv.payment=method;
+  inv.paymentBreakdown=Array.isArray(inv.paymentBreakdown)?inv.paymentBreakdown:[];
+  inv.paymentBreakdown.push({method,amount,source:'debt'});
+  inv.status=inv.paid>=Math.max(0,Number(inv.total||0)-invoiceReturnedAmount(inv))?'Đã thanh toán':'Còn nợ';
+  inv.debtHistory=Array.isArray(inv.debtHistory)?inv.debtHistory:[];
+  inv.debtHistory.push({amount,method,createdAt:new Date().toISOString(),employee:state.currentUser?.name||'',shiftId:shift.id});
+  addCashMovement({type:'thu',amount,paymentMethod:method,subject:inv.customerName||inv.customer||'',referenceId:inv.id,note:'Thu nợ hóa đơn '+inv.id});
+  saveState();closeModal();applyInvoiceFilters();alert('Đã thu nợ '+money(amount)+' ₫.');
+ }catch(error){
+  console.error('Thu nợ Supabase thất bại:',error);
+  alert('Thu nợ chưa được xác nhận: '+(error?.message||'Lỗi không xác định')+'. Hãy kiểm tra dữ liệu trước khi thử lại.');
+ }finally{
+  debtCollectionSubmitting.delete(id);
+  if(submitButton?.isConnected)submitButton.disabled=false;
+ }
 }
 async function syncInvoiceData(){
  if(!state.currentUser?.isSupabaseAuth)return alert('Hãy đăng nhập bằng tài khoản Supabase để đồng bộ hóa đơn.');
