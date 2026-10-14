@@ -2562,8 +2562,12 @@ function saveQuickCashierCustomer(){
  const code=nextAutoCode('KH',6,'spa_next_customer_id',state.customers,'code');
  state.customers.push({code,name,phone});state.cashierCustomerCode=code;saveState();closeModal();renderAll();alert('Đã thêm khách hàng '+code+'.');
 }
+function paymentV2StoreKey(kind,id){return 'spa_payment_v2_'+kind+'_'+String(state.currentUser?.id||state.currentUser?.username||'unknown')+'_'+id;}
+function paymentV2Read(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
+function paymentV2Uuid(){if(!crypto?.randomUUID)throw new Error('Cần trình duyệt hỗ trợ UUID an toàn.');return crypto.randomUUID();}
 async function completeCashierSale(){
  if(window.__cashierSaleSubmitting)return alert('Đang xử lý hóa đơn, vui lòng chờ.');
+ if(state.currentUser?.isSupabaseAuth&&paymentV2Read(paymentV2StoreKey('sale','active')))return alert('Hóa đơn trước chưa được đối soát. Không tạo hóa đơn mới; hãy kiểm tra Supabase trước.');
  if(!hasPermission('Sử dụng thu ngân'))return alert('Bạn không có quyền sử dụng Thu ngân.');
  const shift=requireOpenShift('bán hàng');if(!shift)return;
  const cart=state.cashierCart||[];if(!cart.length)return alert('Vui lòng thêm sản phẩm vào đơn hàng.');
@@ -2627,16 +2631,19 @@ async function completeCashierSale(){
    if(createError)throw new Error('Supabase không tạo được hóa đơn: '+createError.message);
    backendInvoice=Array.isArray(created)?created[0]:created;
    if(!backendInvoice?.id)throw new Error('RPC create_invoice không trả về ID hóa đơn hợp lệ.');
-   const serverTotal=Number(backendInvoice.total_amount);
+   const salePendingKey=paymentV2StoreKey('sale','active');
+    const saleKeys=payments.map(()=>paymentV2Uuid());
+    localStorage.setItem(salePendingKey,JSON.stringify({invoiceId:backendInvoice.id,invoiceCode:backendInvoice.code,keys:saleKeys}));
+    const serverTotal=Number(backendInvoice.total_amount);
    if(!Number.isFinite(serverTotal)||Math.abs(serverTotal-t.total)>1){
     await refreshBackendSalesData().catch(()=>{});
     throw new Error('Tổng tiền frontend ('+money(t.total)+' ₫) khác tổng backend ('+money(serverTotal)+' ₫). Hóa đơn đã được tạo trên Supabase nhưng chưa thu tiền; không bấm tạo lại. Hãy kiểm tra dữ liệu hóa đơn trước khi tiếp tục.');
    }
-   for(const payment of payments){
+   for(const [paymentIndex,payment] of payments.entries()){
     const label=normalizePaymentMethod(payment.method);
     const methodId=Number(state.backendPaymentMethodIds?.[label]);
     if(!Number.isInteger(methodId)||methodId<=0)throw new Error('Không ánh xạ được phương thức thanh toán "'+label+'" sang payment_methods.id Supabase.');
-    const {error:paymentError}=await supabaseClient.rpc('create_payment',{p_invoice_id:Number(backendInvoice.id),p_payment_method_id:methodId,p_amount:Number(payment.amount),p_reference_no:null,p_notes:'Thu ngân Spa POS '+String(backendInvoice.code||backendInvoice.id)});
+    const {error:paymentError}=await supabaseClient.rpc('create_payment_v2',{p_invoice_id:Number(backendInvoice.id),p_payment_method_id:methodId,p_amount:Number(payment.amount),p_idempotency_key:saleKeys[paymentIndex],p_reference_no:null,p_notes:'Thu ngân Spa POS '+String(backendInvoice.code||backendInvoice.id)});
     if(paymentError)throw new Error('Hóa đơn '+(backendInvoice.code||backendInvoice.id)+' đã được tạo, nhưng khoản thanh toán chưa hoàn tất: '+paymentError.message+'. Không bấm tạo hóa đơn lần nữa; hãy kiểm tra hóa đơn trên Supabase.');
    }
   }
@@ -2653,7 +2660,8 @@ async function completeCashierSale(){
   if(!state.cashierInvoices.length){state.cashierInvoices.push(cashierDraftDefaults());state.cashierActiveInvoice=0;}else state.cashierActiveInvoice=Math.min(state.cashierActiveInvoice,state.cashierInvoices.length-1);
   loadActiveCashierInvoice();saveState();
   if(isBackend)await refreshBackendSalesData().catch(e=>console.warn('Đồng bộ hóa đơn/Sổ quỹ thất bại:',e));
-  alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận còn nợ trên hóa đơn.':''));renderAll();
+  if(isBackend)localStorage.removeItem(paymentV2StoreKey('sale','active'));
+   alert('Thanh toán thành công. '+(paid<t.total?'Hóa đơn được ghi nhận còn nợ trên hóa đơn.':''));renderAll();
  }catch(e){
   console.error('Lỗi tạo hóa đơn Thu ngân:',e);
   alert(String(e?.message||e||'Không thể tạo hóa đơn.'));
@@ -2877,12 +2885,18 @@ async function collectDebt(id){
    if(!requireOpenShift('thu nợ'))return;
    const methodId=Number(state.backendPaymentMethodIds?.[method]);
    if(!Number.isInteger(methodId)||methodId<=0)throw new Error('Không ánh xạ được phương thức thanh toán sang payment_methods.id Supabase.');
-   const {error}=await supabaseClient.rpc('create_payment',{
-    p_invoice_id:invoiceId,p_payment_method_id:methodId,p_amount:amount,
-    p_reference_no:null,p_notes:'Thu nợ hóa đơn '+String(inv.backendCode||inv.id)
-   });
+   const pendingKey=paymentV2StoreKey('debt',invoiceId);
+    const notes='Thu nợ hóa đơn '+String(inv.backendCode||inv.id);
+    let pending=paymentV2Read(pendingKey);
+    if(pending&&(pending.amount!==amount||pending.methodId!==methodId||pending.notes!==notes))throw new Error('Khoản thu nợ trước chưa rõ kết quả và có thông tin khác. Cần đối soát trước khi tiếp tục.');
+    if(!pending){pending={amount,methodId,notes,key:paymentV2Uuid()};localStorage.setItem(pendingKey,JSON.stringify(pending));}
+    const {error}=await supabaseClient.rpc('create_payment_v2',{
+     p_invoice_id:invoiceId,p_payment_method_id:methodId,p_amount:amount,
+     p_idempotency_key:pending.key,p_reference_no:null,p_notes:notes
+    });
    if(error)throw error;
-   // RPC owns invoice status, payment and cashbook; do not duplicate these in local state.
+   localStorage.removeItem(pendingKey);
+    // RPC owns invoice status, payment and cashbook; do not duplicate these in local state.
    closeModal();
    try{
     const refreshed=await refreshBackendSalesData();
