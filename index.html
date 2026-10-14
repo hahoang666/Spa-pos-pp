@@ -1051,7 +1051,7 @@ function activateLoggedInUser(account){
  if(screen)screen.style.display='none';
  renderAll();
  refreshBackendReferenceData().then(async result=>{if(result.ok){console.info('Đã đồng bộ dữ liệu nền từ Supabase.');await refreshBackendAppointments();return refreshBackendSalesData();}}).then(result=>{if(result?.ok)renderAll();}).catch(e=>console.warn('Đồng bộ dữ liệu nền/hóa đơn/Sổ quỹ thất bại:',e));
- refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));});
+ refreshCurrentShift().then(()=>{renderAppContext();if(state.page==='Đóng ca / Chốt quỹ')shiftClosePage(document.getElementById('content'));}).catch(error=>console.warn('Không thể làm mới trạng thái ca sau đăng nhập:',error));
 }
 function backendRoleName(roleId, roleName, roleCode){
  // Map by the role's stable database code, never by its numeric/UUID ID.
