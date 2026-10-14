@@ -2863,7 +2863,8 @@ async function collectDebt(id){
  const method=normalizePaymentMethod(document.getElementById('debtMethod')?.value||'Tiền mặt');
  const debt=Math.max(0,Number(inv.total||0)-Number(inv.paid||0)-invoiceReturnedAmount(inv));
  if(!Number.isFinite(amount)||amount<=0||amount>debt)return alert('Số tiền thu không hợp lệ.');
- if(inv.customerCode==='KH000001')return alert('Khách lẻ không được ghi nợ.');
+ // A pre-existing backend debt can be collected even if its customer is mapped as walk-in.
+ if(!state.currentUser?.isSupabaseAuth&&inv.customerCode==='KH000001')return alert('Khách lẻ không được ghi nợ.');
  const submitButton=document.querySelector('#debtAmount')?.closest('.modal')?.querySelector('.btn-primary');
  debtCollectionSubmitting.add(id);
  if(submitButton)submitButton.disabled=true;
